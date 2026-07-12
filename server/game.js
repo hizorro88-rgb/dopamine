@@ -20,7 +20,7 @@ const DEFAULT_MASK = CAT_WALL | CAT_PEG | CAT_BALL;
 
 const BALL_RADIUS = 13;
 const BALL_RESTITUTION = 0.7;
-const GOAL_Y = WORLD.height - 55; // 이 선을 넘으면 도착
+const GOAL_MARGIN = 55; // 맵 바닥에서 이만큼 위가 골인선
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
 const COUNTDOWN_MS = 3000; // 시작 카운트다운
 const GAME_TIMEOUT_MS = 180000; // 제한시간 (넘으면 현재 위치로 순위 결정)
@@ -68,6 +68,11 @@ class Game {
 
   /** 맵 정의로부터 보드 생성. 클라이언트 렌더링용 데이터를 반환한다. */
   buildBoard(mapDef) {
+    // 맵마다 길이가 다를 수 있음
+    const H = Number(mapDef.height) || WORLD.height;
+    this.height = H;
+    this.goalY = H - GOAL_MARGIN;
+
     const bodies = [];
     const frame = [];
 
@@ -81,8 +86,8 @@ class Game {
       );
       frame.push({ x, y, w, h, angle: 0 });
     };
-    addFrameWall(-10, WORLD.height / 2, 20, WORLD.height * 2);
-    addFrameWall(WORLD.width + 10, WORLD.height / 2, 20, WORLD.height * 2);
+    addFrameWall(-10, H / 2, 20, H * 2);
+    addFrameWall(WORLD.width + 10, H / 2, 20, H * 2);
     addFrameWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
 
     // 맵 구성요소 → 물리 바디 (도형을 그대로 변환)
@@ -130,10 +135,10 @@ class Game {
     Matter.Composite.add(this.engine.world, bodies);
 
     return {
-      world: WORLD,
+      world: { width: WORLD.width, height: H },
       frame,
       components: renderComponents,
-      goal: { x: WORLD.width / 2, y: GOAL_Y, width: 236 },
+      goal: { x: WORLD.width / 2, y: this.goalY, width: 236 },
       ballRadius: BALL_RADIUS,
       mapName: mapDef.name,
     };
@@ -227,7 +232,7 @@ class Game {
 
     // 도착 판정
     for (const [playerId, ball] of this.balls) {
-      if (!ball.plugin.done && ball.position.y > GOAL_Y) {
+      if (!ball.plugin.done && ball.position.y > this.goalY) {
         ball.plugin.done = true;
         Matter.Composite.remove(this.engine.world, ball);
         this.finished.push(playerId);

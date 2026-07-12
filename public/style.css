@@ -346,13 +346,12 @@ input[type='text']:focus {
   display: block;
 }
 
-/* 우측 상단 미니맵: 전체 맵 + 공 위치 + 현재 화면 영역 */
+/* 우측 상단 미니맵: 전체 맵 + 공 위치 + 현재 화면 영역
+   크기는 맵 길이 비율에 맞춰 JS(setupMinimapCanvas)가 설정 */
 .minimap {
   position: absolute;
   top: 10px;
   right: 10px;
-  height: 48%;
-  aspect-ratio: 1 / 4; /* WORLD 600x2400 비율 */
   background: rgba(13, 13, 22, 0.82);
   border: 1px solid #3a3a5c;
   border-radius: 8px;

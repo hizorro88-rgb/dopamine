@@ -93,13 +93,14 @@ class RoomManager {
       if (typeof cb === 'function') cb({ ok: true, maps: this.maps.list() });
     });
 
-    socket.on('maps:save', ({ name, components } = {}, cb) => {
+    socket.on('maps:save', ({ name, components, height } = {}, cb) => {
       const room = this.roomOf(socket);
       const player = room ? room.players.get(socket.id) : null;
       const result = this.maps.save({
         name,
         author: player ? player.name : '익명',
         components,
+        height,
       });
       if (typeof cb === 'function') cb(result);
     });

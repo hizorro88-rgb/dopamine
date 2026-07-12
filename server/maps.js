@@ -11,7 +11,8 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'maps.json');
 
 // 에디터에서 배치 가능한 영역 (위: 공 시작 구역 / 아래: 골인 구역 제외)
-const BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: WORLD.height - 100 };
+// maxY 는 맵 길이에 따라 달라짐: height - 100
+const BOUNDS = { minX: 25, maxX: 575, minY: 130 };
 const MAX_COMPONENTS = 400;
 const MAX_CUSTOM_MAPS = 200;
 
@@ -99,6 +100,7 @@ const BUILTIN_MAPS = [
     name: '클래식',
     author: '기본 맵',
     builtin: true,
+    height: WORLD.height,
     components: classicComponents(),
   },
   {
@@ -106,6 +108,7 @@ const BUILTIN_MAPS = [
     name: '스피너 파크',
     author: '기본 맵',
     builtin: true,
+    height: WORLD.height,
     components: spinnerParkComponents(),
   },
 ];
@@ -122,7 +125,10 @@ class MapStore {
   load() {
     try {
       const arr = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-      for (const m of arr) this.custom.set(m.id, m);
+      for (const m of arr) {
+        m.height = m.height || WORLD.height; // 길이 필드가 없는 예전 맵 호환
+        this.custom.set(m.id, m);
+      }
     } catch {
       /* 파일 없으면 무시 */
     }
@@ -141,6 +147,7 @@ class MapStore {
       author: m.author,
       builtin: !!m.builtin,
       count: m.components.length,
+      height: m.height,
     });
     return [...this.builtins.values(), ...this.custom.values()].map(meta);
   }
@@ -153,7 +160,7 @@ class MapStore {
    * 유저 맵 저장 (검증 포함)
    * @returns {{ok: true, id: string} | {ok: false, error: string}}
    */
-  save({ name, author, components } = {}) {
+  save({ name, author, components, height } = {}) {
     const cleanName = String(name || '').trim().slice(0, 20);
     if (!cleanName) return { ok: false, error: '맵 이름을 입력해주세요.' };
     if (!Array.isArray(components) || components.length === 0)
@@ -163,13 +170,20 @@ class MapStore {
     if (this.custom.size >= MAX_CUSTOM_MAPS)
       return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
 
+    // 맵 길이: 허용 범위로 잘라서 저장
+    const h = Number(height);
+    const cleanHeight = Number.isFinite(h)
+      ? Math.round(clamp(h, WORLD.minHeight, WORLD.maxHeight) / 50) * 50
+      : WORLD.height;
+    const maxY = cleanHeight - 100;
+
     const validated = [];
     for (const comp of components) {
       const def = COMPONENTS[comp && comp.type];
       if (!def) return { ok: false, error: `알 수 없는 구성요소: ${comp && comp.type}` };
 
       const x = clamp(Number(comp.x), BOUNDS.minX, BOUNDS.maxX);
-      const y = clamp(Number(comp.y), BOUNDS.minY, BOUNDS.maxY);
+      const y = clamp(Number(comp.y), BOUNDS.minY, maxY);
       if (!Number.isFinite(x) || !Number.isFinite(y))
         return { ok: false, error: '잘못된 좌표가 있습니다.' };
 
@@ -187,6 +201,7 @@ class MapStore {
       id,
       name: cleanName,
       author: String(author || '익명').trim().slice(0, 12) || '익명',
+      height: cleanHeight,
       components: validated,
       createdAt: Date.now(),
     });
