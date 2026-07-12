@@ -28,6 +28,8 @@ const STEPS_PER_CHUNK = 240; // 이벤트 루프를 막지 않도록 청크 단�
 async function simulateEvent(mapDef, participants, onProgress = () => {}) {
   const engine = Matter.Engine.create();
   engine.gravity.y = 1.05;
+  engine.positionIterations = 10;
+  engine.velocityIterations = 8;
 
   // 공을 위로 쌓아 스폰하므로 천장 없이 생성
   const built = buildBoard(engine, mapDef, { ceiling: false });

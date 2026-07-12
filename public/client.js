@@ -748,6 +748,7 @@
       players: new Map(players.map((p) => [p.id, p])),
       items: yourItems, // [{id,name,emoji,desc,target,duration} | null]
       snapshots: [],
+      clockOffset: null, // 서버 시계 추정치 (보간용)
       countdown: 0,
       finishedRanks: [],
       overShown: false,
@@ -780,8 +781,11 @@
   socket.on('game:snapshot', (snap) => {
     if (!game || game.replay) return;
     snap.recv = performance.now();
+    // 서버 시계 추정: 지연이 가장 적었던 패킷 기준 (지터에 흔들리지 않도록 슬라이딩 최대값)
+    const inst = snap.t - snap.recv;
+    game.clockOffset = game.clockOffset == null ? inst : Math.max(inst, game.clockOffset - 4);
     game.snapshots.push(snap);
-    if (game.snapshots.length > 4) game.snapshots.shift();
+    if (game.snapshots.length > 12) game.snapshots.shift();
     game.countdown = snap.countdown;
     // 셔플 → 낙하 전환 순간 "GO!" 표시
     if (game.shuffling && !snap.sh) {
@@ -1086,38 +1090,61 @@
     setupMinimapCanvas(minimap, game.board.world.height);
   }
 
-  // 스냅샷 보간: 마지막 두 스냅샷 사이를 부드럽게 이동
-  function interpolatedBalls() {
+  // ── 스냅샷 보간 ───────────────────────────────────────
+  // 서버 타임스탬프 기준으로 "약간 과거"를 렌더링한다.
+  // 패킷 도착 시각의 지터에 흔들리지 않아 어떤 네트워크에서도 부드럽다.
+  const INTERP_DELAY_MS = 90; // 스냅샷 간격(33ms)의 ~3배 뒤를 렌더링
+  const REPLAY_DELAY_MS = 60; // 리플레이 프레임(50ms 간격)용
+
+  /** 현재 렌더링할 서버 시각 */
+  function renderTime() {
+    if (game.replay) {
+      return Date.now() + game.replay.offset - game.replay.startAt - REPLAY_DELAY_MS;
+    }
+    if (game.clockOffset == null) return 0;
+    return performance.now() + game.clockOffset - INTERP_DELAY_MS;
+  }
+
+  /** renderT 시각을 감싸는 두 스냅샷 사이를 보간 */
+  function interpolatedBalls(renderT) {
     const snaps = game.snapshots;
     if (snaps.length === 0) return [];
     if (snaps.length === 1) return snaps[0].balls;
 
-    const prev = snaps[snaps.length - 2];
-    const curr = snaps[snaps.length - 1];
-    const span = Math.max(curr.recv - prev.recv, 1);
-    const alpha = Math.min((performance.now() - curr.recv) / span, 1);
+    let ai = 0;
+    for (let i = snaps.length - 1; i >= 0; i--) {
+      if (snaps[i].t <= renderT) {
+        ai = i;
+        break;
+      }
+    }
+    const a = snaps[ai];
+    const b = snaps[Math.min(ai + 1, snaps.length - 1)];
+    const span = b.t - a.t;
+    const alpha = span > 0 ? Math.min(Math.max((renderT - a.t) / span, 0), 1) : 1;
 
     // 공 매칭 키: 멀티볼은 k(playerId:idx), 리플레이는 p
-    const keyOf = (b) => b.k || b.p;
-    return curr.balls.map((b) => {
-      const pb = prev.balls.find((x) => keyOf(x) === keyOf(b));
-      if (!pb) return b;
+    const keyOf = (x) => x.k || x.p;
+    return b.balls.map((bb) => {
+      const ab = a.balls.find((x) => keyOf(x) === keyOf(bb));
+      if (!ab) return bb;
       return {
-        ...b,
-        x: pb.x + (b.x - pb.x) * alpha,
-        y: pb.y + (b.y - pb.y) * alpha,
-        px: pb.x, // 모션 트레일용 직전 위치
-        py: pb.y,
+        ...bb,
+        x: ab.x + (bb.x - ab.x) * alpha,
+        y: ab.y + (bb.y - ab.y) * alpha,
+        px: ab.x, // 모션 트레일용 직전 위치
+        py: ab.y,
       };
     });
   }
 
-  /** 회전 구성요소의 현재 각도 계산용 경과 시간(초) */
-  function gameElapsedSec() {
+  /** 회전 구성요소의 현재 각도 계산용 경과 시간(초) — 렌더 시각과 동기 */
+  function gameElapsedSec(renderT) {
     const snaps = game.snapshots;
     if (snaps.length === 0) return 0;
     const last = snaps[snaps.length - 1];
-    return (last.elapsed + (performance.now() - last.recv)) / 1000;
+    // 게임 시작 시각(서버) = t - elapsed 는 상수 → renderT 기준 경과시간
+    return Math.max(0, (renderT - (last.t - last.elapsed)) / 1000);
   }
 
   function renderFrame() {
@@ -1134,7 +1161,7 @@
         while (rp.fi < rp.frames.length && rp.frames[rp.fi].t <= playT) {
           const f = rp.frames[rp.fi++];
           game.snapshots.push({
-            recv: performance.now() - (playT - f.t),
+            t: f.t, // 리플레이 시간축 (renderTime과 동일 기준)
             elapsed: f.t,
             countdown: 0,
             balls: f.b.map(([p, x, y, fl]) => ({
@@ -1146,7 +1173,7 @@
               b: fl & 4 ? 1 : 0,
             })),
           });
-          if (game.snapshots.length > 4) game.snapshots.shift();
+          if (game.snapshots.length > 12) game.snapshots.shift();
           game.hiddenComps = new Set(f.off || []);
         }
         while (rp.ei < rp.events.length && rp.events[rp.ei].t <= playT) {
@@ -1160,8 +1187,9 @@
     }
 
     const { board } = game;
-    const balls = interpolatedBalls();
-    const elapsed = gameElapsedSec();
+    const renderT = renderTime();
+    const balls = interpolatedBalls(renderT);
+    const elapsed = gameElapsedSec(renderT);
 
     // 카메라: 내 선두 공을 따라감. 내 공이 다 도착하면 선두(가장 아래) 공을 따라감.
     // 리플레이(이벤트 추첨)에서는 항상 선두 공을 따라감.

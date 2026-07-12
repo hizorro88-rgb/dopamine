@@ -126,6 +126,9 @@ class Game {
     this.engine = Matter.Engine.create();
     // 빠른 템포의 낙하 (공 크기 절반 + 3배 속도 튜닝)
     this.engine.gravity.y = 1.05;
+    // 접촉 해결 반복을 늘려 빠른 공의 충돌을 더 안정적으로
+    this.engine.positionIterations = 10;
+    this.engine.velocityIterations = 8;
 
     this.balls = new Map(); // ballKey(playerId:idx) -> Matter body
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]
