@@ -589,6 +589,7 @@
     const startBtn = $('btn-start');
     startBtn.disabled = !isHost;
     startBtn.textContent = isHost ? '🚀 게임 시작' : '⏳ 방장이 시작하기를 기다리는 중';
+    $('btn-start-random').disabled = !isHost;
     $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명 · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
 
     // 우승 조건 표시 (방장만 변경 가능)
@@ -651,11 +652,13 @@
   });
 
   $('btn-start').addEventListener('click', () => socket.emit('game:start'));
+  $('btn-start-random').addEventListener('click', () => socket.emit('game:startRandom'));
 
   // ── 게임 시작 ─────────────────────────────────────────
-  socket.on('game:started', ({ board, players, yourItems, winMode, ballsPerPlayer, shuffle }) => {
+  socket.on('game:started', ({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot }) => {
     game = {
       board,
+      autoPilot: !!autoPilot,
       winMode: winMode || 'first',
       ballsPer: ballsPerPlayer || 1,
       shuffling: !!shuffle,
@@ -672,10 +675,17 @@
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
-    $('item-bar').style.display = ''; // 리플레이 시청 후 복원
+    // 올랜덤(관전)은 아이템 바 숨김, 시스템이 정한 조건을 알림
+    $('item-bar').style.display = game.autoPilot ? 'none' : '';
+    if (game.autoPilot) {
+      toast(
+        `🎲 올랜덤 — 맵: ${board.mapName} · 인당 공 ${game.ballsPer}개 · ${game.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 우승`
+      );
+    }
     // 순위판 제목에 우승 조건 표시
     document.querySelector('#rank-board h3').textContent =
-      game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승';
+      (game.autoPilot ? '🎲 올랜덤 · ' : '') +
+      (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승');
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     renderItems();
@@ -1226,8 +1236,12 @@
     // 상태 표시 + 방장 낙하 버튼 (리플레이는 위에서 자체 표시)
     if (!game.replay) {
       if (game.shuffling) {
-        const isHost = room && room.hostId === myId;
-        $('countdown').textContent = isHost ? '🎲 타이밍을 노리세요!' : '🎲 위치 섞는 중...';
+        const isHost = !game.autoPilot && room && room.hostId === myId;
+        $('countdown').textContent = game.autoPilot
+          ? '🎲 운명이 배치를 정하는 중...'
+          : isHost
+            ? '🎲 타이밍을 노리세요!'
+            : '🎲 위치 섞는 중...';
         $('btn-drop').classList.toggle('hidden', !isHost);
       } else {
         $('countdown').textContent = game.snapshots.length ? '' : '준비...';

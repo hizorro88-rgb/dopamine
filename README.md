@@ -25,6 +25,7 @@ npm start
 | 모드 | 인원 | 특징 |
 |------|------|------|
 | 🎮 아이템전 (방 만들기) | 최대 **10명** | 실시간 접속, 각자 아이템 2개를 직접 사용 |
+| 🎲 올랜덤 (대기실 버튼) | 최대 10명 | 맵·인당 공 개수·우승 조건·낙하 타이밍·아이템 발동까지 **전부 시스템이 결정** — 전원 관전, 순수 운의 승부 |
 | 🎪 이벤트 추첨 | 참가 최대 **500명** + 시청 무제한 | 이름만 등록, 아이템 자동 발동, 녹화된 낙하를 전원이 동시 시청 |
 
 **이벤트 추첨 모드 동작 방식**
@@ -211,15 +212,24 @@ windmill: {
 3. Windows 방화벽 → 인바운드 규칙 → 포트 3000 허용
 4. 친구에게 `http://내아이디.iptime.org:3000` 공유
 
-**B. Cloudflare Tunnel (도메인이 있다면 추천)**
-```bash
-# cloudflared 설치 후
-cloudflared tunnel login
-cloudflared tunnel create pinball
-cloudflared tunnel route dns pinball game.내도메인.com
-cloudflared tunnel run --url http://localhost:3000 pinball
-```
-→ `https://game.내도메인.com` 으로 접속. WebSocket(Socket.IO)도 무료로 지원됩니다.
+**B. Cloudflare Tunnel + 도메인 (가장 전문적, 추천)**
+
+집 PC에 도메인을 붙이는 가장 깔끔한 방법입니다. 포트포워딩 없이 HTTPS 주소가 생기고, 집 IP가 노출되지 않으며, 유동 IP 문제도 자동 해결됩니다.
+
+1. **도메인 구매** (연 1~2만원): Cloudflare Registrar(원가 판매), 가비아, Namecheap 등
+2. **Cloudflare 무료 플랜에 도메인 등록**: dash.cloudflare.com → 사이트 추가 → 안내대로 네임서버 변경
+3. **cloudflared 설치** (Windows: `winget install Cloudflare.cloudflared`, macOS: `brew install cloudflared`)
+4. **터널 생성 및 연결**:
+   ```bash
+   cloudflared tunnel login                                # 브라우저에서 도메인 승인
+   cloudflared tunnel create pinball
+   cloudflared tunnel route dns pinball game.내도메인.com
+   cloudflared tunnel run --url http://localhost:3000 pinball
+   ```
+5. → `https://game.내도메인.com` 접속 완료. WebSocket(Socket.IO)도 무료 지원.
+6. **부팅 시 자동 실행**: `cloudflared service install` (Windows 서비스/systemd 로 등록됨)
+
+**도메인 없이 A안(포트포워딩)에 도메인만 붙이려면**: DNS A 레코드를 집 IP로 지정하고, 유동 IP 갱신은 공유기 DDNS 또는 Cloudflare API 갱신 스크립트를 사용합니다. 단, `http://도메인:3000` 형태가 되고 IP가 노출되므로 B안을 추천합니다.
 
 **C. ngrok (가장 빠른 시작)**
 ```bash

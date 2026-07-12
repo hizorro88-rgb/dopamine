@@ -100,17 +100,18 @@ class RoomManager {
     socket.on('game:start', () => {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
-      if (room.players.size < 1) return;
-      const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
-      room.state = 'playing';
-      room.game = new Game(room, this.io, mapDef, (ranking) => {
-        this.stats.record(ranking); // 전체 순위(리더보드)에 누적
-        room.state = 'lobby';
-        room.game = null;
-        this.broadcastRoom(room);
-      });
-      room.game.start();
-      this.broadcastRoom(room);
+      this.launchGame(room, { autoPilot: false });
+    });
+
+    // 🎲 올랜덤: 맵/공 개수/우승 조건/낙하 타이밍/아이템 전부 시스템이 결정, 전원 관전
+    socket.on('game:startRandom', () => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      const mapsList = this.maps.list();
+      room.mapId = mapsList[Math.floor(Math.random() * mapsList.length)].id;
+      room.winMode = Math.random() < 0.5 ? 'first' : 'last';
+      room.ballsPerPlayer = 1 + Math.floor(Math.random() * 5);
+      this.launchGame(room, { autoPilot: true });
     });
 
     // ── 맵 ──────────────────────────────────────────
@@ -202,6 +203,26 @@ class RoomManager {
   roomOf(socket) {
     const code = this.socketRoom.get(socket.id);
     return code ? this.rooms.get(code) : null;
+  }
+
+  launchGame(room, { autoPilot }) {
+    if (room.players.size < 1) return;
+    const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
+    room.state = 'playing';
+    room.game = new Game(
+      room,
+      this.io,
+      mapDef,
+      (ranking) => {
+        this.stats.record(ranking); // 전체 순위(리더보드)에 누적
+        room.state = 'lobby';
+        room.game = null;
+        this.broadcastRoom(room);
+      },
+      { autoPilot }
+    );
+    room.game.start();
+    this.broadcastRoom(room);
   }
 
   broadcastRoom(room) {

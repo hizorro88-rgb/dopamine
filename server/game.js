@@ -104,10 +104,12 @@ class Game {
    * @param {object} mapDef  maps.js 의 맵 정의 {id, name, components}
    * @param {function} onGameOver  게임 종료 콜백
    */
-  constructor(room, io, mapDef, onGameOver) {
+  constructor(room, io, mapDef, onGameOver, opts = {}) {
     this.room = room;
     this.io = io;
     this.onGameOver = onGameOver;
+    // 올랜덤(오토파일럿): 시스템이 낙하 타이밍과 아이템을 결정, 전원 관전
+    this.autoPilot = !!opts.autoPilot;
     // 우승 조건: 'first' = 먼저 골인한 순서 / 'last' = 늦게 골인한 순서
     this.winMode = room.winMode === 'last' ? 'last' : 'first';
     // 인당 공 개수
@@ -134,6 +136,9 @@ class Game {
     this.shuffling = true;
     this.shuffleTargets = new Map(); // ballKey -> {x, y}
     this.nextShuffleAt = 0;
+    // 올랜덤: 시스템이 4~9초 사이 무작위 시점에 낙하
+    this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_MAX_MS;
+    this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
@@ -210,8 +215,8 @@ class Game {
         this.balls.set(key, ball);
         Matter.Composite.add(this.engine.world, ball);
       }
-      // 랜덤 아이템 배정 (공 개수와 무관하게 인당 2개)
-      this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER));
+      // 랜덤 아이템 배정 (공 개수와 무관하게 인당 2개, 올랜덤은 시스템이 대신 발동)
+      this.playerItems.set(player.id, this.autoPilot ? [] : randomItems(ITEMS_PER_PLAYER));
     }
 
     // 첫 배치 패턴을 즉시 적용
@@ -232,6 +237,7 @@ class Game {
         winMode: this.winMode,
         ballsPerPlayer: this.ballsPerPlayer,
         shuffle: true,
+        autoPilot: this.autoPilot,
         players: players.map((p) => ({
           id: p.id,
           name: p.name,
@@ -260,6 +266,35 @@ class Game {
     if (!this.shuffling || this.over) return;
     this.shuffling = false;
     this.dropAt = this.now();
+
+    // 올랜덤: 자동 아이템 발동 스케줄 (낙하 후 무작위 시점)
+    if (this.autoPilot) {
+      const count = Math.min(14, 3 + this.balls.size);
+      this.autoTriggers = Array.from({ length: count }, () => ({
+        t: this.dropAt + 2000 + Math.random() * 28000,
+        fired: false,
+      })).sort((a, b) => a.t - b.t);
+    }
+  }
+
+  /** 올랜덤: 무작위 아이템을 무작위 공에 발동 */
+  autoFire() {
+    const alive = [...this.balls.values()].filter((b) => !b.plugin.done);
+    if (alive.length === 0) return;
+    const itemIds = Object.keys(ITEMS);
+    const item = ITEMS[itemIds[Math.floor(Math.random() * itemIds.length)]];
+    const ball = alive[Math.floor(Math.random() * alive.length)];
+    item.apply(this, ball);
+    if (item.duration > 0) {
+      this.activeEffects.push({ itemId: item.id, ball, until: this.now() + item.duration });
+    }
+    const owner = this.room.players.get(ball.plugin.playerId);
+    this.io.to(this.room.code).emit('game:itemUsed', {
+      by: '🎲 운명',
+      item: itemMeta(item),
+      target: owner ? owner.name : '?',
+      self: false,
+    });
   }
 
   tick() {
@@ -304,9 +339,14 @@ class Game {
           y: ball.position.y + (target.y - ball.position.y) * 0.12,
         });
       }
-      // 방장이 너무 오래 안 누르면 자동 낙하
-      if (now - this.startedAt > SHUFFLE_MAX_MS) this.drop();
+      // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
+      if (now - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
+      // 올랜덤: 예정된 자동 아이템 발동
+      while (this.autoTriggers.length && this.autoTriggers[0].t <= now) {
+        this.autoTriggers.shift();
+        this.autoFire();
+      }
       // 얼린 공 고정
       for (const ball of this.balls.values()) {
         if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
