@@ -13,6 +13,10 @@
       <h1>🎱 핀볼 공뽑기</h1>
       <p class="subtitle">친구를 초대해서 함께하는 물리엔진 뽑기 레이스</p>
       <input id="input-name" type="text" maxlength="12" placeholder="닉네임을 입력하세요" autocomplete="off" />
+      <div class="winmode-row">
+        <button id="home-wm-first" class="winmode-btn selected" data-mode="first">🥇 먼저 골인 우승</button>
+        <button id="home-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 우승</button>
+      </div>
       <button id="btn-create" class="btn primary">🏠 방 만들기</button>
       <div class="divider"><span>또는</span></div>
       <div class="join-row">
@@ -51,6 +55,10 @@
         <button id="btn-copy" class="btn small">🔗 초대 링크 복사</button>
       </div>
       <ul id="lobby-players" class="player-list"></ul>
+      <div class="winmode-row" id="lobby-winmode">
+        <button id="lobby-wm-first" class="winmode-btn" data-mode="first">🥇 먼저 골인 우승</button>
+        <button id="lobby-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 우승</button>
+      </div>
       <div class="map-box">
         <div class="map-row">
           <select id="map-select" disabled></select>

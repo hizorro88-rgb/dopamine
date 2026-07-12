@@ -54,6 +54,8 @@ class Game {
     this.room = room;
     this.io = io;
     this.onGameOver = onGameOver;
+    // 우승 조건: 'first' = 먼저 골인한 순서 / 'last' = 늦게 골인한 순서
+    this.winMode = room.winMode === 'last' ? 'last' : 'first';
 
     this.CAT_WALL = CAT_WALL;
     this.DEFAULT_MASK = DEFAULT_MASK;
@@ -253,6 +255,7 @@ class Game {
       this.io.to(player.id).emit('game:started', {
         board: this.board,
         countdownMs: COUNTDOWN_MS,
+        winMode: this.winMode,
         players: players.map((p) => ({
           id: p.id,
           name: p.name,
@@ -432,20 +435,31 @@ class Game {
     this.over = true;
     clearInterval(this.interval);
 
-    // 미도착 공은 골인 지점에 가까운 순서(y 큰 순)로 순위 부여
-    const remaining = [...this.balls.entries()]
-      .filter(([, b]) => !b.plugin.done)
-      .sort((a, b) => b[1].position.y - a[1].position.y)
-      .map(([id]) => id);
+    const remaining = [...this.balls.entries()].filter(([, b]) => !b.plugin.done);
+    let order;
+    if (this.winMode === 'last') {
+      // 늦게 골인 우승: 제한시간까지 미도착(위쪽일수록 유리) → 늦게 도착한 순
+      const remainingSorted = remaining
+        .sort((a, b) => a[1].position.y - b[1].position.y)
+        .map(([id]) => id);
+      order = [...remainingSorted, ...[...this.finished].reverse()];
+    } else {
+      // 먼저 골인 우승: 도착 순 → 미도착은 골인 지점에 가까운 순(y 큰 순)
+      const remainingSorted = remaining
+        .sort((a, b) => b[1].position.y - a[1].position.y)
+        .map(([id]) => id);
+      order = [...this.finished, ...remainingSorted];
+    }
 
-    const ranking = [...this.finished, ...remaining].map((playerId, i) => {
+    const finishedSet = new Set(this.finished);
+    const ranking = order.map((playerId, i) => {
       const player = this.room.players.get(playerId);
       return {
         rank: i + 1,
         playerId,
         name: player ? player.name : '(나감)',
         color: player ? player.color : '#888',
-        finished: i < this.finished.length,
+        finished: finishedSet.has(playerId),
         timeMs: this.finishTimes.has(playerId) ? this.finishTimes.get(playerId) : null,
       };
     });

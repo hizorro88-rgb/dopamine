@@ -217,6 +217,34 @@ input[type='text']:focus {
   font-size: 12px;
 }
 
+/* ── 우승 조건 선택 ── */
+.winmode-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.winmode-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 1px solid #3a3a5c;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.winmode-btn.selected {
+  border-color: var(--accent);
+  background: #23402c;
+  color: var(--text);
+}
+.winmode-btn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
 /* ── 명예의 전당 / 후원자 코드 ── */
 .home-links {
   display: flex;

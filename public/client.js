@@ -251,10 +251,29 @@
   });
   $('btn-hall-close').addEventListener('click', () => $('hall-modal').classList.add('hidden'));
 
-  $('btn-create').addEventListener('click', () => {
-    socket.emit('room:create', { name: myName(), donorCode: myDonorCode() }, (res) => {
-      if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
+  // ── 우승 조건 선택 (방 만들기) ──
+  let homeWinMode = localStorage.getItem('pinball-winmode') || 'first';
+  function renderHomeWinMode() {
+    $('home-wm-first').classList.toggle('selected', homeWinMode === 'first');
+    $('home-wm-last').classList.toggle('selected', homeWinMode === 'last');
+  }
+  renderHomeWinMode();
+  for (const id of ['home-wm-first', 'home-wm-last']) {
+    $(id).addEventListener('click', (e) => {
+      homeWinMode = e.currentTarget.dataset.mode;
+      localStorage.setItem('pinball-winmode', homeWinMode);
+      renderHomeWinMode();
     });
+  }
+
+  $('btn-create').addEventListener('click', () => {
+    socket.emit(
+      'room:create',
+      { name: myName(), donorCode: myDonorCode(), winMode: homeWinMode },
+      (res) => {
+        if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
+      }
+    );
   });
 
   $('btn-join').addEventListener('click', joinRoom);
@@ -297,7 +316,20 @@
     startBtn.disabled = !isHost;
     startBtn.textContent = isHost ? '🚀 게임 시작' : '⏳ 방장이 시작하기를 기다리는 중';
     $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명 · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
+
+    // 우승 조건 표시 (방장만 변경 가능)
+    $('lobby-wm-first').classList.toggle('selected', room.winMode !== 'last');
+    $('lobby-wm-last').classList.toggle('selected', room.winMode === 'last');
+    $('lobby-wm-first').disabled = !isHost;
+    $('lobby-wm-last').disabled = !isHost;
+
     refreshMaps();
+  }
+
+  for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
+    $(id).addEventListener('click', (e) => {
+      socket.emit('room:setWinMode', { winMode: e.currentTarget.dataset.mode });
+    });
   }
 
   function refreshMaps() {
@@ -339,9 +371,10 @@
   $('btn-start').addEventListener('click', () => socket.emit('game:start'));
 
   // ── 게임 시작 ─────────────────────────────────────────
-  socket.on('game:started', ({ board, players, yourItems, countdownMs }) => {
+  socket.on('game:started', ({ board, players, yourItems, countdownMs, winMode }) => {
     game = {
       board,
+      winMode: winMode || 'first',
       players: new Map(players.map((p) => [p.id, p])),
       items: yourItems, // [{id,name,emoji,desc,target,duration} | null]
       snapshots: [],
@@ -355,6 +388,9 @@
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
+    // 순위판 제목에 우승 조건 표시
+    document.querySelector('#rank-board h3').textContent =
+      game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승';
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     renderItems();
@@ -385,13 +421,21 @@
     if (!game) return;
     game.finishedRanks.push({ playerId, name, rank });
     const p = game.players.get(playerId);
+    const isLast = game.winMode === 'last';
     const li = document.createElement('li');
-    li.innerHTML = `<span class="rank-num">${rank}등</span>
+    // 늦게 골인 모드에서는 도착 순서가 순위와 반대이므로 "n번째 도착"으로 표시
+    li.innerHTML = `<span class="rank-num">${rank}${isLast ? '번째' : '등'}</span>
       <span class="player-dot" style="background:${p ? p.color : '#888'}"></span>
       <span>${escapeHtml(name)}${playerId === myId ? ' (나)' : ''}</span>
       <span class="result-time">${formatTime(timeMs)}</span>`;
     $('rank-list').appendChild(li);
-    if (rank === 1) toast(`🏆 ${name}님이 1등으로 도착!`);
+    if (rank === 1) {
+      toast(
+        isLast
+          ? `⚡ ${name}님이 가장 먼저 도착... 늦게 골인이 우승인데요!`
+          : `🏆 ${name}님이 1등으로 도착!`
+      );
+    }
   });
 
   function formatTime(timeMs) {

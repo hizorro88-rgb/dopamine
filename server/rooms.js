@@ -50,7 +50,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const code = generateCode(this.rooms);
       const room = {
@@ -60,6 +60,7 @@ class RoomManager {
         players: new Map(),
         game: null,
         mapId: 'classic',
+        winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
@@ -126,6 +127,15 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
+    // 방장이 대기실에서 우승 조건 변경
+    socket.on('room:setWinMode', ({ winMode } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      if (winMode !== 'first' && winMode !== 'last') return;
+      room.winMode = winMode;
+      this.broadcastRoom(room);
+    });
+
     socket.on('game:useItem', ({ slotIndex, targetId } = {}, cb) => {
       const room = this.roomOf(socket);
       if (!room || !room.game) return;
@@ -176,6 +186,7 @@ class RoomManager {
       maxPlayers: MAX_PLAYERS,
       players: [...room.players.values()],
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
+      winMode: room.winMode || 'first',
     });
   }
 }
