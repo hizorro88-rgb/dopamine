@@ -1,0 +1,22 @@
+{
+  "name": "dopamine-pinball",
+  "version": "1.0.0",
+  "description": "멀티플레이어 핀볼 공뽑기 게임 - 친구를 초대해서 함께 즐기는 물리엔진 기반 랜덤 뽑기 레이스",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "matter-js": "^0.19.0",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

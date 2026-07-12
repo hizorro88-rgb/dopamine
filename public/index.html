@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🎱 핀볼 공뽑기 - 친구와 함께하는 랜덤 뽑기 레이스</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 홈 화면: 닉네임 입력 + 방 만들기 / 참여 -->
+  <section id="screen-home" class="screen active">
+    <div class="card">
+      <h1>🎱 핀볼 공뽑기</h1>
+      <p class="subtitle">친구를 초대해서 함께하는 물리엔진 뽑기 레이스</p>
+      <input id="input-name" type="text" maxlength="12" placeholder="닉네임을 입력하세요" autocomplete="off" />
+      <button id="btn-create" class="btn primary">🏠 방 만들기</button>
+      <div class="divider"><span>또는</span></div>
+      <div class="join-row">
+        <input id="input-code" type="text" maxlength="6" placeholder="초대 코드" autocomplete="off" />
+        <button id="btn-join" class="btn">입장</button>
+      </div>
+      <p id="home-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- 대기실: 참가자 목록 + 초대 링크 + 시작 -->
+  <section id="screen-lobby" class="screen">
+    <div class="card">
+      <h2>대기실</h2>
+      <div class="invite-box">
+        <div class="invite-code" id="lobby-code">------</div>
+        <button id="btn-copy" class="btn small">🔗 초대 링크 복사</button>
+      </div>
+      <ul id="lobby-players" class="player-list"></ul>
+      <button id="btn-start" class="btn primary" disabled>🚀 게임 시작</button>
+      <p id="lobby-hint" class="hint"></p>
+    </div>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section id="screen-game" class="screen">
+    <div id="game-layout">
+      <canvas id="canvas"></canvas>
+      <div id="game-side">
+        <div id="countdown"></div>
+        <div id="toast-area"></div>
+        <div id="item-bar">
+          <h3>내 아이템</h3>
+          <div id="item-slots"></div>
+        </div>
+        <div id="rank-board">
+          <h3>순위</h3>
+          <ol id="rank-list"></ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상대 지정 아이템의 대상 선택 -->
+    <div id="target-modal" class="modal hidden">
+      <div class="modal-card">
+        <h3 id="target-title">대상 선택</h3>
+        <div id="target-list"></div>
+        <button id="btn-target-cancel" class="btn small">취소</button>
+      </div>
+    </div>
+
+    <!-- 게임 종료 결과 -->
+    <div id="result-modal" class="modal hidden">
+      <div class="modal-card">
+        <h2>🏁 결과</h2>
+        <ol id="result-list"></ol>
+        <button id="btn-back-lobby" class="btn primary">대기실로 돌아가기</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
