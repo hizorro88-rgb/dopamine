@@ -188,6 +188,9 @@ windmill: {
 
 항상 켜져 있는 PC가 있다면 별도 비용 없이 서버로 쓸 수 있습니다.
 
+> 🪟 **윈도우 사용자**: 소스 받기부터 도메인 연결·24시간 운영·문제 해결까지 한번에 정리한
+> **[윈도우 서버 구축 가이드 (docs/WINDOWS-SETUP.md)](docs/WINDOWS-SETUP.md)** 를 따라 하세요.
+
 ### 🪟 Windows 빠른 시작
 
 1. [Node.js LTS](https://nodejs.org) 설치 (또는 PowerShell에서 `winget install OpenJS.NodeJS.LTS`)
