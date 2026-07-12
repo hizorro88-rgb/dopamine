@@ -21,9 +21,10 @@
  *   expire(game, ball) : duration 경과 후 효과 해제 (즉발형이면 생략 가능)
  */
 
-// 아이템 등장 가중치: 일반 3 : 에픽 1 (레전드는 풀에서 제외)
-const NORMAL_WEIGHT = 3;
-const EPIC_WEIGHT = 1;
+// 아이템 등장 가중치 (레전드는 풀에서 제외)
+// 일반 4종 × 9 : 에픽 6종 × 2 = 36:12 → 에픽이 나올 확률 25%
+const NORMAL_WEIGHT = 9;
+const EPIC_WEIGHT = 2;
 
 const Matter = require('matter-js');
 

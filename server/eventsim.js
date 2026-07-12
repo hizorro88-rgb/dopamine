@@ -11,10 +11,11 @@ const Matter = require('matter-js');
 const { WORLD } = require('../public/components.js');
 const { buildBoard, createBall, CAT_WALL, DEFAULT_MASK, BALL_RESTITUTION } = require('./board');
 const { ITEMS, itemMeta } = require('./items');
-const { HIT_ACTIONS } = require('./game');
+const { HIT_ACTIONS, TIME_SCALE } = require('./game');
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
-const FRAME_EVERY = 3; // 20Hz 로 녹화 (클라이언트가 보간)
+// 재생은 게임 시간을 TIME_SCALE 배속으로 압축해 실제 20Hz 로 녹화
+const FRAME_EVERY = 3 * TIME_SCALE;
 const SIM_MAX_MS = 180000; // 시뮬레이션 최대 게임시간
 const MAX_AUTO_ITEMS = 40; // 자동 아이템 발동 최대 횟수 (토스트 도배 방지)
 const STEPS_PER_CHUNK = 240; // 이벤트 루프를 막지 않도록 청크 단위로 실행
@@ -69,7 +70,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
           y: ball.velocity.y * 0.25 + dirY * v,
         });
       }
-      events.push({ t: Math.round(simNow), type: 'explosion', x, y, radius });
+      events.push({ t: Math.round(simNow / TIME_SCALE), type: 'explosion', x, y, radius });
     },
   };
 
@@ -129,7 +130,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     }
     const byName = nameOf(byId);
     events.push({
-      t: Math.round(simNow),
+      t: Math.round(simNow / TIME_SCALE),
       type: 'item',
       by: byName,
       target: nameOf(targetId),
@@ -206,14 +207,14 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
           ball.plugin.done = true;
           Matter.Composite.remove(engine.world, ball);
           finished.push(pid);
-          finishTimes.set(pid, Math.round(simNow));
+          finishTimes.set(pid, Math.round(simNow / TIME_SCALE));
           events.push({
-            t: Math.round(simNow),
+            t: Math.round(simNow / TIME_SCALE),
             type: 'finish',
             p: pid,
             name: nameOf(pid),
             rank: finished.length,
-            timeMs: Math.round(simNow),
+            timeMs: Math.round(simNow / TIME_SCALE),
           });
         }
       }
@@ -234,7 +235,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         for (const inst of built.reactive.values()) {
           if (inst.exploded) off.push(inst.index);
         }
-        const frame = { t: Math.round(simNow), b: frameBalls };
+        const frame = { t: Math.round(simNow / TIME_SCALE), e: Math.round(simNow), b: frameBalls };
         if (off.length) frame.off = off;
         frames.push(frame);
       }
@@ -247,7 +248,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     await new Promise((r) => setImmediate(r));
   }
 
-  const durationMs = Math.round(simNow);
+  const durationMs = Math.round(simNow / TIME_SCALE); // 재생(실제) 시간 기준
 
   // 최종 순위: 도착 순 → 미도착은 골인에 가까운 순
   const remaining = [...balls.entries()]

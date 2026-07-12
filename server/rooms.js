@@ -71,6 +71,7 @@ class RoomManager {
         hostId: socket.id,
         state: 'lobby', // 'lobby' | 'playing'
         players: new Map(),
+        spectators: new Map(), // 관전자 (공·아이템 없음, 인원 제한 없음)
         game: null,
         mapId: 'classic',
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
@@ -92,6 +93,50 @@ class RoomManager {
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
       cb({ ok: true, code: room.code });
     });
+
+    // 홈 화면 공개 방 목록 — 누구나 보고, 입장하거나 관전할 수 있다
+    socket.on('rooms:list', (_payload, cb) => {
+      if (typeof cb !== 'function') return;
+      const list = [...this.rooms.values()].map((r) => {
+        const mapDef = this.maps.get(r.mapId) || this.maps.get('classic');
+        const host = r.players.get(r.hostId);
+        return {
+          code: r.code,
+          state: r.state, // 'lobby' | 'playing'
+          hostName: host ? host.name : '?',
+          players: r.players.size,
+          maxPlayers: MAX_PLAYERS,
+          spectators: r.spectators.size,
+          mapName: mapDef.name,
+          winMode: r.winMode || 'first',
+          ballsPerPlayer: r.ballsPerPlayer || 1,
+        };
+      });
+      // 게임 중인 방 먼저(구경거리!), 그 다음 사람 많은 순
+      list.sort(
+        (a, b) =>
+          (b.state === 'playing') - (a.state === 'playing') || b.players - a.players
+      );
+      cb({ ok: true, rooms: list });
+    });
+
+    // 관전 입장 — 게임 중이어도, 방이 가득 차도 언제든 가능
+    socket.on('room:spectate', ({ code } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      const room = this.rooms.get(String(code || '').trim().toUpperCase());
+      if (!room) return cb({ ok: false, error: '존재하지 않는 방 코드입니다.' });
+      if (this.roomOf(socket)) this.leave(socket); // 다른 방에 있었다면 정리
+      room.spectators.set(socket.id, { id: socket.id });
+      this.socketRoom.set(socket.id, room.code);
+      socket.join(room.code);
+      // 게임이 이미 진행 중이면 현재 상태를 통째로 전달 (중간 합류)
+      const game = room.game && !room.game.over ? room.game.spectatorPayload() : null;
+      cb({ ok: true, code: room.code, game });
+      this.broadcastRoom(room);
+    });
+
+    // 방 나가기 (관전자·플레이어 공용)
+    socket.on('room:leave', () => this.leave(socket));
 
     // 후원자 코드 확인 (홈 화면 즉시 피드백용)
     socket.on('donor:check', ({ code } = {}, cb) => {
@@ -132,6 +177,23 @@ class RoomManager {
             this.reviews.score(b.id) - this.reviews.score(a.id) || b.reviews - a.reviews
         );
       cb({ ok: true, maps });
+    });
+
+    // 맵 상세 (갤러리 구경용 — 구성요소 포함 전체 정의)
+    socket.on('maps:get', ({ mapId } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      const map = this.maps.get(mapId);
+      if (!map) return cb({ ok: false, error: '존재하지 않는 맵입니다.' });
+      cb({
+        ok: true,
+        map: {
+          id: map.id,
+          name: map.name,
+          author: map.author,
+          height: map.height,
+          components: map.components,
+        },
+      });
     });
 
     // ── 맵 후기 (커뮤니티) ──────────────────────────
@@ -202,24 +264,38 @@ class RoomManager {
       if (typeof cb === 'function') cb({ ok: !error, error });
     });
 
-    socket.on('disconnect', () => {
-      const room = this.roomOf(socket);
-      if (!room) return;
-      this.socketRoom.delete(socket.id);
-      room.players.delete(socket.id);
-      if (room.game) room.game.removePlayer(socket.id);
+    socket.on('disconnect', () => this.leave(socket));
+  }
 
-      if (room.players.size === 0) {
-        if (room.game) room.game.stop();
-        this.rooms.delete(room.code);
-        return;
-      }
-      // 방장이 나가면 다음 사람에게 방장 승계
-      if (room.hostId === socket.id) {
-        room.hostId = room.players.keys().next().value;
-      }
+  /** 방에서 퇴장 (연결 종료·자발적 나가기 공용) */
+  leave(socket) {
+    const room = this.roomOf(socket);
+    if (!room) return;
+    this.socketRoom.delete(socket.id);
+    socket.leave(room.code);
+
+    // 관전자였다면 목록에서만 제거하면 끝
+    if (room.spectators.delete(socket.id)) {
       this.broadcastRoom(room);
-    });
+      return;
+    }
+
+    room.players.delete(socket.id);
+    if (room.game) room.game.removePlayer(socket.id);
+
+    if (room.players.size === 0) {
+      if (room.game) room.game.stop();
+      this.rooms.delete(room.code);
+      // 남아있던 관전자들에게 방이 사라졌음을 알림
+      for (const specId of room.spectators.keys()) this.socketRoom.delete(specId);
+      this.io.to(room.code).emit('room:closed');
+      return;
+    }
+    // 방장이 나가면 다음 사람에게 방장 승계
+    if (room.hostId === socket.id) {
+      room.hostId = room.players.keys().next().value;
+    }
+    this.broadcastRoom(room);
   }
 
   addPlayer(room, socket, name, isDonor = false) {
@@ -264,6 +340,7 @@ class RoomManager {
       state: room.state,
       maxPlayers: MAX_PLAYERS,
       players: [...room.players.values()],
+      spectators: room.spectators ? room.spectators.size : 0,
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,

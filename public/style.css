@@ -51,7 +51,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Noto Serif KR', 'Apple SD Gothic Neo', serif;
+  font-family: 'Gothic A1', 'Apple SD Gothic Neo', sans-serif;
 }
 h1 {
   font-size: 30px;
@@ -70,9 +70,11 @@ h2 {
 
 /* ── 브랜드 타이틀 ── */
 .brand {
-  font-size: 44px;
-  font-weight: 900;
-  letter-spacing: 10px;
+  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
+  font-size: 46px;
+  font-weight: 400;
+  letter-spacing: 7px;
+  margin-right: -7px; /* letter-spacing이 마지막 글자 뒤에도 붙어 중심이 밀리는 것 보정 */
   margin-bottom: 2px;
   background: linear-gradient(180deg, #f3e3ae 10%, #d4af37 45%, #8a6a24 90%);
   -webkit-background-clip: text;
@@ -81,7 +83,7 @@ h2 {
   text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
 }
 .brand-tag {
-  font-family: 'Noto Serif KR', serif;
+  font-family: 'Gothic A1', sans-serif;
   font-size: 14px;
   letter-spacing: 4px;
   color: var(--accent2);
@@ -185,9 +187,9 @@ input[type='text']:focus {
   margin-bottom: 18px;
 }
 .invite-code {
-  font-family: 'Noto Serif KR', serif;
-  font-size: 32px;
-  font-weight: 900;
+  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
+  font-size: 34px;
+  font-weight: 400;
   letter-spacing: 8px;
   color: var(--accent2);
   margin-bottom: 10px;
@@ -407,9 +409,103 @@ input[type='text']:focus {
   z-index: 60;
 }
 
+/* ── 맵 갤러리 ── */
+#maps-list {
+  list-style: none;
+  margin-bottom: 16px;
+  max-height: 420px;
+  overflow-y: auto;
+  text-align: left;
+}
+#maps-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px;
+  border-bottom: 1px solid #262219;
+}
+#maps-list .map-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+#maps-list .map-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+#maps-list .map-rating {
+  color: var(--accent);
+  font-size: 12px;
+}
+#maps-list .map-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── 공개 방 목록 (홈) ── */
+#rooms-box {
+  margin-top: 18px;
+  text-align: left;
+}
+#rooms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'Gothic A1', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #262219;
+}
+#rooms-list {
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+}
+#rooms-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid #1e1b14;
+}
+#rooms-list .room-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+#rooms-list .room-state {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+#rooms-list .room-state.playing {
+  color: #c95b68;
+}
+#rooms-list .room-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+#rooms-list .room-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#rooms-list .rooms-empty {
+  color: var(--muted);
+  font-size: 12px;
+  justify-content: center;
+  border-bottom: none;
+}
+
 /* ── 맵 후기 (커뮤니티) ── */
 #review-summary {
-  font-family: 'Noto Serif KR', serif;
+  font-family: 'Gothic A1', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--accent2);
@@ -736,7 +832,7 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-family: 'Noto Serif KR', serif;
+  font-family: 'Gothic A1', sans-serif;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -899,7 +995,7 @@ input[type='text']:focus {
   z-index: 1;
 }
 #winner-banner {
-  font-family: 'Noto Serif KR', serif;
+  font-family: 'Gothic A1', sans-serif;
   font-size: 21px;
   font-weight: 900;
   letter-spacing: 1px;

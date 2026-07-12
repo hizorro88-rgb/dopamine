@@ -11,6 +11,7 @@
   // ── 상태 ──────────────────────────────────────────────
   let myId = null;
   let room = null; // room:update 페이로드
+  let spectating = false; // 이 방에서 나는 관전자인가
   let game = null; // { board, players(Map), items, snapshots[], ... }
   let eventRoom = null; // event:update 페이로드
   let myParticipantId = null; // 이벤트 추첨에서 내 공 번호
@@ -48,6 +49,7 @@
     $(`screen-${name}`).classList.add('active');
     editor.active = name === 'editor';
     if (editor.active) requestAnimationFrame(renderEditor);
+    if (name === 'home') refreshRooms();
   }
 
   // ── 공용: 구성요소 도형 렌더러 ─────────────────────────
@@ -131,7 +133,7 @@
     ctx.fillStyle = grad;
     ctx.fillRect(left, goal.y - 60, goal.width, 60);
     ctx.fillStyle = 'rgba(217,192,122,0.85)';
-    ctx.font = "600 13px 'Noto Serif KR', serif";
+    ctx.font = "15px 'Bebas Neue', 'Gothic A1', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('F I N I S H', goal.x, goal.y - 10);
   }
@@ -399,13 +401,67 @@
   $('btn-join').addEventListener('click', joinRoom);
   inputCode.addEventListener('keydown', (e) => e.key === 'Enter' && joinRoom());
 
-  function joinRoom() {
-    const code = inputCode.value.trim().toUpperCase();
+  function joinRoom(codeArg) {
+    // 클릭 핸들러로도 직접 연결되므로 문자열일 때만 인자 사용
+    const code = (typeof codeArg === 'string' ? codeArg : inputCode.value).trim().toUpperCase();
     if (!code) return (homeError.textContent = '초대 코드를 입력해주세요.');
     socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode() }, (res) => {
       if (!res.ok) homeError.textContent = res.error || '입장 실패';
+      else spectating = false;
     });
   }
+
+  // ── 🔥 공개 방 목록 (누구나 입장·관전) ────────────────
+  function refreshRooms() {
+    if (!$('screen-home').classList.contains('active') || !socket.connected) return;
+    socket.emit('rooms:list', null, (res) => {
+      if (!res || !res.ok) return;
+      const list = $('rooms-list');
+      list.innerHTML = '';
+      if (!res.rooms.length) {
+        list.innerHTML = '<li class="rooms-empty">아직 열린 방이 없어요 — 첫 방을 만들어보세요!</li>';
+        return;
+      }
+      for (const r of res.rooms) {
+        const li = document.createElement('li');
+        const playing = r.state === 'playing';
+        const full = r.players >= r.maxPlayers;
+        const spec = r.spectators > 0 ? ` · 👁 ${r.spectators}` : '';
+        li.innerHTML = `<div>
+            <div class="room-title">
+              <span class="room-state ${playing ? 'playing' : ''}">${playing ? '🔴 게임중' : '🟢 대기중'}</span>
+              ${escapeHtml(r.hostName)}의 방
+            </div>
+            <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개</div>
+          </div>
+          <div class="room-actions">
+            ${!playing && !full ? `<button class="btn small" data-join="${r.code}">입장</button>` : ''}
+            <button class="btn small" data-spectate="${r.code}">👁 관전</button>
+          </div>`;
+        list.appendChild(li);
+      }
+      list.querySelectorAll('[data-join]').forEach((btn) =>
+        btn.addEventListener('click', () => joinRoom(btn.dataset.join))
+      );
+      list.querySelectorAll('[data-spectate]').forEach((btn) =>
+        btn.addEventListener('click', () => spectateRoom(btn.dataset.spectate))
+      );
+    });
+  }
+
+  /** 관전 입장: 대기실이면 그대로 구경, 게임 중이면 경기 화면으로 바로 합류 */
+  function spectateRoom(code) {
+    socket.emit('room:spectate', { code }, (res) => {
+      if (!res || !res.ok) return (homeError.textContent = res.error || '관전 입장 실패');
+      spectating = true;
+      if (res.game) startGameView(res.game); // 진행 중인 경기에 중간 합류
+      // 대기실이면 곧바로 도착하는 room:update 가 대기실 화면을 띄운다
+    });
+  }
+
+  $('btn-rooms-refresh').addEventListener('click', refreshRooms);
+  setInterval(refreshRooms, 5000); // 홈 화면에서만 5초마다 자동 갱신
+  socket.on('connect', refreshRooms);
 
   // ── 🎪 이벤트 추첨 ────────────────────────────────────
   $('btn-event-create').addEventListener('click', () => {
@@ -602,6 +658,16 @@
   // ── 대기실 ────────────────────────────────────────────
   let mapList = []; // maps:list 캐시
 
+  // 모든 플레이어가 떠나 방이 닫힘 (관전자에게 통보)
+  socket.on('room:closed', () => {
+    if (!spectating) return;
+    spectating = false;
+    room = null;
+    game = null;
+    homeError.textContent = '방의 모든 플레이어가 나가서 방이 닫혔어요.';
+    showScreen('home');
+  });
+
   socket.on('room:update', (data) => {
     room = data;
     if (room.state === 'lobby' && !game && !editor.active) {
@@ -626,9 +692,16 @@
     const isHost = room.hostId === myId;
     const startBtn = $('btn-start');
     startBtn.disabled = !isHost;
-    startBtn.textContent = isHost ? '🚀 게임 시작' : '⏳ 방장이 시작하기를 기다리는 중';
+    startBtn.textContent = spectating
+      ? '👁 관전 중 — 게임이 시작되면 함께 봅니다'
+      : isHost
+        ? '🚀 게임 시작'
+        : '⏳ 방장이 시작하기를 기다리는 중';
     $('btn-start-random').disabled = !isHost;
-    $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명 · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
+    $('btn-start-random').classList.toggle('hidden', spectating);
+    $('btn-leave-room').classList.toggle('hidden', !spectating);
+    const specNote = room.spectators > 0 ? ` · 👁 관전 ${room.spectators}명` : '';
+    $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명${specNote} · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
 
     // 우승 조건 표시 (방장만 변경 가능)
     $('lobby-wm-first').classList.toggle('selected', room.winMode !== 'last');
@@ -706,12 +779,13 @@
     }
   }
 
-  function openReviews(keepForm) {
-    const mapId = $('map-select').value;
-    const meta = mapList.find((m) => m.id === mapId);
+  let reviewTarget = { mapId: null, name: '맵' }; // 후기 모달이 가리키는 맵
+
+  function openReviews(mapId, mapName, keepForm) {
+    reviewTarget = { mapId, name: mapName || '맵' };
     socket.emit('reviews:list', { mapId }, (res) => {
       if (!res || !res.ok) return;
-      $('review-title').textContent = `💬 「${meta ? meta.name : '맵'}」 후기`;
+      $('review-title').textContent = `💬 「${reviewTarget.name}」 후기`;
       $('review-summary').textContent =
         res.count > 0
           ? `★ ${res.avg} · 후기 ${res.count}개`
@@ -742,24 +816,90 @@
     });
   }
 
-  $('btn-reviews').addEventListener('click', () => openReviews(false));
+  $('btn-reviews').addEventListener('click', () => {
+    const mapId = $('map-select').value;
+    const meta = mapList.find((m) => m.id === mapId);
+    openReviews(mapId, meta ? meta.name : '맵', false);
+  });
   $('btn-review-close').addEventListener('click', () =>
     $('review-modal').classList.add('hidden')
   );
 
   $('btn-review-submit').addEventListener('click', () => {
-    const mapId = $('map-select').value;
     socket.emit(
       'reviews:add',
-      { mapId, rating: reviewRating, text: $('input-review-text').value, name: myName() },
+      {
+        mapId: reviewTarget.mapId,
+        rating: reviewRating,
+        text: $('input-review-text').value,
+        name: myName(),
+      },
       (res) => {
         if (!res.ok) return ($('review-msg').textContent = res.error || '등록 실패');
         $('input-review-text').value = '';
-        openReviews(false); // 목록 새로고침
-        refreshMaps(); // 드롭다운 별점 반영
+        openReviews(reviewTarget.mapId, reviewTarget.name, false); // 목록 새로고침
+        if (room) refreshMaps(); // 대기실 드롭다운 별점 반영
+        if (document.getElementById('screen-maps').classList.contains('active')) {
+          renderMapsGallery(); // 갤러리 별점 반영
+        }
       }
     );
   });
+
+  // ── 🗺 맵 갤러리 ──────────────────────────────────────
+  function renderMapsGallery() {
+    socket.emit('maps:list', null, (res) => {
+      if (!res || !res.ok) return;
+      const list = $('maps-list');
+      list.innerHTML = '';
+      for (const m of res.maps) {
+        const li = document.createElement('li');
+        const rating =
+          m.reviews > 0
+            ? `<span class="map-rating">★${m.rating}</span> · 후기 ${m.reviews}개 · `
+            : '';
+        li.innerHTML = `<div>
+            <div class="map-title">${m.builtin ? '⭐' : '🛠'} ${escapeHtml(m.name)}</div>
+            <div class="map-meta">${rating}${escapeHtml(m.author)} · 길이 ${m.height} · 구성요소 ${m.count}개</div>
+          </div>
+          <div class="map-actions">
+            <button class="btn small" data-view="${m.id}">👁 구경</button>
+            <button class="btn small" data-review="${m.id}" data-name="${escapeHtml(m.name)}">💬</button>
+          </div>`;
+        list.appendChild(li);
+      }
+      list.querySelectorAll('[data-view]').forEach((btn) =>
+        btn.addEventListener('click', () => viewMap(btn.dataset.view))
+      );
+      list.querySelectorAll('[data-review]').forEach((btn) =>
+        btn.addEventListener('click', () =>
+          openReviews(btn.dataset.review, btn.dataset.name, false)
+        )
+      );
+    });
+  }
+
+  /** 맵 구경: 에디터를 읽기 전용 뷰어로 연다 */
+  function viewMap(mapId) {
+    socket.emit('maps:get', { mapId }, (res) => {
+      if (!res || !res.ok) return;
+      openEditor({ viewOnly: true, map: res.map });
+    });
+  }
+
+  $('btn-maps').addEventListener('click', () => {
+    renderMapsGallery();
+    showScreen('maps');
+  });
+  $('btn-maps-back').addEventListener('click', () => {
+    if (room) {
+      renderLobby();
+      showScreen('lobby');
+    } else {
+      showScreen('home');
+    }
+  });
+  $('btn-new-map').addEventListener('click', () => openEditor({ from: 'maps' }));
 
   $('btn-copy').addEventListener('click', async () => {
     const url = `${location.origin}${location.pathname}?room=${room.code}`;
@@ -774,12 +914,20 @@
 
   $('btn-start').addEventListener('click', () => socket.emit('game:start'));
   $('btn-start-random').addEventListener('click', () => socket.emit('game:startRandom'));
+  $('btn-leave-room').addEventListener('click', () => {
+    socket.emit('room:leave');
+    spectating = false;
+    room = null;
+    showScreen('home');
+  });
 
   // ── 게임 시작 ─────────────────────────────────────────
-  socket.on('game:started', ({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot }) => {
+  // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
+  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished }) {
     game = {
       board,
       autoPilot: !!autoPilot,
+      spectator: !!spectator,
       winMode: winMode || 'first',
       ballsPer: ballsPerPlayer || 1,
       shuffling: !!shuffle,
@@ -797,24 +945,28 @@
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
-    // 올랜덤(관전)은 아이템 바 숨김, 시스템이 정한 조건을 알림
-    $('item-bar').style.display = game.autoPilot ? 'none' : '';
+    // 올랜덤·관전자는 아이템 바 숨김
+    $('item-bar').style.display = game.autoPilot || game.spectator ? 'none' : '';
     if (game.autoPilot) {
       toast(
         `🎲 올랜덤 — 맵: ${board.mapName} · 인당 공 ${game.ballsPer}개 · ${game.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 우승`
       );
     }
+    if (game.spectator) toast('👁 관전 모드 — 경기를 지켜보는 중입니다');
     // 순위판 제목에 우승 조건 표시
     document.querySelector('#rank-board h3').textContent =
-      (game.autoPilot ? '🎲 올랜덤 · ' : '') +
+      (game.autoPilot ? '🎲 올랜덤 · ' : game.spectator ? '👁 관전 · ' : '') +
       (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승');
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     renderItems();
     showScreen('game'); // 화면 표시 후에 캔버스 크기 계산 (숨김 상태에선 부모 크기가 0)
     setupCanvas();
+    // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
+    if (finished) for (const f of finished) appendFinishRow(f);
     requestAnimationFrame(renderFrame);
-  });
+  }
+  socket.on('game:started', startGameView);
 
   socket.on('game:snapshot', (snap) => {
     if (!game || game.replay) return;
@@ -1030,6 +1182,7 @@
   socket.on('disconnect', () => {
     room = null;
     game = null;
+    spectating = false;
     homeError.textContent = '서버와의 연결이 끊어졌습니다. 새로고침 해주세요.';
     showScreen('home');
   });
@@ -1176,13 +1329,17 @@
     });
   }
 
-  /** 회전 구성요소의 현재 각도 계산용 경과 시간(초) — 렌더 시각과 동기 */
+  /** 회전 구성요소의 현재 각도 계산용 게임 시간(초) — 렌더 시각과 동기.
+   *  게임 시간은 낙하 후 실제 시간보다 빠르게 흐르므로(TIME_SCALE)
+   *  최근 두 스냅샷에서 진행 속도를 추정해 보외한다. */
   function gameElapsedSec(renderT) {
     const snaps = game.snapshots;
     if (snaps.length === 0) return 0;
-    const last = snaps[snaps.length - 1];
-    // 게임 시작 시각(서버) = t - elapsed 는 상수 → renderT 기준 경과시간
-    return Math.max(0, (renderT - (last.t - last.elapsed)) / 1000);
+    const b = snaps[snaps.length - 1];
+    if (snaps.length === 1) return b.elapsed / 1000;
+    const a = snaps[snaps.length - 2];
+    const rate = (b.elapsed - a.elapsed) / Math.max(b.t - a.t, 1);
+    return Math.max(0, (b.elapsed + (renderT - b.t) * rate) / 1000);
   }
 
   function renderFrame() {
@@ -1199,8 +1356,8 @@
         while (rp.fi < rp.frames.length && rp.frames[rp.fi].t <= playT) {
           const f = rp.frames[rp.fi++];
           game.snapshots.push({
-            t: f.t, // 리플레이 시간축 (renderTime과 동일 기준)
-            elapsed: f.t,
+            t: f.t, // 재생(실제) 시간축
+            elapsed: f.e !== undefined ? f.e : f.t, // 게임 시간 (회전체 각도용)
             countdown: 0,
             balls: f.b.map(([p, x, y, fl]) => ({
               p,
@@ -1459,18 +1616,49 @@
     comp.hit = built.hit || null;
   }
 
-  function openEditor() {
+  /**
+   * 에디터 열기.
+   * @param {object} opts.viewOnly  true면 읽기 전용 "맵 구경" 모드
+   * @param {object} opts.map       불러올 맵 정의 {name, author, height, components}
+   * @param {string} opts.from      돌아갈 화면 ('maps' 등)
+   */
+  function openEditor(opts = {}) {
+    editor.viewOnly = !!opts.viewOnly;
+    editor.from = opts.from || 'maps';
     editor.comps = [];
     editor.selected = -1;
     editor.tool = 'peg';
     editor.camY = 0;
-    editor.height = WORLD.height;
-    $('input-map-length').value = WORLD.height;
-    $('map-length-label').textContent = `📐 맵 길이: ${WORLD.height}`;
+    editor.height = opts.map ? opts.map.height : WORLD.height;
+
+    // 맵 불러오기 (구경 모드)
+    if (opts.map) {
+      for (const c of opts.map.components) {
+        const comp = { type: c.type, x: c.x, y: c.y, props: { ...c.props } };
+        rebuildComp(comp);
+        editor.comps.push(comp);
+      }
+    }
+
+    // 편집 컨트롤 표시/숨김
+    const editControls = ['palette', 'editor-props', 'btn-comp-delete', 'input-map-name', 'btn-map-save', 'map-length-row', 'editor-hint'];
+    for (const id of editControls) {
+      $(id).style.display = editor.viewOnly ? 'none' : '';
+    }
+    $('editor-title').textContent = editor.viewOnly
+      ? `👁 「${opts.map ? opts.map.name : '맵'}」 구경`
+      : '🛠 맵 에디터';
+    $('btn-editor-back').textContent =
+      editor.from === 'maps' ? '← 갤러리로' : '← 대기실로';
+
+    $('input-map-length').value = editor.height;
+    $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
     $('input-map-name').value = '';
     $('editor-msg').textContent = '';
-    renderPalette();
-    renderPropsPanel();
+    if (!editor.viewOnly) {
+      renderPalette();
+      renderPropsPanel();
+    }
     showScreen('editor'); // 화면 표시 후에 캔버스 크기 계산
     setupEditorCanvas();
   }
@@ -1486,9 +1674,11 @@
     setupMinimapCanvas(eMinimap, editor.height);
   });
 
-  $('btn-open-editor').addEventListener('click', openEditor);
   $('btn-editor-back').addEventListener('click', () => {
-    if (room) {
+    if (editor.from === 'maps') {
+      renderMapsGallery();
+      showScreen('maps');
+    } else if (room) {
       renderLobby();
       showScreen('lobby');
     } else {
@@ -1587,6 +1777,7 @@
 
   eCanvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    if (editor.viewOnly) return; // 구경 모드: 스크롤만 가능
     const pos = eventToWorld(e);
     const hit = hitTest(pos);
     if (hit >= 0) {
@@ -1659,7 +1850,7 @@
   document.addEventListener('keydown', (e) => {
     if (!editor.active) return;
     if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
-    if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+    if (!editor.viewOnly && (e.key === 'Delete' || e.key === 'Backspace')) deleteSelected();
     if (e.key === 'Escape') {
       editor.selected = -1;
       renderPropsPanel();
@@ -1680,7 +1871,10 @@
       if (!res.ok) return (msg.textContent = res.error || '저장 실패');
       // 방장이면 방금 만든 맵을 바로 선택
       if (room && room.hostId === myId) socket.emit('room:setMap', { mapId: res.id });
-      if (room) {
+      if (editor.from === 'maps') {
+        renderMapsGallery();
+        showScreen('maps');
+      } else if (room) {
         renderLobby();
         showScreen('lobby');
       } else {

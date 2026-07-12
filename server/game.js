@@ -31,6 +31,10 @@ const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
+// 낙하 후 시간 가속 배율: 틱당 물리 서브스텝 횟수.
+// 한 스텝당 이동량은 그대로라 터널링 없이 전체 게임이 N배 빨라진다.
+// (셔플 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
+const TIME_SCALE = 10;
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -135,8 +139,10 @@ class Game {
     this.finished = []; // 도착 순서대로 ballKey
     this.finishTimes = new Map(); // ballKey -> 낙하 시작 후 완주 시간(ms)
     this.activeEffects = []; // { itemId, ball, until }
-    this.startedAt = 0;
-    this.dropAt = Infinity; // 셔플 중에는 무한대 → drop() 시점에 확정
+    this.startedAt = 0; // 실제 시각 (셔플 타이머용)
+    this.dropAt = Infinity; // 실제 시각 (완주 기록용)
+    this.simMs = 0; // 게임 시간 (물리 스텝마다 TICK_MS씩 증가)
+    this.dropSimMs = 0;
     this.shuffling = true;
     this.shuffleTargets = new Map(); // ballKey -> {x, y}
     this.nextShuffleAt = 0;
@@ -196,8 +202,10 @@ class Game {
     this.io.to(this.room.code).emit('game:explosion', { x, y, radius });
   }
 
+  /** 게임 시간(ms) — 낙하 후에는 실제 시간보다 TIME_SCALE 배 빠르게 흐른다.
+   *  아이템 지속시간·폭탄 재생성 등 게임 내 타이머는 전부 이 시계를 쓴다. */
   now() {
-    return Date.now();
+    return this.simMs;
   }
 
   /** 특정 플레이어의 아직 도착하지 않은 공들 */
@@ -235,7 +243,7 @@ class Game {
       Matter.Body.setPosition(ball, this.shuffleTargets.get(key));
     }
 
-    this.startedAt = this.now();
+    this.startedAt = Date.now();
 
     // 각자에게 자기 아이템 포함 시작 정보 전송
     for (const player of players) {
@@ -258,7 +266,45 @@ class Game {
       });
     }
 
+    // 관전자에게도 시작 정보 전송 (아이템 없음)
+    if (this.room.spectators) {
+      for (const specId of this.room.spectators.keys()) {
+        this.io.to(specId).emit('game:started', this.spectatorPayload());
+      }
+    }
+
     this.interval = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  /** 관전자용 시작 정보 — 중간 합류 시 현재까지의 도착 기록도 포함 */
+  spectatorPayload() {
+    const finished = this.finished.map((key, i) => {
+      const ball = this.balls.get(key);
+      const player = ball ? this.room.players.get(ball.plugin.playerId) : null;
+      const name = player ? player.name : '?';
+      return {
+        playerId: ball ? ball.plugin.playerId : null,
+        name: ball && this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
+        rank: i + 1,
+        timeMs: this.finishTimes.get(key),
+      };
+    });
+    return {
+      board: this.board,
+      winMode: this.winMode,
+      ballsPerPlayer: this.ballsPerPlayer,
+      shuffle: this.shuffling,
+      autoPilot: this.autoPilot,
+      spectator: true,
+      players: [...this.room.players.values()].map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        isDonor: !!p.isDonor,
+      })),
+      yourItems: [],
+      finished,
+    };
   }
 
   /** 새 배치 패턴을 골라 공들의 이동 목표를 재배정 */
@@ -268,22 +314,24 @@ class Game {
     for (const key of this.balls.keys()) {
       this.shuffleTargets.set(key, slots[i++]);
     }
-    this.nextShuffleAt = this.now() + SHUFFLE_INTERVAL_MS;
+    this.nextShuffleAt = Date.now() + SHUFFLE_INTERVAL_MS;
   }
 
   /** 방장이 낙하 버튼을 누른 순간 — 지금 위치 그대로 낙하 시작 */
   drop() {
     if (!this.shuffling || this.over) return;
     this.shuffling = false;
-    this.dropAt = this.now();
+    this.dropAt = Date.now();
+    this.dropSimMs = this.simMs;
 
-    // 올랜덤: 자동 아이템 발동 스케줄 (낙하 후 무작위 시점)
+    // 올랜덤: 자동 아이템 발동 스케줄 (게임 시간 기준 무작위 시점)
     if (this.autoPilot) {
       const count = Math.min(14, 3 + this.balls.size);
+      // 시간이 아니라 선두 공의 깊이(맵 진행률) 기준으로 발동 —
+      // 맵 길이·배속과 무관하게 경기 내내 골고루 터진다
       this.autoTriggers = Array.from({ length: count }, () => ({
-        t: this.dropAt + 2000 + Math.random() * 28000,
-        fired: false,
-      })).sort((a, b) => a.t - b.t);
+        depth: (0.05 + Math.random() * 0.8) * this.goalY,
+      })).sort((a, b) => a.depth - b.depth);
     }
   }
 
@@ -309,44 +357,13 @@ class Game {
 
   tick() {
     if (this.over) return;
-    const now = this.now();
-    const elapsedSec = (now - this.startedAt) / 1000;
-    const dropping = !this.shuffling;
-
-    // 회전 구성요소 회전 (경과 시간 기반 → 클라이언트와 결정적으로 동기화)
-    for (const s of this.spinners) {
-      const target = s.spin * elapsedSec;
-      Matter.Body.rotate(s.body, target - s.angle, s.pivot);
-      s.angle = target;
-    }
-
-    // 터진 반응형 구성요소 재생성
-    for (const inst of this.reactive.values()) {
-      if (inst.exploded && now >= inst.respawnAt) {
-        inst.exploded = false;
-        Matter.Composite.add(this.engine.world, inst.body);
-      }
-    }
-
-    // 지속형 아이템 효과 만료 처리
-    this.activeEffects = this.activeEffects.filter((fx) => {
-      if (now >= fx.until) {
-        const item = ITEMS[fx.itemId];
-        if (item.expire && !fx.ball.plugin.done) item.expire(this, fx.ball);
-        return false;
-      }
-      return true;
-    });
-
-    // 지속형 아이템 매 틱 효과 (자석 끌림, 번개 감속 등)
-    for (const fx of this.activeEffects) {
-      const item = ITEMS[fx.itemId];
-      if (item.tick && !fx.ball.plugin.done) item.tick(this, fx.ball);
-    }
 
     if (this.shuffling) {
-      // 셔플 단계: 주기적으로 새 패턴 배정, 공들은 목표 위치로 부드럽게 이동
-      if (now >= this.nextShuffleAt) this.assignShuffleTargets();
+      // 셔플 단계: 실시간(1배속) — 배치 패턴 사이를 부드럽게 이동
+      this.simMs += TICK_MS;
+      this.rotateSpinners();
+      const wall = Date.now();
+      if (wall >= this.nextShuffleAt) this.assignShuffleTargets();
       for (const [key, ball] of this.balls) {
         const target = this.shuffleTargets.get(key);
         Matter.Body.setVelocity(ball, { x: 0, y: 0 });
@@ -355,79 +372,128 @@ class Game {
           y: ball.position.y + (target.y - ball.position.y) * 0.12,
         });
       }
+      Matter.Engine.update(this.engine, TICK_MS);
       // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
-      if (now - this.startedAt > this.shuffleLimitMs) this.drop();
+      if (wall - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
-      // 올랜덤: 예정된 자동 아이템 발동
-      while (this.autoTriggers.length && this.autoTriggers[0].t <= now) {
+      // 낙하 단계: TIME_SCALE 배속 — 틱당 서브스텝 반복
+      for (let i = 0; i < TIME_SCALE && !this.over; i++) this.substep();
+      if (this.over) return;
+    }
+
+    // 스냅샷 전송 (30Hz, 실시간)
+    this.tickCount++;
+    if (this.tickCount % SNAPSHOT_EVERY === 0) {
+      this.broadcastSnapshot();
+    }
+  }
+
+  rotateSpinners() {
+    const target = this.simMs / 1000;
+    for (const s of this.spinners) {
+      Matter.Body.rotate(s.body, s.spin * target - s.angle, s.pivot);
+      s.angle = s.spin * target;
+    }
+  }
+
+  /** 게임 시간 1스텝(TICK_MS) 진행 */
+  substep() {
+    this.simMs += TICK_MS;
+    const sim = this.simMs;
+
+    this.rotateSpinners();
+
+    // 터진 반응형 구성요소 재생성 (게임 시간 기준)
+    for (const inst of this.reactive.values()) {
+      if (inst.exploded && sim >= inst.respawnAt) {
+        inst.exploded = false;
+        Matter.Composite.add(this.engine.world, inst.body);
+      }
+    }
+
+    // 지속형 아이템 효과 만료 처리 (게임 시간 기준)
+    this.activeEffects = this.activeEffects.filter((fx) => {
+      if (sim >= fx.until) {
+        const item = ITEMS[fx.itemId];
+        if (item.expire && !fx.ball.plugin.done) item.expire(this, fx.ball);
+        return false;
+      }
+      return true;
+    });
+
+    // 지속형 아이템 매 스텝 효과 (자석 끌림, 번개 감속 등)
+    for (const fx of this.activeEffects) {
+      const item = ITEMS[fx.itemId];
+      if (item.tick && !fx.ball.plugin.done) item.tick(this, fx.ball);
+    }
+
+    // 올랜덤: 예정된 자동 아이템 발동 (선두 공의 깊이 기준)
+    if (this.autoTriggers.length) {
+      let lead = 0;
+      for (const ball of this.balls.values()) {
+        if (!ball.plugin.done && ball.position.y > lead) lead = ball.position.y;
+      }
+      while (this.autoTriggers.length && this.autoTriggers[0].depth <= lead) {
         this.autoTriggers.shift();
         this.autoFire();
       }
-      // 얼린 공 고정
-      for (const ball of this.balls.values()) {
-        if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
-          Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-          Matter.Body.setPosition(ball, ball.plugin.frozenPos);
-        }
+    }
+
+    // 얼린 공 고정
+    for (const ball of this.balls.values()) {
+      if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
+        Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+        Matter.Body.setPosition(ball, ball.plugin.frozenPos);
       }
     }
 
     Matter.Engine.update(this.engine, TICK_MS);
 
     // 도착 판정
-    if (dropping) {
-      for (const [key, ball] of this.balls) {
-        if (!ball.plugin.done && ball.position.y > this.goalY) {
-          // 🎡 인생은 돌고돌아: 저주받은 공은 골인 대신 원점으로
-          if (ball.plugin.karma) {
-            ball.plugin.karma = false; // 1회성
-            const player = this.room.players.get(ball.plugin.playerId);
-            const name = player ? player.name : '?';
-            Matter.Body.setPosition(ball, {
-              x: 60 + Math.random() * 480,
-              y: 76,
-            });
-            Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-            if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...ball.position };
-            this.io.to(this.room.code).emit('game:karma', {
-              name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
-              x: 300,
-              y: this.goalY - 40,
-            });
-            continue;
-          }
-          ball.plugin.done = true;
-          Matter.Composite.remove(this.engine.world, ball);
-          this.finished.push(key);
-          this.finishTimes.set(key, now - this.dropAt);
+    for (const [key, ball] of this.balls) {
+      if (!ball.plugin.done && ball.position.y > this.goalY) {
+        // 🎡 인생은 돌고돌아: 저주받은 공은 골인 대신 원점으로
+        if (ball.plugin.karma) {
+          ball.plugin.karma = false; // 1회성
           const player = this.room.players.get(ball.plugin.playerId);
           const name = player ? player.name : '?';
-          this.io.to(this.room.code).emit('game:ballFinished', {
-            playerId: ball.plugin.playerId,
-            ballIndex: ball.plugin.idx,
-            name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
-            rank: this.finished.length,
-            timeMs: this.finishTimes.get(key),
+          Matter.Body.setPosition(ball, {
+            x: 60 + Math.random() * 480,
+            y: 76,
           });
+          Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+          if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...ball.position };
+          this.io.to(this.room.code).emit('game:karma', {
+            name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
+            x: 300,
+            y: this.goalY - 40,
+          });
+          continue;
         }
+        ball.plugin.done = true;
+        Matter.Composite.remove(this.engine.world, ball);
+        this.finished.push(key);
+        this.finishTimes.set(key, Date.now() - this.dropAt); // 체감(실제) 시간 기록
+        const player = this.room.players.get(ball.plugin.playerId);
+        const name = player ? player.name : '?';
+        this.io.to(this.room.code).emit('game:ballFinished', {
+          playerId: ball.plugin.playerId,
+          ballIndex: ball.plugin.idx,
+          name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
+          rank: this.finished.length,
+          timeMs: this.finishTimes.get(key),
+        });
       }
     }
 
-    // 종료 판정: 전 공 도착 or 낙하 후 제한시간 초과
+    // 종료 판정: 전 공 도착 or 낙하 후 제한시간(게임 시간) 초과
     const allDone = [...this.balls.values()].every((b) => b.plugin.done);
-    if ((dropping && allDone) || (dropping && now - this.dropAt > GAME_TIMEOUT_MS)) {
+    if (allDone || sim - this.dropSimMs > GAME_TIMEOUT_MS) {
       this.finish();
-      return;
-    }
-
-    // 스냅샷 전송 (30Hz)
-    this.tickCount++;
-    if (this.tickCount % SNAPSHOT_EVERY === 0) {
-      this.broadcastSnapshot(now);
     }
   }
 
-  broadcastSnapshot(now) {
+  broadcastSnapshot() {
     const balls = [];
     for (const ball of this.balls.values()) {
       if (ball.plugin.done) continue;
@@ -449,8 +515,8 @@ class Game {
     }
 
     this.io.to(this.room.code).emit('game:snapshot', {
-      t: now,
-      elapsed: now - this.startedAt, // 회전 구성요소 각도 계산용
+      t: Date.now(),
+      elapsed: this.simMs, // 게임 시간 (회전 구성요소 각도 계산용)
       sh: this.shuffling ? 1 : 0,
       countdown: 0,
       balls,
@@ -570,4 +636,4 @@ class Game {
   }
 }
 
-module.exports = { Game, HIT_ACTIONS };
+module.exports = { Game, HIT_ACTIONS, TIME_SCALE };
