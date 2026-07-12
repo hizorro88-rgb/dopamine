@@ -174,6 +174,17 @@ windmill: {
 
 항상 켜져 있는 PC가 있다면 별도 비용 없이 서버로 쓸 수 있습니다.
 
+### 🪟 Windows 빠른 시작
+
+1. [Node.js LTS](https://nodejs.org) 설치 (또는 PowerShell에서 `winget install OpenJS.NodeJS.LTS`)
+2. 이 저장소를 ZIP 다운로드 후 압축 해제 (또는 `git clone`)
+3. 폴더에서 PowerShell 열고 `npm install` (최초 1회)
+4. **`scripts\start.bat` 더블클릭** → 서버 실행 (파일을 메모장으로 열어 `ADMIN_KEY`, `DONATION_URL` 수정)
+5. 도메인 연결까지 마쳤다면 **`scripts\start-tunnel.bat` 더블클릭** → 외부 접속 개방
+6. 부팅 시 자동 실행: 작업 스케줄러 → 작업 만들기 → 트리거 "로그온할 때" → 동작에 두 bat 파일 등록
+   (또는 `npm i -g pm2 pm2-windows-startup` → `pm2 start server/index.js --name pinball` → `pm2 save` → `pm2-startup install`)
+7. 설정 → 시스템 → 전원 → **절전 "안 함"** (PC가 자면 서버도 잡니다)
+
 ### 1단계: 서버 실행
 
 1. [Node.js LTS](https://nodejs.org) 설치 (18 이상)
@@ -227,7 +238,16 @@ windmill: {
    cloudflared tunnel run --url http://localhost:3000 pinball
    ```
 5. → `https://game.내도메인.com` 접속 완료. WebSocket(Socket.IO)도 무료 지원.
-6. **부팅 시 자동 실행**: `cloudflared service install` (Windows 서비스/systemd 로 등록됨)
+6. **부팅 시 자동 실행** (Windows): `%USERPROFILE%\.cloudflared\config.yml` 파일을 만들고
+   ```yaml
+   tunnel: pinball
+   credentials-file: C:\Users\내계정\.cloudflared\<터널UUID>.json
+   ingress:
+     - hostname: game.내도메인.com
+       service: http://localhost:3000
+     - service: http_status:404
+   ```
+   관리자 PowerShell에서 `cloudflared service install` → Windows 서비스로 등록되어 부팅 시 자동 연결됩니다
 
 **도메인 없이 A안(포트포워딩)에 도메인만 붙이려면**: DNS A 레코드를 집 IP로 지정하고, 유동 IP 갱신은 공유기 DDNS 또는 Cloudflare API 갱신 스크립트를 사용합니다. 단, `http://도메인:3000` 형태가 되고 IP가 노출되므로 B안을 추천합니다.
 
