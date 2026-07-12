@@ -407,6 +407,83 @@ input[type='text']:focus {
   z-index: 60;
 }
 
+/* ── 맵 후기 (커뮤니티) ── */
+#review-summary {
+  font-family: 'Noto Serif KR', serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent2);
+  margin-bottom: 12px;
+  min-height: 24px;
+}
+#star-picker {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 26px;
+  cursor: pointer;
+  color: #3a352a;
+  transition: color 0.1s, transform 0.08s;
+  padding: 0 2px;
+}
+.star-btn.on {
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+.star-btn:hover {
+  transform: scale(1.15);
+}
+#review-form input {
+  margin-bottom: 8px;
+}
+#review-msg {
+  margin: 6px 0 0;
+}
+#review-list {
+  list-style: none;
+  margin: 14px 0 16px;
+  max-height: 240px;
+  overflow-y: auto;
+  text-align: left;
+}
+#review-list li {
+  padding: 9px 6px;
+  border-bottom: 1px solid #262219;
+  font-size: 13px;
+}
+#review-list .review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+#review-list .review-stars {
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+#review-list .review-name {
+  font-weight: 700;
+}
+#review-list .review-date {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+#review-list .review-text {
+  color: var(--muted);
+}
+#review-list .review-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 16px 0;
+  border: none;
+}
+
 #hall-list,
 #board-list {
   list-style: none;

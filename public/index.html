@@ -62,6 +62,22 @@
     </div>
   </div>
 
+  <!-- 맵 후기 (커뮤니티) -->
+  <div id="review-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2 id="review-title">💬 맵 후기</h2>
+      <div id="review-summary"></div>
+      <div id="review-form">
+        <div id="star-picker"></div>
+        <input id="input-review-text" type="text" maxlength="200" placeholder="한 줄 후기를 남겨주세요 (선택)" autocomplete="off" />
+        <button id="btn-review-submit" class="btn primary">후기 등록</button>
+      </div>
+      <p id="review-msg" class="error"></p>
+      <ol id="review-list"></ol>
+      <button id="btn-review-close" class="btn small">닫기</button>
+    </div>
+  </div>
+
   <!-- 후원자 명예의 전당 -->
   <div id="hall-modal" class="modal hidden">
     <div class="modal-card">
@@ -101,6 +117,7 @@
           <button id="btn-open-editor" class="btn small">🛠 맵 만들기</button>
         </div>
         <div id="map-info" class="hint"></div>
+        <button id="btn-reviews" class="btn small" style="margin-top:8px">💬 이 맵의 후기 보기·쓰기</button>
       </div>
       <button id="btn-start" class="btn primary" disabled>🚀 게임 시작</button>
       <button id="btn-start-random" class="btn" style="width:100%;margin-top:8px" disabled>🎲 올랜덤 — 운명에 맡기기 (전원 관전)</button>

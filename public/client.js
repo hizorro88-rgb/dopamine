@@ -441,7 +441,7 @@
       for (const m of res.maps) {
         const opt = document.createElement('option');
         opt.value = m.id;
-        opt.textContent = `${m.builtin ? '⭐' : '🛠'} ${m.name} — 길이 ${m.height}`;
+        opt.textContent = `${mapOptionLabel(m)} · 길이 ${m.height}`;
         select.appendChild(opt);
       }
       select.value = ev.map ? ev.map.id : 'classic';
@@ -615,6 +615,12 @@
     });
   }
 
+  /** 맵 옵션 라벨: 평점이 있으면 ★ 표시 (목록은 서버가 평점순으로 정렬) */
+  function mapOptionLabel(m) {
+    const stars = m.reviews > 0 ? ` ★${m.rating}` : '';
+    return `${m.builtin ? '⭐' : '🛠'} ${m.name}${stars} — ${m.author}`;
+  }
+
   function refreshMaps() {
     socket.emit('maps:list', null, (res) => {
       if (!res || !res.ok || !room) return;
@@ -624,20 +630,97 @@
       for (const m of mapList) {
         const opt = document.createElement('option');
         opt.value = m.id;
-        opt.textContent = `${m.builtin ? '⭐' : '🛠'} ${m.name} — ${m.author}`;
+        opt.textContent = mapOptionLabel(m);
         select.appendChild(opt);
       }
       select.value = room.map ? room.map.id : 'classic';
       select.disabled = room.hostId !== myId;
-      const meta = mapList.find((m) => m.id === select.value);
-      $('map-info').textContent = meta
-        ? `구성요소 ${meta.count}개 · 길이 ${meta.height} · ${room.hostId === myId ? '맵을 선택하세요' : '방장이 맵을 선택합니다'}`
-        : '';
+      updateMapInfo();
     });
+  }
+
+  function updateMapInfo() {
+    const meta = mapList.find((m) => m.id === $('map-select').value);
+    if (!meta) return ($('map-info').textContent = '');
+    const rating = meta.reviews > 0 ? `★${meta.rating} (후기 ${meta.reviews}개) · ` : '';
+    $('map-info').textContent = `${rating}구성요소 ${meta.count}개 · 길이 ${meta.height} · ${room.hostId === myId ? '맵을 선택하세요' : '방장이 맵을 선택합니다'}`;
   }
 
   $('map-select').addEventListener('change', (e) => {
     socket.emit('room:setMap', { mapId: e.target.value });
+  });
+
+  // ── 맵 후기 (커뮤니티) ────────────────────────────────
+  let reviewRating = 5;
+  function renderStarPicker() {
+    const picker = $('star-picker');
+    picker.innerHTML = '';
+    for (let i = 1; i <= 5; i++) {
+      const b = document.createElement('button');
+      b.className = 'star-btn' + (i <= reviewRating ? ' on' : '');
+      b.textContent = '★';
+      b.title = `${i}점`;
+      b.addEventListener('click', () => {
+        reviewRating = i;
+        renderStarPicker();
+      });
+      picker.appendChild(b);
+    }
+  }
+
+  function openReviews(keepForm) {
+    const mapId = $('map-select').value;
+    const meta = mapList.find((m) => m.id === mapId);
+    socket.emit('reviews:list', { mapId }, (res) => {
+      if (!res || !res.ok) return;
+      $('review-title').textContent = `💬 「${meta ? meta.name : '맵'}」 후기`;
+      $('review-summary').textContent =
+        res.count > 0
+          ? `★ ${res.avg} · 후기 ${res.count}개`
+          : '아직 후기가 없어요 — 첫 후기를 남겨주세요!';
+      const list = $('review-list');
+      list.innerHTML = '';
+      if (!res.reviews.length) {
+        list.innerHTML =
+          '<li class="review-empty">이 맵을 플레이해봤다면 별점과 한 줄 평을 남겨주세요.</li>';
+      }
+      for (const v of res.reviews) {
+        const li = document.createElement('li');
+        li.innerHTML = `<div class="review-head">
+            <span class="review-stars">${'★'.repeat(v.rating)}${'☆'.repeat(5 - v.rating)}</span>
+            <span class="review-name">${escapeHtml(v.name)}</span>
+            <span class="review-date">${new Date(v.at).toLocaleDateString()}</span>
+          </div>
+          ${v.text ? `<div class="review-text">${escapeHtml(v.text)}</div>` : ''}`;
+        list.appendChild(li);
+      }
+      if (!keepForm) {
+        reviewRating = 5;
+        renderStarPicker();
+        $('input-review-text').value = '';
+        $('review-msg').textContent = '';
+      }
+      $('review-modal').classList.remove('hidden');
+    });
+  }
+
+  $('btn-reviews').addEventListener('click', () => openReviews(false));
+  $('btn-review-close').addEventListener('click', () =>
+    $('review-modal').classList.add('hidden')
+  );
+
+  $('btn-review-submit').addEventListener('click', () => {
+    const mapId = $('map-select').value;
+    socket.emit(
+      'reviews:add',
+      { mapId, rating: reviewRating, text: $('input-review-text').value, name: myName() },
+      (res) => {
+        if (!res.ok) return ($('review-msg').textContent = res.error || '등록 실패');
+        $('input-review-text').value = '';
+        openReviews(false); // 목록 새로고침
+        refreshMaps(); // 드롭다운 별점 반영
+      }
+    );
   });
 
   $('btn-copy').addEventListener('click', async () => {

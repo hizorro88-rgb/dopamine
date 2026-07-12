@@ -5,6 +5,7 @@
 const { Game } = require('./game');
 const { MapStore } = require('./maps');
 const { StatsStore } = require('./stats');
+const { ReviewStore } = require('./reviews');
 
 // 아이템전(직접 아이템 사용)은 최대 10명 — 그 이상은 이벤트 추첨 모드 사용
 const MAX_PLAYERS = 10;
@@ -53,6 +54,7 @@ class RoomManager {
     this.maps = new MapStore();
     this.donors = donorStore || null;
     this.stats = new StatsStore();
+    this.reviews = new ReviewStore();
   }
 
   isDonor(donorCode) {
@@ -115,8 +117,36 @@ class RoomManager {
     });
 
     // ── 맵 ──────────────────────────────────────────
+    // 평점(베이지안 점수)이 높은 맵부터 정렬해서 반환
     socket.on('maps:list', (_payload, cb) => {
-      if (typeof cb === 'function') cb({ ok: true, maps: this.maps.list() });
+      if (typeof cb !== 'function') return;
+      const maps = this.maps
+        .list()
+        .map((m) => {
+          const s = this.reviews.summary(m.id);
+          return { ...m, rating: s.avg, reviews: s.count };
+        })
+        .sort(
+          (a, b) =>
+            this.reviews.score(b.id) - this.reviews.score(a.id) || b.reviews - a.reviews
+        );
+      cb({ ok: true, maps });
+    });
+
+    // ── 맵 후기 (커뮤니티) ──────────────────────────
+    socket.on('reviews:list', ({ mapId } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      if (!this.maps.get(mapId)) return cb({ ok: false, error: '존재하지 않는 맵입니다.' });
+      cb({ ok: true, ...this.reviews.list(mapId) });
+    });
+
+    socket.on('reviews:add', ({ mapId, name, rating, text } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      if (!this.maps.get(mapId)) return cb({ ok: false, error: '존재하지 않는 맵입니다.' });
+      // 방에 있으면 그 닉네임을 우선 사용 (사칭 방지)
+      const room = this.roomOf(socket);
+      const player = room ? room.players.get(socket.id) : null;
+      cb(this.reviews.add({ mapId, name: player ? player.name : name, rating, text }));
     });
 
     socket.on('maps:save', ({ name, components, height } = {}, cb) => {
