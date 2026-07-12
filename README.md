@@ -146,6 +146,69 @@ windmill: {
 - `props` — 에디터에 슬라이더로 자동 노출되고, 서버 저장 시 min/max로 잘려 검증됩니다
 - `hit` — (선택) 공이 닿으면 발동하는 **반응형 동작** 데이터. 폭탄이 사용하는 방식으로, `{ action: 'explode', radius, power, respawnMs }` 처럼 선언하면 `server/game.js`의 `HIT_ACTIONS[action]` 이 실행합니다. 새 반응형 동작(닿으면 순간이동, 속도 감소 등)은 `HIT_ACTIONS`에 함수 하나를 추가하면 됩니다
 
+## 배포하기 (집 데스크탑을 서버로)
+
+항상 켜져 있는 PC가 있다면 별도 비용 없이 서버로 쓸 수 있습니다.
+
+### 1단계: 서버 실행
+
+1. [Node.js LTS](https://nodejs.org) 설치 (18 이상)
+2. 이 저장소를 클론(또는 ZIP 다운로드) 후 폴더에서:
+   ```bash
+   npm install
+   npm start        # http://localhost:3000 에서 실행 확인
+   ```
+3. 환경변수와 함께 실행 (Windows PowerShell):
+   ```powershell
+   $env:ADMIN_KEY="비밀키"; $env:DONATION_URL="https://toss.me/내아이디"; npm start
+   ```
+   macOS/Linux:
+   ```bash
+   ADMIN_KEY=비밀키 DONATION_URL=https://toss.me/내아이디 npm start
+   ```
+4. **항상 실행 유지**: `npm i -g pm2` 후
+   ```bash
+   pm2 start server/index.js --name pinball
+   pm2 save
+   ```
+   (Windows 부팅 자동시작은 `pm2-windows-startup`, 또는 작업 스케줄러에 `npm start` 등록)
+5. PC 절전 모드 해제: 설정 → 전원 → 절전 "안 함"
+
+### 2단계: 외부에서 접속 가능하게 (셋 중 택1)
+
+| 방법 | 비용 | 장점 | 단점 |
+|------|------|------|------|
+| **A. 공유기 포트포워딩 + DDNS** | 무료 | 무제한 트래픽, 중간 서버 없음 | 집 IP 노출, HTTP(초대링크 복사는 수동 fallback) |
+| **B. Cloudflare Tunnel** | 무료 (도메인 필요, 연 1~2만원) | HTTPS 자동, 집 IP 숨김, 포트포워딩 불필요 | 도메인 구매 필요 |
+| **C. ngrok / Tailscale Funnel** | 무료 | 5분 설정, HTTPS, 도메인 불필요 | 무료 티어 제한(ngrok 경고 페이지, 대역폭) |
+
+**A. 포트포워딩 + DDNS (ipTIME 기준)**
+1. 공유기 관리자([192.168.0.1](http://192.168.0.1)) → 고급 설정 → NAT/라우터 관리 → **포트포워드**: 외부 포트 3000 → 내 PC IP의 3000
+2. 특수기능 → **DDNS 설정**: `내아이디.iptime.org` 등록 (유동 IP 대응)
+3. Windows 방화벽 → 인바운드 규칙 → 포트 3000 허용
+4. 친구에게 `http://내아이디.iptime.org:3000` 공유
+
+**B. Cloudflare Tunnel (도메인이 있다면 추천)**
+```bash
+# cloudflared 설치 후
+cloudflared tunnel login
+cloudflared tunnel create pinball
+cloudflared tunnel route dns pinball game.내도메인.com
+cloudflared tunnel run --url http://localhost:3000 pinball
+```
+→ `https://game.내도메인.com` 으로 접속. WebSocket(Socket.IO)도 무료로 지원됩니다.
+
+**C. ngrok (가장 빠른 시작)**
+```bash
+# ngrok.com 가입 → 무료 고정 도메인 1개 발급
+ngrok http 3000 --domain=발급받은이름.ngrok-free.app
+```
+
+### 클라우드 대안
+
+PC를 끄고 싶다면: Railway / Fly.io / Render 등에 그대로 올라갑니다 (`npm start`, PORT 환경변수 자동 인식).
+단, `data/` 폴더(유저 맵·후원자·전적)가 유지되도록 볼륨/퍼시스턴트 디스크를 연결하세요.
+
 ## 후원 버튼 (서버 유지비)
 
 환경변수에 후원 링크를 넣고 서버를 실행하면 홈·대기실·게임 결과 화면에 후원 버튼이 나타납니다.
