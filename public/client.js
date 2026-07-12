@@ -1,11 +1,15 @@
-/* global io */
+/* global io, PinballComponents */
 (() => {
   const socket = io();
+  const { COMPONENTS, defaultProps, buildShapes } = PinballComponents;
+
+  const WORLD = { width: 600, height: 900 };
+  const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: 800 };
 
   // ── 상태 ──────────────────────────────────────────────
   let myId = null;
   let room = null; // room:update 페이로드
-  let game = null; // { board, players(Map), items, snapshots[], finishedRanks }
+  let game = null; // { board, players(Map), items, snapshots[], ... }
   const $ = (id) => document.getElementById(id);
 
   socket.on('connect', () => {
@@ -16,6 +20,53 @@
   function showScreen(name) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
     $(`screen-${name}`).classList.add('active');
+    editor.active = name === 'editor';
+    if (editor.active) requestAnimationFrame(renderEditor);
+  }
+
+  // ── 공용: 구성요소 도형 렌더러 ─────────────────────────
+  // 서버가 내려준 shapes 를 그대로 그린다. 새 구성요소가 추가돼도 수정 불필요.
+  function drawComponent(ctx, comp, angle) {
+    ctx.save();
+    ctx.translate(comp.x, comp.y);
+    if (angle) ctx.rotate(angle);
+    for (const s of comp.shapes) {
+      ctx.fillStyle = s.fill || '#565685';
+      if (s.kind === 'circle') {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.angle || 0);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(-s.w / 2, -s.h / 2, s.w, s.h, 5);
+        else ctx.rect(-s.w / 2, -s.h / 2, s.w, s.h);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawFrameWalls(ctx, walls) {
+    ctx.fillStyle = '#3a3a5c';
+    for (const w of walls) {
+      ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
+    }
+  }
+
+  function drawGoal(ctx, goal) {
+    const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y + 20);
+    grad.addColorStop(0, 'rgba(93,222,120,0)');
+    grad.addColorStop(1, 'rgba(93,222,120,0.35)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(goal.x - goal.width / 2, goal.y - 60, goal.width, 75);
+    ctx.fillStyle = '#5dde78';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('GOAL', goal.x, goal.y + 8);
   }
 
   // ── 홈: 방 만들기 / 참여 ──────────────────────────────
@@ -53,14 +104,14 @@
   }
 
   // ── 대기실 ────────────────────────────────────────────
+  let mapList = []; // maps:list 캐시
+
   socket.on('room:update', (data) => {
     room = data;
-    if (room.state === 'lobby' && !game) {
+    if (room.state === 'lobby' && !game && !editor.active) {
       renderLobby();
       showScreen('lobby');
-    }
-    if (room.state === 'lobby' && game && game.overShown) {
-      // 게임 종료 후 대기실 복귀 대기 상태 — 결과 모달의 버튼으로 이동
+    } else if (room.state === 'lobby') {
       renderLobby();
     }
   });
@@ -81,7 +132,33 @@
     startBtn.disabled = !isHost;
     startBtn.textContent = isHost ? '🚀 게임 시작' : '⏳ 방장이 시작하기를 기다리는 중';
     $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명 · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
+    refreshMaps();
   }
+
+  function refreshMaps() {
+    socket.emit('maps:list', null, (res) => {
+      if (!res || !res.ok || !room) return;
+      mapList = res.maps;
+      const select = $('map-select');
+      select.innerHTML = '';
+      for (const m of mapList) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.builtin ? '⭐' : '🛠'} ${m.name} — ${m.author}`;
+        select.appendChild(opt);
+      }
+      select.value = room.map ? room.map.id : 'classic';
+      select.disabled = room.hostId !== myId;
+      const meta = mapList.find((m) => m.id === select.value);
+      $('map-info').textContent = meta
+        ? `구성요소 ${meta.count}개 · ${room.hostId === myId ? '맵을 선택하세요' : '방장이 맵을 선택합니다'}`
+        : '';
+    });
+  }
+
+  $('map-select').addEventListener('change', (e) => {
+    socket.emit('room:setMap', { mapId: e.target.value });
+  });
 
   $('btn-copy').addEventListener('click', async () => {
     const url = `${location.origin}${location.pathname}?room=${room.code}`;
@@ -254,16 +331,15 @@
     setTimeout(() => div.remove(), 4000);
   }
 
-  // ── 캔버스 렌더링 ─────────────────────────────────────
+  // ── 게임 캔버스 렌더링 ────────────────────────────────
   const canvas = $('canvas');
   const ctx = canvas.getContext('2d');
   let scale = 1;
 
   function setupCanvas() {
-    const { world } = game.board;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = world.width * dpr;
-    canvas.height = world.height * dpr;
+    canvas.width = WORLD.width * dpr;
+    canvas.height = WORLD.height * dpr;
     scale = dpr;
   }
 
@@ -289,47 +365,27 @@
     });
   }
 
+  /** 회전 구성요소의 현재 각도 계산용 경과 시간(초) */
+  function gameElapsedSec() {
+    const snaps = game.snapshots;
+    if (snaps.length === 0) return 0;
+    const last = snaps[snaps.length - 1];
+    return (last.elapsed + (performance.now() - last.recv)) / 1000;
+  }
+
   function renderFrame() {
     if (!game) return;
     const { board } = game;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, board.world.width, board.world.height);
 
-    // 골인 지점
-    const goal = board.goal;
-    const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y + 20);
-    grad.addColorStop(0, 'rgba(93,222,120,0)');
-    grad.addColorStop(1, 'rgba(93,222,120,0.35)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(goal.x - goal.width / 2, goal.y - 60, goal.width, 75);
-    ctx.fillStyle = '#5dde78';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('GOAL', goal.x, goal.y + 8);
+    drawGoal(ctx, board.goal);
+    drawFrameWalls(ctx, board.frame);
 
-    // 벽
-    ctx.fillStyle = '#3a3a5c';
-    for (const w of board.walls) {
-      ctx.save();
-      ctx.translate(w.x, w.y);
-      ctx.rotate(w.angle);
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-w.w / 2, -w.h / 2, w.w, w.h, 6);
-      else ctx.rect(-w.w / 2, -w.h / 2, w.w, w.h);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // 핀
-    for (const peg of board.pegs) {
-      ctx.beginPath();
-      ctx.arc(peg.x, peg.y, peg.r, 0, Math.PI * 2);
-      ctx.fillStyle = '#565685';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(peg.x - 2, peg.y - 2, peg.r * 0.4, 0, Math.PI * 2);
-      ctx.fillStyle = '#7d7db5';
-      ctx.fill();
+    // 맵 구성요소 (회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
+    const elapsed = gameElapsedSec();
+    for (const comp of board.components) {
+      drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
     }
 
     // 공
@@ -379,6 +435,256 @@
       cd > 0 ? String(Math.ceil(cd / 1000)) : game.snapshots.length ? '' : '준비...';
 
     requestAnimationFrame(renderFrame);
+  }
+
+  // ── 맵 에디터 ─────────────────────────────────────────
+  const editor = {
+    active: false,
+    comps: [], // [{type, x, y, props, shapes, spin}]
+    tool: 'peg', // 팔레트에서 선택된 구성요소 타입
+    selected: -1, // 선택된 comps 인덱스
+    dragging: false,
+  };
+
+  const eCanvas = $('editor-canvas');
+  const eCtx = eCanvas.getContext('2d');
+  let eScale = 1;
+
+  function setupEditorCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    eCanvas.width = WORLD.width * dpr;
+    eCanvas.height = WORLD.height * dpr;
+    eScale = dpr;
+  }
+
+  function rebuildComp(comp) {
+    const built = buildShapes(comp.type, comp.props);
+    comp.shapes = built.shapes;
+    comp.spin = built.spin;
+  }
+
+  function openEditor() {
+    editor.comps = [];
+    editor.selected = -1;
+    editor.tool = 'peg';
+    $('input-map-name').value = '';
+    $('editor-msg').textContent = '';
+    renderPalette();
+    renderPropsPanel();
+    setupEditorCanvas();
+    showScreen('editor');
+  }
+
+  $('btn-open-editor').addEventListener('click', openEditor);
+  $('btn-editor-back').addEventListener('click', () => {
+    if (room) {
+      renderLobby();
+      showScreen('lobby');
+    } else {
+      showScreen('home');
+    }
+  });
+
+  function renderPalette() {
+    const palette = $('palette');
+    palette.innerHTML = '';
+    for (const def of Object.values(COMPONENTS)) {
+      const btn = document.createElement('button');
+      btn.className = 'palette-btn' + (editor.tool === def.id ? ' selected' : '');
+      btn.title = def.desc;
+      btn.innerHTML = `<span class="emoji">${def.emoji}</span>${def.name}`;
+      btn.addEventListener('click', () => {
+        editor.tool = def.id;
+        editor.selected = -1;
+        renderPalette();
+        renderPropsPanel();
+      });
+      palette.appendChild(btn);
+    }
+  }
+
+  /** 선택된 구성요소의 속성 슬라이더 */
+  function renderPropsPanel() {
+    const panel = $('editor-props');
+    panel.innerHTML = '';
+    $('btn-comp-delete').disabled = editor.selected < 0;
+
+    const comp = editor.comps[editor.selected];
+    if (!comp) {
+      const def = COMPONENTS[editor.tool];
+      panel.innerHTML = `<div class="prop-row">배치할 요소: ${def.emoji} ${def.name}<br>${def.desc}</div>`;
+      return;
+    }
+    const def = COMPONENTS[comp.type];
+    const title = document.createElement('div');
+    title.className = 'prop-row';
+    title.textContent = `선택됨: ${def.emoji} ${def.name}`;
+    panel.appendChild(title);
+
+    for (const schema of def.props) {
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      const label = document.createElement('span');
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = schema.min;
+      input.max = schema.max;
+      input.step = schema.step;
+      input.value = comp.props[schema.key];
+      const setLabel = () => (label.textContent = `${schema.label}: ${input.value}`);
+      setLabel();
+      input.addEventListener('input', () => {
+        comp.props[schema.key] = Number(input.value);
+        rebuildComp(comp);
+        setLabel();
+      });
+      row.appendChild(label);
+      row.appendChild(input);
+      panel.appendChild(row);
+    }
+  }
+
+  // 캔버스 좌표 변환
+  function eventToWorld(e) {
+    const rect = eCanvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * WORLD.width,
+      y: ((e.clientY - rect.top) / rect.height) * WORLD.height,
+    };
+  }
+
+  function clampToBounds(pos) {
+    return {
+      x: Math.round(Math.min(Math.max(pos.x, EDIT_BOUNDS.minX), EDIT_BOUNDS.maxX) / 5) * 5,
+      y: Math.round(Math.min(Math.max(pos.y, EDIT_BOUNDS.minY), EDIT_BOUNDS.maxY) / 5) * 5,
+    };
+  }
+
+  /** 클릭 지점의 구성요소 인덱스 (겹치면 나중에 놓은 것 우선) */
+  function hitTest(pos) {
+    for (let i = editor.comps.length - 1; i >= 0; i--) {
+      const comp = editor.comps[i];
+      let radius = 16;
+      for (const s of comp.shapes) {
+        const off = Math.hypot(s.x, s.y);
+        radius = Math.max(radius, off + (s.kind === 'circle' ? s.r : Math.max(s.w, s.h) / 2));
+      }
+      if (Math.hypot(pos.x - comp.x, pos.y - comp.y) <= radius) return i;
+    }
+    return -1;
+  }
+
+  eCanvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const pos = eventToWorld(e);
+    const hit = hitTest(pos);
+    if (hit >= 0) {
+      editor.selected = hit;
+      editor.dragging = true;
+    } else {
+      // 새 구성요소 배치
+      const def = COMPONENTS[editor.tool];
+      const comp = {
+        type: def.id,
+        ...clampToBounds(pos),
+        props: defaultProps(def),
+      };
+      rebuildComp(comp);
+      editor.comps.push(comp);
+      editor.selected = editor.comps.length - 1;
+      editor.dragging = true;
+    }
+    renderPropsPanel();
+    eCanvas.setPointerCapture(e.pointerId);
+  });
+
+  eCanvas.addEventListener('pointermove', (e) => {
+    if (!editor.dragging || editor.selected < 0) return;
+    const comp = editor.comps[editor.selected];
+    Object.assign(comp, clampToBounds(eventToWorld(e)));
+  });
+
+  eCanvas.addEventListener('pointerup', () => {
+    editor.dragging = false;
+  });
+
+  function deleteSelected() {
+    if (editor.selected < 0) return;
+    editor.comps.splice(editor.selected, 1);
+    editor.selected = -1;
+    renderPropsPanel();
+  }
+
+  $('btn-comp-delete').addEventListener('click', deleteSelected);
+  document.addEventListener('keydown', (e) => {
+    if (!editor.active) return;
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+    if (e.key === 'Escape') {
+      editor.selected = -1;
+      renderPropsPanel();
+    }
+  });
+
+  $('btn-map-save').addEventListener('click', () => {
+    const name = $('input-map-name').value.trim();
+    const msg = $('editor-msg');
+    if (!name) return (msg.textContent = '맵 이름을 입력해주세요.');
+    if (editor.comps.length === 0)
+      return (msg.textContent = '구성요소를 1개 이상 배치해주세요.');
+
+    const components = editor.comps.map(({ type, x, y, props }) => ({ type, x, y, props }));
+    socket.emit('maps:save', { name, components }, (res) => {
+      if (!res.ok) return (msg.textContent = res.error || '저장 실패');
+      // 방장이면 방금 만든 맵을 바로 선택
+      if (room && room.hostId === myId) socket.emit('room:setMap', { mapId: res.id });
+      if (room) {
+        renderLobby();
+        showScreen('lobby');
+      } else {
+        showScreen('home');
+      }
+    });
+  });
+
+  function renderEditor() {
+    if (!editor.active) return;
+    eCtx.setTransform(eScale, 0, 0, eScale, 0, 0);
+    eCtx.clearRect(0, 0, WORLD.width, WORLD.height);
+
+    // 배치 불가 구역 표시
+    eCtx.fillStyle = 'rgba(77,201,255,0.07)';
+    eCtx.fillRect(0, 0, WORLD.width, EDIT_BOUNDS.minY - 20);
+    eCtx.fillStyle = 'rgba(93,222,120,0.07)';
+    eCtx.fillRect(0, EDIT_BOUNDS.maxY + 20, WORLD.width, WORLD.height);
+    eCtx.font = '13px sans-serif';
+    eCtx.textAlign = 'center';
+    eCtx.fillStyle = 'rgba(77,201,255,0.6)';
+    eCtx.fillText('⬇ 공 시작 구역', WORLD.width / 2, 60);
+    eCtx.fillStyle = 'rgba(93,222,120,0.6)';
+    eCtx.fillText('GOAL', WORLD.width / 2, 860);
+
+    // 구성요소 (회전체는 미리보기로 실제 속도로 회전)
+    const t = performance.now() / 1000;
+    editor.comps.forEach((comp, i) => {
+      drawComponent(eCtx, comp, comp.spin ? comp.spin * t : 0);
+      if (i === editor.selected) {
+        eCtx.strokeStyle = '#5dde78';
+        eCtx.lineWidth = 2;
+        eCtx.setLineDash([6, 4]);
+        let radius = 16;
+        for (const s of comp.shapes) {
+          const off = Math.hypot(s.x, s.y);
+          radius = Math.max(radius, off + (s.kind === 'circle' ? s.r : Math.max(s.w, s.h) / 2));
+        }
+        eCtx.beginPath();
+        eCtx.arc(comp.x, comp.y, radius + 6, 0, Math.PI * 2);
+        eCtx.stroke();
+        eCtx.setLineDash([]);
+      }
+    });
+
+    requestAnimationFrame(renderEditor);
   }
 
   function escapeHtml(s) {

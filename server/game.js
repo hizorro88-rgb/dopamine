@@ -2,16 +2,21 @@
  * 서버 권위(authoritative) 물리 시뮬레이션.
  * Matter.js 를 서버에서 돌리고 클라이언트에는 좌표 스냅샷만 전송한다.
  * → 모든 참가자가 완전히 동일한 게임을 보고, 클라이언트 부담이 거의 없다.
+ *
+ * 보드는 맵 정의(구성요소 목록)로부터 생성된다.
+ * 구성요소의 도형(shapes)을 그대로 물리 바디로 변환하므로
+ * public/components.js 에 새 구성요소를 추가하면 여기는 수정할 필요가 없다.
  */
 
 const Matter = require('matter-js');
 const { ITEMS, itemMeta, randomItems } = require('./items');
+const { buildShapes } = require('../public/components.js');
 
 const WORLD = { width: 600, height: 900 };
 
 // 충돌 카테고리
-const CAT_WALL = 0x0001;
-const CAT_PEG = 0x0002;
+const CAT_WALL = 0x0001; // 외벽 (유령 상태에서도 충돌)
+const CAT_PEG = 0x0002; // 맵 구성요소 (유령 상태에서는 통과)
 const CAT_BALL = 0x0004;
 const DEFAULT_MASK = CAT_WALL | CAT_PEG | CAT_BALL;
 
@@ -29,9 +34,10 @@ class Game {
   /**
    * @param {object} room  rooms.js 의 방 객체
    * @param {import('socket.io').Server} io
+   * @param {object} mapDef  maps.js 의 맵 정의 {id, name, components}
    * @param {function} onGameOver  게임 종료 콜백
    */
-  constructor(room, io, onGameOver) {
+  constructor(room, io, mapDef, onGameOver) {
     this.room = room;
     this.io = io;
     this.onGameOver = onGameOver;
@@ -48,75 +54,90 @@ class Game {
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]
     this.finished = []; // 도착 순서대로 playerId
     this.activeEffects = []; // { itemId, ball, until }
+    this.spinners = []; // { body, spin, pivot, angle } — 회전 구성요소
     this.startedAt = 0;
     this.dropAt = 0;
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
 
-    this.board = this.buildBoard();
+    this.board = this.buildBoard(mapDef);
   }
 
   now() {
     return Date.now();
   }
 
-  /** 핀볼 보드 생성. 렌더링용 도형 정보를 반환한다. */
-  buildBoard() {
+  /** 맵 정의로부터 보드 생성. 클라이언트 렌더링용 데이터를 반환한다. */
+  buildBoard(mapDef) {
     const bodies = [];
-    const walls = [];
-    const pegs = [];
+    const frame = [];
 
-    const addWall = (x, y, w, h, angle = 0) => {
-      const body = Matter.Bodies.rectangle(x, y, w, h, {
-        isStatic: true,
-        angle,
-        collisionFilter: { category: CAT_WALL, mask: 0xffff },
-      });
-      bodies.push(body);
-      walls.push({ x, y, w, h, angle });
-    };
-
-    // 외벽 (좌/우/천장)
-    addWall(-10, WORLD.height / 2, 20, WORLD.height * 2);
-    addWall(WORLD.width + 10, WORLD.height / 2, 20, WORLD.height * 2);
-    addWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
-
-    // 핀(peg) — 지그재그 격자
-    const pegR = 8;
-    let row = 0;
-    for (let y = 170; y <= 640; y += 58) {
-      const offset = row % 2 === 0 ? 0 : 29;
-      for (let x = 55 + offset; x <= WORLD.width - 55; x += 58) {
-        const body = Matter.Bodies.circle(x, y, pegR, {
+    // 외벽 (좌/우/천장) — 모든 맵 공통
+    const addFrameWall = (x, y, w, h) => {
+      bodies.push(
+        Matter.Bodies.rectangle(x, y, w, h, {
           isStatic: true,
-          restitution: 0.5,
-          collisionFilter: { category: CAT_PEG, mask: 0xffff },
+          collisionFilter: { category: CAT_WALL, mask: 0xffff },
+        })
+      );
+      frame.push({ x, y, w, h, angle: 0 });
+    };
+    addFrameWall(-10, WORLD.height / 2, 20, WORLD.height * 2);
+    addFrameWall(WORLD.width + 10, WORLD.height / 2, 20, WORLD.height * 2);
+    addFrameWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
+
+    // 맵 구성요소 → 물리 바디 (도형을 그대로 변환)
+    const renderComponents = [];
+    for (const comp of mapDef.components) {
+      const built = buildShapes(comp.type, comp.props);
+      if (!built) continue; // 알 수 없는 타입은 무시
+
+      const opts = {
+        isStatic: true,
+        restitution: built.restitution,
+        collisionFilter: { category: CAT_PEG, mask: 0xffff },
+      };
+      const parts = built.shapes.map((s) =>
+        s.kind === 'circle'
+          ? Matter.Bodies.circle(comp.x + s.x, comp.y + s.y, s.r, opts)
+          : Matter.Bodies.rectangle(comp.x + s.x, comp.y + s.y, s.w, s.h, {
+              ...opts,
+              angle: s.angle || 0,
+            })
+      );
+      const body =
+        parts.length === 1 ? parts[0] : Matter.Body.create({ parts, isStatic: true });
+      bodies.push(body);
+
+      // 회전 구성요소는 배치 지점을 축으로 매 틱 회전
+      if (built.spin) {
+        this.spinners.push({
+          body,
+          spin: built.spin,
+          pivot: { x: comp.x, y: comp.y },
+          angle: 0,
         });
-        bodies.push(body);
-        pegs.push({ x, y, r: pegR });
       }
-      row++;
+
+      renderComponents.push({
+        type: comp.type,
+        x: comp.x,
+        y: comp.y,
+        shapes: built.shapes,
+        spin: built.spin || 0,
+      });
     }
-
-    // 깔때기 (골인 지점으로 좁아지는 경사벽)
-    const funnelAngle = Math.atan2(120, 230);
-    const funnelLen = Math.hypot(230, 120) + 30;
-    addWall(115, 745, funnelLen, 14, funnelAngle);
-    addWall(WORLD.width - 115, 745, funnelLen, 14, -funnelAngle);
-
-    // 골인 통로 세로 가이드
-    addWall(232, 835, 14, 70);
-    addWall(WORLD.width - 232, 835, 14, 70);
 
     Matter.Composite.add(this.engine.world, bodies);
 
     return {
       world: WORLD,
-      walls,
-      pegs,
-      goal: { x: WORLD.width / 2, y: GOAL_Y, width: WORLD.width - 464 + 100 },
+      frame,
+      components: renderComponents,
+      goal: { x: WORLD.width / 2, y: GOAL_Y, width: 236 },
       ballRadius: BALL_RADIUS,
+      mapName: mapDef.name,
     };
   }
 
@@ -139,7 +160,7 @@ class Game {
         density: 0.0015,
         collisionFilter: { category: CAT_BALL, mask: DEFAULT_MASK },
       });
-      ball.plugin = { playerId: player.id, held: true };
+      ball.plugin = { playerId: player.id };
       this.balls.set(player.id, ball);
       Matter.Composite.add(this.engine.world, ball);
 
@@ -169,9 +190,17 @@ class Game {
   tick() {
     if (this.over) return;
     const now = this.now();
+    const elapsedSec = (now - this.startedAt) / 1000;
 
     // 카운트다운 후 낙하 시작
     const dropping = now >= this.dropAt;
+
+    // 회전 구성요소 회전 (경과 시간 기반 → 클라이언트와 결정적으로 동기화)
+    for (const s of this.spinners) {
+      const target = s.spin * elapsedSec;
+      Matter.Body.rotate(s.body, target - s.angle, s.pivot);
+      s.angle = target;
+    }
 
     // 지속형 아이템 효과 만료 처리
     this.activeEffects = this.activeEffects.filter((fx) => {
@@ -242,6 +271,7 @@ class Game {
     }
     this.io.to(this.room.code).emit('game:snapshot', {
       t: now,
+      elapsed: now - this.startedAt, // 회전 구성요소 각도 계산용
       countdown: dropping ? 0 : Math.max(0, this.dropAt - now),
       balls,
     });

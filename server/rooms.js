@@ -3,6 +3,7 @@
  */
 
 const { Game } = require('./game');
+const { MapStore } = require('./maps');
 
 const MAX_PLAYERS = 8;
 const COLORS = [
@@ -40,6 +41,7 @@ class RoomManager {
     this.io = io;
     this.rooms = new Map(); // code -> room
     this.socketRoom = new Map(); // socketId -> code
+    this.maps = new MapStore();
   }
 
   handleConnection(socket) {
@@ -52,6 +54,7 @@ class RoomManager {
         state: 'lobby', // 'lobby' | 'playing'
         players: new Map(),
         game: null,
+        mapId: 'classic',
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name));
@@ -74,13 +77,39 @@ class RoomManager {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
       if (room.players.size < 1) return;
+      const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
       room.state = 'playing';
-      room.game = new Game(room, this.io, () => {
+      room.game = new Game(room, this.io, mapDef, () => {
         room.state = 'lobby';
         room.game = null;
         this.broadcastRoom(room);
       });
       room.game.start();
+      this.broadcastRoom(room);
+    });
+
+    // ── 맵 ──────────────────────────────────────────
+    socket.on('maps:list', (_payload, cb) => {
+      if (typeof cb === 'function') cb({ ok: true, maps: this.maps.list() });
+    });
+
+    socket.on('maps:save', ({ name, components } = {}, cb) => {
+      const room = this.roomOf(socket);
+      const player = room ? room.players.get(socket.id) : null;
+      const result = this.maps.save({
+        name,
+        author: player ? player.name : '익명',
+        components,
+      });
+      if (typeof cb === 'function') cb(result);
+    });
+
+    // 방장이 대기실에서 맵 선택
+    socket.on('room:setMap', ({ mapId } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      if (!this.maps.get(mapId)) return;
+      room.mapId = mapId;
       this.broadcastRoom(room);
     });
 
@@ -126,12 +155,14 @@ class RoomManager {
   }
 
   broadcastRoom(room) {
+    const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
     this.io.to(room.code).emit('room:update', {
       code: room.code,
       hostId: room.hostId,
       state: room.state,
       maxPlayers: MAX_PLAYERS,
       players: [...room.players.values()],
+      map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
     });
   }
 }

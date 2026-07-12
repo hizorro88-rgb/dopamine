@@ -32,8 +32,33 @@
         <button id="btn-copy" class="btn small">🔗 초대 링크 복사</button>
       </div>
       <ul id="lobby-players" class="player-list"></ul>
+      <div class="map-box">
+        <div class="map-row">
+          <select id="map-select" disabled></select>
+          <button id="btn-open-editor" class="btn small">🛠 맵 만들기</button>
+        </div>
+        <div id="map-info" class="hint"></div>
+      </div>
       <button id="btn-start" class="btn primary" disabled>🚀 게임 시작</button>
       <p id="lobby-hint" class="hint"></p>
+    </div>
+  </section>
+
+  <!-- 맵 에디터: 누구나 맵을 만들어 서버에 공유 -->
+  <section id="screen-editor" class="screen">
+    <div id="editor-layout">
+      <canvas id="editor-canvas"></canvas>
+      <div id="editor-side">
+        <h3>🛠 맵 에디터</h3>
+        <p class="hint">구성요소를 고르고 보드를 클릭해 배치하세요.<br>배치된 요소는 드래그로 옮길 수 있어요.</p>
+        <div id="palette"></div>
+        <div id="editor-props"></div>
+        <button id="btn-comp-delete" class="btn small" disabled>🗑 선택한 요소 삭제</button>
+        <input id="input-map-name" type="text" maxlength="20" placeholder="맵 이름" autocomplete="off" />
+        <button id="btn-map-save" class="btn primary">💾 저장하고 공유하기</button>
+        <button id="btn-editor-back" class="btn">← 대기실로</button>
+        <p id="editor-msg" class="error"></p>
+      </div>
     </div>
   </section>
 
@@ -75,6 +100,7 @@
   </section>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="components.js"></script>
   <script src="client.js"></script>
 </body>
 </html>
