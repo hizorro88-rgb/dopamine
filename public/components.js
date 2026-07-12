@@ -17,7 +17,10 @@
  *         { kind:'rect',   x, y, w, h, angle?, fill? }
  *       ],
  *       spin: 회전 속도 rad/s (0이면 고정, 0이 아니면 배치 지점을 축으로 회전),
- *       restitution: 반발력 (공이 튕기는 정도)
+ *       restitution: 반발력 (공이 튕기는 정도),
+ *       hit: (선택) 공이 닿으면 발동하는 반응형 동작 데이터.
+ *            server/game.js 의 HIT_ACTIONS[action] 이 실행한다.
+ *            예: { action: 'explode', radius, power, respawnMs }
  *     }
  */
 (function (root, factory) {
@@ -105,6 +108,37 @@
           ],
           spin: p.speed,
           restitution: 0.8,
+        };
+      },
+    },
+
+    // 폭탄: 공이 닿으면 폭발 → 범위 안의 모든 공이 튕겨나감
+    bomb: {
+      id: 'bomb',
+      name: '폭탄',
+      emoji: '💣',
+      desc: '공이 닿으면 펑! 폭발 범위 안의 모든 공이 튕겨나갑니다',
+      props: [
+        { key: 'radius', label: '폭발 범위', min: 80, max: 260, step: 10, default: 150 },
+        { key: 'power', label: '폭발력', min: 6, max: 24, step: 1, default: 14 },
+        { key: 'respawn', label: '재생성 시간(초)', min: 0, max: 15, step: 1, default: 6 },
+      ],
+      build(p) {
+        return {
+          shapes: [
+            { kind: 'circle', x: 0, y: 0, r: 16, fill: '#3c3c52' },
+            { kind: 'circle', x: -5, y: -5, r: 5, fill: '#6a6a92' },
+            { kind: 'rect', x: 10, y: -15, w: 12, h: 5, angle: -0.7, fill: '#9a7b52' },
+            { kind: 'circle', x: 14, y: -19, r: 4, fill: '#ffb03a' },
+          ],
+          spin: 0,
+          restitution: 0.3,
+          hit: {
+            action: 'explode',
+            radius: p.radius,
+            power: p.power,
+            respawnMs: p.respawn * 1000, // 0이면 게임당 1회용
+          },
         };
       },
     },

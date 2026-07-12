@@ -68,7 +68,10 @@
    * 미니맵 렌더러 (게임/에디터 공용)
    * 전체 월드를 축소해 구성요소·공·현재 화면 영역을 표시한다.
    */
-  function drawMinimap(mCanvas, { height, components, balls, camY, elapsed, selected }) {
+  function drawMinimap(
+    mCanvas,
+    { height, components, balls, camY, elapsed, selected, hidden, explosions }
+  ) {
     const mctx = mCanvas.getContext('2d');
     const s = mCanvas.width / WORLD.width;
     mctx.setTransform(s, 0, 0, s, 0, 0);
@@ -78,9 +81,26 @@
     mctx.fillStyle = 'rgba(93,222,120,0.3)';
     mctx.fillRect(0, height - 70, WORLD.width, 70);
 
-    // 구성요소 (회전체는 실제 각도로)
-    for (const comp of components) {
+    // 구성요소 (회전체는 실제 각도로, 터진 폭탄은 숨김)
+    for (let i = 0; i < components.length; i++) {
+      if (hidden && hidden.has(i)) continue;
+      const comp = components[i];
       drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0);
+    }
+
+    // 폭발 표시
+    if (explosions) {
+      const nowMs = performance.now();
+      for (const ex of explosions) {
+        const t = (nowMs - ex.start) / 600;
+        if (t >= 1) continue;
+        mctx.globalAlpha = 1 - t;
+        mctx.fillStyle = '#ffb03a';
+        mctx.beginPath();
+        mctx.arc(ex.x, ex.y, ex.radius * 0.6, 0, Math.PI * 2);
+        mctx.fill();
+        mctx.globalAlpha = 1;
+      }
     }
 
     // 선택된 구성요소 강조 (에디터)
@@ -252,6 +272,9 @@
       finishedRanks: [],
       overShown: false,
       camY: 0,
+      explosions: [], // {x, y, radius, start} — 폭발 애니메이션
+      hiddenComps: new Set(), // 터져서 잠시 사라진 구성요소 인덱스
+      shakeUntil: 0,
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
@@ -269,6 +292,16 @@
     game.snapshots.push(snap);
     if (game.snapshots.length > 4) game.snapshots.shift();
     game.countdown = snap.countdown;
+    game.hiddenComps = new Set(snap.off || []);
+  });
+
+  socket.on('game:explosion', ({ x, y, radius }) => {
+    if (!game) return;
+    game.explosions.push({ x, y, radius, start: performance.now() });
+    // 화면 안에서 터졌으면 카메라 흔들기
+    if (Math.abs(y - (game.camY + VIEW.height / 2)) < VIEW.height) {
+      game.shakeUntil = performance.now() + 250;
+    }
   });
 
   socket.on('game:ballFinished', ({ playerId, name, rank }) => {
@@ -460,15 +493,26 @@
     }
     const camY = game.camY;
 
+    // 폭발 시 카메라 흔들림
+    let shakeX = 0;
+    let shakeY = 0;
+    if (game.shakeUntil > performance.now()) {
+      const m = (5 * (game.shakeUntil - performance.now())) / 250;
+      shakeX = (Math.random() - 0.5) * m * 2;
+      shakeY = (Math.random() - 0.5) * m * 2;
+    }
+
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, VIEW.width, VIEW.height);
     ctx.save();
-    ctx.translate(0, -camY);
+    ctx.translate(shakeX, -camY + shakeY);
 
     drawGoal(ctx, board.goal);
 
     // 맵 구성요소 (화면 근처만 그리기, 회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
-    for (const comp of board.components) {
+    for (let i = 0; i < board.components.length; i++) {
+      const comp = board.components[i];
+      if (game.hiddenComps.has(i)) continue; // 터진 폭탄 등은 재생성까지 숨김
       if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) continue;
       drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
     }
@@ -514,12 +558,43 @@
       );
     }
 
+    // 폭발 이펙트 (확장 링 + 화염 + 파편)
+    const nowMs = performance.now();
+    game.explosions = game.explosions.filter((ex) => nowMs - ex.start < 600);
+    for (const ex of game.explosions) {
+      const t = (nowMs - ex.start) / 600;
+      const ease = 1 - Math.pow(1 - t, 3);
+      const r = ex.radius * (0.25 + 0.75 * ease);
+      ctx.save();
+      ctx.globalAlpha = (1 - t) * 0.35;
+      ctx.fillStyle = '#ff7a3a';
+      ctx.beginPath();
+      ctx.arc(ex.x, ex.y, r * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = '#ffb03a';
+      ctx.lineWidth = 5 * (1 - t) + 1;
+      ctx.beginPath();
+      ctx.arc(ex.x, ex.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd76a';
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 * i) / 8 + 0.4;
+        ctx.beginPath();
+        ctx.arc(ex.x + Math.cos(a) * r, ex.y + Math.sin(a) * r, 3.5 * (1 - t) + 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     ctx.restore();
 
     // 미니맵
     drawMinimap(minimap, {
       height: mapH,
       components: board.components,
+      hidden: game.hiddenComps,
+      explosions: game.explosions,
       balls: balls.map((b) => {
         const p = game.players.get(b.p);
         return { x: b.x, y: b.y, color: p ? p.color : '#888', mine: b.p === myId };
@@ -566,6 +641,7 @@
     const built = buildShapes(comp.type, comp.props);
     comp.shapes = built.shapes;
     comp.spin = built.spin;
+    comp.hit = built.hit || null;
   }
 
   function openEditor() {
@@ -844,6 +920,13 @@
         eCtx.beginPath();
         eCtx.arc(comp.x, comp.y, radius + 6, 0, Math.PI * 2);
         eCtx.stroke();
+        // 폭탄 등: 발동 범위 미리보기
+        if (comp.hit && comp.hit.radius) {
+          eCtx.strokeStyle = 'rgba(255,176,58,0.55)';
+          eCtx.beginPath();
+          eCtx.arc(comp.x, comp.y, comp.hit.radius, 0, Math.PI * 2);
+          eCtx.stroke();
+        }
         eCtx.setLineDash([]);
       }
     });

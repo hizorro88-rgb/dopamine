@@ -58,10 +58,12 @@ function spinnerParkComponents() {
   comps.push({ type: 'bumper', x: 110, y: 385, props: { size: 18 } });
   comps.push({ type: 'bumper', x: 490, y: 385, props: { size: 18 } });
 
-  // 2구간: 회전 막대 쌍 + 중앙 십자
+  // 2구간: 회전 막대 쌍 + 중앙 십자 + 구석 폭탄
   comps.push({ type: 'spinner', x: 170, y: 530, props: { length: 160, speed: 2 } });
   comps.push({ type: 'spinner', x: 430, y: 530, props: { length: 160, speed: -2 } });
   comps.push({ type: 'cross', x: 300, y: 690, props: { length: 150, speed: 1.5 } });
+  comps.push({ type: 'bomb', x: 60, y: 690, props: { radius: 150, power: 14, respawn: 6 } });
+  comps.push({ type: 'bomb', x: 540, y: 690, props: { radius: 150, power: 14, respawn: 6 } });
 
   // 3구간: 핀 + 가운데로 모으는 경사벽
   pegRow(comps, 830);
@@ -85,10 +87,10 @@ function spinnerParkComponents() {
   comps.push({ type: 'wall', x: 180, y: 1670, props: { length: 280, angle: 20 } });
   comps.push({ type: 'wall', x: 420, y: 1820, props: { length: 280, angle: -20 } });
 
-  // 7구간: 마지막 관문 — 빠른 회전 막대 + 중앙 범퍼
+  // 7구간: 마지막 관문 — 빠른 회전 막대 + 중앙 폭탄
   comps.push({ type: 'spinner', x: 150, y: 1975, props: { length: 150, speed: -3 } });
   comps.push({ type: 'spinner', x: 450, y: 1975, props: { length: 150, speed: 3 } });
-  comps.push({ type: 'bumper', x: 300, y: 2080, props: { size: 22 } });
+  comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
   pegRow(comps, 2170);
 
   return [...comps, ...funnel()];

@@ -28,6 +28,21 @@ const GAME_TIMEOUT_MS = 180000; // 제한시간 (넘으면 현재 위치로 순�
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
 
+/**
+ * 반응형 구성요소 동작: 구성요소의 hit.action 값으로 실행할 동작을 고른다.
+ * 새 반응형 동작을 추가하려면 여기에 함수 하나만 추가하면 된다.
+ */
+const HIT_ACTIONS = {
+  // 폭발: 범위 안의 모든 공에 방사형 물리력, 이후 재생성 대기
+  explode(game, inst) {
+    inst.exploded = true;
+    inst.respawnAt =
+      inst.hit.respawnMs > 0 ? game.now() + inst.hit.respawnMs : Infinity;
+    Matter.Composite.remove(game.engine.world, inst.body);
+    game.explodeAt(inst.x, inst.y, inst.hit.radius, inst.hit.power);
+  },
+};
+
 class Game {
   /**
    * @param {object} room  rooms.js 의 방 객체
@@ -53,6 +68,7 @@ class Game {
     this.finished = []; // 도착 순서대로 playerId
     this.activeEffects = []; // { itemId, ball, until }
     this.spinners = []; // { body, spin, pivot, angle } — 회전 구성요소
+    this.reactive = new Map(); // rootBodyId -> 반응형 구성요소 인스턴스 (폭탄 등)
     this.startedAt = 0;
     this.dropAt = 0;
     this.tickCount = 0;
@@ -60,6 +76,47 @@ class Game {
     this.over = false;
 
     this.board = this.buildBoard(mapDef);
+
+    // 공 ↔ 반응형 구성요소 충돌 감지
+    Matter.Events.on(this.engine, 'collisionStart', (ev) => {
+      for (const pair of ev.pairs) {
+        this.handleContact(pair.bodyA, pair.bodyB);
+        this.handleContact(pair.bodyB, pair.bodyA);
+      }
+    });
+  }
+
+  /** a가 반응형 구성요소이고 b가 공이면 동작 발동 */
+  handleContact(a, b) {
+    const inst = this.reactive.get((a.parent || a).id);
+    if (!inst || inst.exploded) return;
+    const ballBody = b.parent || b;
+    if (!ballBody.plugin || !ballBody.plugin.playerId) return;
+    const action = HIT_ACTIONS[inst.hit.action];
+    if (action) action(this, inst, ballBody);
+  }
+
+  /**
+   * (x, y)에서 폭발: 범위 안의 모든 공이 중심 반대 방향으로 튕겨나간다.
+   * 폭탄 구성요소와 충격파 아이템이 공용으로 사용.
+   */
+  explodeAt(x, y, radius, power, excludePlayerId) {
+    for (const [playerId, ball] of this.balls) {
+      if (ball.plugin.done || playerId === excludePlayerId) continue;
+      const dx = ball.position.x - x;
+      const dy = ball.position.y - y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius) continue;
+      const dirX = dist > 1 ? dx / dist : 0;
+      const dirY = dist > 1 ? dy / dist : -1;
+      // 가까울수록 강하게
+      const v = power * (0.45 + 0.55 * (1 - dist / radius));
+      Matter.Body.setVelocity(ball, {
+        x: ball.velocity.x * 0.25 + dirX * v,
+        y: ball.velocity.y * 0.25 + dirY * v,
+      });
+    }
+    this.io.to(this.room.code).emit('game:explosion', { x, y, radius });
   }
 
   now() {
@@ -120,6 +177,19 @@ class Game {
           spin: built.spin,
           pivot: { x: comp.x, y: comp.y },
           angle: 0,
+        });
+      }
+
+      // 반응형 구성요소(폭탄 등)는 충돌 감지 대상으로 등록
+      if (built.hit) {
+        this.reactive.set(body.id, {
+          index: renderComponents.length, // 이 구성요소의 렌더링 인덱스
+          body,
+          x: comp.x,
+          y: comp.y,
+          hit: built.hit,
+          exploded: false,
+          respawnAt: 0,
         });
       }
 
@@ -205,6 +275,14 @@ class Game {
       s.angle = target;
     }
 
+    // 터진 반응형 구성요소 재생성
+    for (const inst of this.reactive.values()) {
+      if (inst.exploded && now >= inst.respawnAt) {
+        inst.exploded = false;
+        Matter.Composite.add(this.engine.world, inst.body);
+      }
+    }
+
     // 지속형 아이템 효과 만료 처리
     this.activeEffects = this.activeEffects.filter((fx) => {
       if (now >= fx.until) {
@@ -272,11 +350,18 @@ class Game {
         b: ball.plugin.balloon ? 1 : 0,
       });
     }
+    // 현재 터져 있는(숨겨진) 반응형 구성요소 인덱스
+    const off = [];
+    for (const inst of this.reactive.values()) {
+      if (inst.exploded) off.push(inst.index);
+    }
+
     this.io.to(this.room.code).emit('game:snapshot', {
       t: now,
       elapsed: now - this.startedAt, // 회전 구성요소 각도 계산용
       countdown: dropping ? 0 : Math.max(0, this.dropAt - now),
       balls,
+      off,
     });
   }
 

@@ -85,7 +85,21 @@ const ITEMS = {
     },
   },
 
-  // 5번: 상대방 공을 3초간 풍선처럼 커지고 잘 튀게 만들기
+  // 5번: 내 공 주변에 폭발을 일으켜 근처의 다른 공들을 날려버리기
+  shockwave: {
+    id: 'shockwave',
+    name: '충격파',
+    emoji: '💥',
+    desc: '내 공 주변에 폭발을 일으켜 근처의 다른 공들을 날려버립니다.',
+    target: 'self',
+    duration: 0,
+    apply(game, ball) {
+      // 내 공은 밀려나지 않음 (excludePlayerId)
+      game.explodeAt(ball.position.x, ball.position.y, 200, 16, ball.plugin.playerId);
+    },
+  },
+
+  // 6번: 상대방 공을 3초간 풍선처럼 커지고 잘 튀게 만들기
   balloon: {
     id: 'balloon',
     name: '풍선',
