@@ -124,8 +124,8 @@ class Game {
     this.BALL_RESTITUTION = BALL_RESTITUTION;
 
     this.engine = Matter.Engine.create();
-    // 중력을 낮춰 천천히 떨어지게 → 레이스가 길어지고 아이템 쓸 타이밍이 생김
-    this.engine.gravity.y = 0.35;
+    // 빠른 템포의 낙하 (공 크기 절반 + 3배 속도 튜닝)
+    this.engine.gravity.y = 1.05;
 
     this.balls = new Map(); // ballKey(playerId:idx) -> Matter body
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]

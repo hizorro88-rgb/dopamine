@@ -11,7 +11,7 @@ const CAT_PEG = 0x0002; // 맵 구성요소 (유령 상태에서는 통과)
 const CAT_BALL = 0x0004;
 const DEFAULT_MASK = CAT_WALL | CAT_PEG | CAT_BALL;
 
-const BALL_RADIUS = 13;
+const BALL_RADIUS = 7;
 const BALL_RESTITUTION = 0.7;
 const GOAL_MARGIN = 55; // 맵 바닥에서 이만큼 위가 골인선
 
@@ -111,7 +111,7 @@ function createBall(x, y) {
   return Matter.Bodies.circle(x, y, BALL_RADIUS, {
     restitution: BALL_RESTITUTION,
     friction: 0.02,
-    frictionAir: 0.008,
+    frictionAir: 0.004, // 낮을수록 최고 낙하 속도가 빨라짐
     density: 0.0015,
     collisionFilter: { category: CAT_BALL, mask: DEFAULT_MASK },
   });
