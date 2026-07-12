@@ -59,8 +59,8 @@ git clone https://github.com/hizorro88-rgb/dopamine.git C:\dopamine
 3. 설정 파일 수정: `C:\dopamine\scripts\start.bat` 을 **메모장으로 열어** 위쪽 값 수정
    ```bat
    set PORT=3000
-   set DONATION_URL=https://toss.me/내아이디     ← 후원 링크 (비우면 버튼 숨김)
-   set ADMIN_KEY=나만아는비밀키123               ← 반드시 바꾸세요! 후원자 등록 권한
+   set DONATION_URL=https://qr.kakaopay.com/Ej8euQo2R   ← 카카오페이 후원 링크 (이미 설정됨, 끄려면 off)
+   set ADMIN_KEY=나만아는비밀키123                       ← 반드시 바꾸세요! 후원자 등록 권한
    ```
 4. **`scripts\start.bat` 더블클릭** → 검은 창에 "서버 시작 중..." 이 나오면 실행 성공
 5. 브라우저에서 `http://localhost:3000` 접속 → DOPAMINE 홈 화면이 보이면 완료 🎉

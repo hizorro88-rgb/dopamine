@@ -11,12 +11,13 @@ app.use(express.json());
 
 const donors = new DonorStore();
 
-// 클라이언트 설정: 후원 링크 등 (환경변수로 주입, 없으면 버튼 숨김)
-// 예: DONATION_URL=https://toss.me/내아이디 npm start
+// 클라이언트 설정: 후원 링크 (환경변수로 덮어쓰기 가능, 'off' 면 버튼 숨김)
+const DEFAULT_DONATION_URL = 'https://qr.kakaopay.com/Ej8euQo2R'; // 운영자 카카오페이
 app.get('/api/config', (_req, res) => {
+  const url = process.env.DONATION_URL || DEFAULT_DONATION_URL;
   res.json({
-    donationUrl: process.env.DONATION_URL || '',
-    donationLabel: process.env.DONATION_LABEL || '☕ 서버비 후원하기',
+    donationUrl: url === 'off' ? '' : url,
+    donationLabel: process.env.DONATION_LABEL || '💛 서버비 후원하기 (카카오페이)',
   });
 });
 
