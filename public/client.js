@@ -318,17 +318,22 @@
     }
   });
 
-  socket.on('game:ballFinished', ({ playerId, name, rank }) => {
+  socket.on('game:ballFinished', ({ playerId, name, rank, timeMs }) => {
     if (!game) return;
     game.finishedRanks.push({ playerId, name, rank });
     const p = game.players.get(playerId);
     const li = document.createElement('li');
     li.innerHTML = `<span class="rank-num">${rank}등</span>
       <span class="player-dot" style="background:${p ? p.color : '#888'}"></span>
-      <span>${escapeHtml(name)}${playerId === myId ? ' (나)' : ''}</span>`;
+      <span>${escapeHtml(name)}${playerId === myId ? ' (나)' : ''}</span>
+      <span class="result-time">${formatTime(timeMs)}</span>`;
     $('rank-list').appendChild(li);
     if (rank === 1) toast(`🏆 ${name}님이 1등으로 도착!`);
   });
+
+  function formatTime(timeMs) {
+    return timeMs == null ? '' : (timeMs / 1000).toFixed(1) + '초';
+  }
 
   socket.on('game:itemUsed', ({ by, item, target, self }) => {
     toast(
@@ -341,19 +346,91 @@
   socket.on('game:over', ({ ranking }) => {
     if (!game) return;
     game.overShown = true;
+
+    // 우승자 배너
+    const winner = ranking[0];
+    $('winner-banner').textContent = winner
+      ? `🏆 ${winner.name}${winner.playerId === myId ? ' (나)' : ''} 우승!`
+      : '';
+
+    // 시상대 (1~3등, 표시 순서: 2등-1등-3등)
+    const podium = $('podium');
+    podium.innerHTML = '';
+    const medals = ['🥇', '🥈', '🥉'];
+    const classes = ['first', 'second', 'third'];
+    const top3 = ranking.slice(0, 3);
+    const order = [top3[1], top3[0], top3[2]].filter(Boolean);
+    for (const r of order) {
+      const col = document.createElement('div');
+      col.className = `podium-col ${classes[r.rank - 1]}`;
+      col.innerHTML = `
+        <span class="podium-medal">${medals[r.rank - 1]}</span>
+        <span class="podium-ball" style="background:${r.color};color:${r.color}"></span>
+        <span class="podium-name">${escapeHtml(r.name)}${r.playerId === myId ? ' ★' : ''}</span>
+        <span class="podium-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>
+        <div class="podium-block">${r.rank}등</div>`;
+      podium.appendChild(col);
+    }
+
+    // 4등 이하 목록
     const list = $('result-list');
     list.innerHTML = '';
-    const medals = ['🥇', '🥈', '🥉'];
-    for (const r of ranking) {
+    for (const r of ranking.slice(3)) {
       const li = document.createElement('li');
-      li.innerHTML = `<span class="rank-num">${medals[r.rank - 1] || r.rank + '등'}</span>
+      li.innerHTML = `<span class="rank-num">${r.rank}등</span>
         <span class="player-dot" style="background:${r.color}"></span>
         <span>${escapeHtml(r.name)}${r.playerId === myId ? ' (나)' : ''}</span>
-        ${r.finished ? '' : '<span style="margin-left:auto;font-size:12px;color:var(--muted)">미도착</span>'}`;
+        <span class="result-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>`;
       list.appendChild(li);
     }
+
     $('result-modal').classList.remove('hidden');
+    startConfetti();
   });
+
+  // ── 색종이 축하 효과 ──────────────────────────────────
+  const CONFETTI_COLORS = ['#ff5d5d', '#ffb03a', '#ffe14d', '#5dde78', '#4dc9ff', '#c86dff'];
+  function startConfetti() {
+    const c = $('confetti');
+    c.width = c.clientWidth;
+    c.height = c.clientHeight;
+    const cx = c.getContext('2d');
+    const parts = Array.from({ length: 110 }, () => ({
+      x: Math.random() * c.width,
+      y: -Math.random() * c.height * 0.6,
+      w: 5 + Math.random() * 6,
+      h: 8 + Math.random() * 8,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      vy: 1.6 + Math.random() * 2.6,
+      vx: (Math.random() - 0.5) * 1.4,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.18,
+    }));
+    const step = () => {
+      if ($('result-modal').classList.contains('hidden')) {
+        cx.clearRect(0, 0, c.width, c.height);
+        return; // 화면 닫히면 종료
+      }
+      cx.clearRect(0, 0, c.width, c.height);
+      for (const p of parts) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vr;
+        if (p.y > c.height + 20) {
+          p.y = -20;
+          p.x = Math.random() * c.width;
+        }
+        cx.save();
+        cx.translate(p.x, p.y);
+        cx.rotate(p.rot);
+        cx.fillStyle = p.color;
+        cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        cx.restore();
+      }
+      requestAnimationFrame(step);
+    };
+    step();
+  }
 
   $('btn-back-lobby').addEventListener('click', () => {
     $('result-modal').classList.add('hidden');

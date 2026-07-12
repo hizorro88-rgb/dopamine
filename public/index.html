@@ -101,10 +101,13 @@
       </div>
     </div>
 
-    <!-- 게임 종료 결과 -->
+    <!-- 게임 종료: 최종 결과 화면 -->
     <div id="result-modal" class="modal hidden">
-      <div class="modal-card">
-        <h2>🏁 결과</h2>
+      <canvas id="confetti"></canvas>
+      <div class="modal-card result-card">
+        <h2>🏁 최종 결과</h2>
+        <div id="winner-banner"></div>
+        <div id="podium"></div>
         <ol id="result-list"></ol>
         <button id="btn-back-lobby" class="btn primary">대기실로 돌아가기</button>
         <a class="donate-link hidden" target="_blank" rel="noopener"></a>

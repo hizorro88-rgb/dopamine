@@ -66,6 +66,7 @@ class Game {
     this.balls = new Map(); // playerId -> Matter body
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]
     this.finished = []; // 도착 순서대로 playerId
+    this.finishTimes = new Map(); // playerId -> 낙하 시작 후 완주 시간(ms)
     this.activeEffects = []; // { itemId, ball, until }
     this.spinners = []; // { body, spin, pivot, angle } — 회전 구성요소
     this.reactive = new Map(); // rootBodyId -> 반응형 구성요소 인스턴스 (폭탄 등)
@@ -314,11 +315,13 @@ class Game {
         ball.plugin.done = true;
         Matter.Composite.remove(this.engine.world, ball);
         this.finished.push(playerId);
+        this.finishTimes.set(playerId, now - this.dropAt); // 카운트다운 제외한 레이스 기록
         const player = this.room.players.get(playerId);
         this.io.to(this.room.code).emit('game:ballFinished', {
           playerId,
           name: player ? player.name : '?',
           rank: this.finished.length,
+          timeMs: this.finishTimes.get(playerId),
         });
       }
     }
@@ -438,6 +441,7 @@ class Game {
         name: player ? player.name : '(나감)',
         color: player ? player.color : '#888',
         finished: i < this.finished.length,
+        timeMs: this.finishTimes.has(playerId) ? this.finishTimes.get(playerId) : null,
       };
     });
 
