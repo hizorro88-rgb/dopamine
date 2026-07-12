@@ -17,6 +17,16 @@
         <button id="home-wm-first" class="winmode-btn selected" data-mode="first">🥇 먼저 골인 우승</button>
         <button id="home-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 우승</button>
       </div>
+      <div class="balls-row">
+        <span>⚪ 인당 공 개수</span>
+        <select id="home-ball-count">
+          <option value="1">1개</option>
+          <option value="2">2개</option>
+          <option value="3">3개</option>
+          <option value="4">4개</option>
+          <option value="5">5개</option>
+        </select>
+      </div>
       <button id="btn-create" class="btn primary">🏠 방 만들기</button>
       <div class="divider"><span>또는</span></div>
       <div class="join-row">
@@ -70,6 +80,16 @@
       <div class="winmode-row" id="lobby-winmode">
         <button id="lobby-wm-first" class="winmode-btn" data-mode="first">🥇 먼저 골인 우승</button>
         <button id="lobby-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 우승</button>
+      </div>
+      <div class="balls-row">
+        <span>⚪ 인당 공 개수</span>
+        <select id="lobby-ball-count" disabled>
+          <option value="1">1개</option>
+          <option value="2">2개</option>
+          <option value="3">3개</option>
+          <option value="4">4개</option>
+          <option value="5">5개</option>
+        </select>
       </div>
       <div class="map-box">
         <div class="map-row">
@@ -145,6 +165,7 @@
         <canvas id="minimap" class="minimap"></canvas>
       </div>
       <div id="game-side">
+        <button id="btn-drop" class="btn primary hidden">🎲 지금 떨어뜨리기!</button>
         <div id="countdown"></div>
         <div id="toast-area"></div>
         <div id="item-bar">

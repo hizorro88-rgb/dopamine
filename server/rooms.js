@@ -40,6 +40,11 @@ function sanitizeName(name) {
   return trimmed || '플레이어';
 }
 
+function sanitizeBallCount(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), 5) : 1;
+}
+
 class RoomManager {
   constructor(io, donorStore) {
     this.io = io;
@@ -55,7 +60,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const code = generateCode(this.rooms);
       const room = {
@@ -66,6 +71,7 @@ class RoomManager {
         game: null,
         mapId: 'classic',
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
+        ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
@@ -142,6 +148,21 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
+    // 방장이 대기실에서 인당 공 개수 변경
+    socket.on('room:setBalls', ({ ballsPerPlayer } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      room.ballsPerPlayer = sanitizeBallCount(ballsPerPlayer);
+      this.broadcastRoom(room);
+    });
+
+    // 셔플 단계에서 방장이 낙하 시작
+    socket.on('game:drop', () => {
+      const room = this.roomOf(socket);
+      if (!room || !room.game || room.hostId !== socket.id) return;
+      room.game.drop();
+    });
+
     socket.on('game:useItem', ({ slotIndex, targetId } = {}, cb) => {
       const room = this.roomOf(socket);
       if (!room || !room.game) return;
@@ -193,6 +214,7 @@ class RoomManager {
       players: [...room.players.values()],
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
+      ballsPerPlayer: room.ballsPerPlayer || 1,
     });
   }
 }

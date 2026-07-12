@@ -3,6 +3,10 @@
  * Matter.js 를 서버에서 돌리고 클라이언트에는 좌표 스냅샷만 전송한다.
  * → 모든 참가자가 완전히 동일한 게임을 보고, 클라이언트 부담이 거의 없다.
  *
+ * 게임 흐름:
+ *   시작 → 셔플 단계 (공들이 배치 패턴 사이를 계속 이동, 전원이 관전)
+ *        → 방장이 낙하 버튼 → 그 순간의 위치에서 낙하 시작 → 골인 순위
+ *
  * 보드는 맵 정의(구성요소 목록)로부터 생성된다.
  * 구성요소의 도형(shapes)을 그대로 물리 바디로 변환하므로
  * public/components.js 에 새 구성요소를 추가하면 여기는 수정할 필요가 없다.
@@ -10,7 +14,6 @@
 
 const Matter = require('matter-js');
 const { ITEMS, itemMeta, randomItems } = require('./items');
-const { WORLD } = require('../public/components.js');
 const {
   buildBoard,
   createBall,
@@ -20,11 +23,64 @@ const {
 } = require('./board');
 
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
-const COUNTDOWN_MS = 3000; // 시작 카운트다운
-const GAME_TIMEOUT_MS = 180000; // 제한시간 (넘으면 현재 위치로 순위 결정)
+const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
+const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
+const SHUFFLE_MAX_MS = 45000; // 방장이 안 누르면 자동 낙하
+const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
+
+// ── 시작 배치 패턴 ──────────────────────────────────────
+// 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
+// 방장이 낙하 버튼을 누르는 순간의 위치에서 시작된다.
+// 새 패턴을 추가하려면 SPAWN_PATTERNS 에 함수 하나만 추가하면 된다.
+const SPAWN = { minX: 40, maxX: 560, minY: 40, maxY: 112 };
+const lerp = (a, b, t) => a + (b - a) * t;
+const spread = (n, fn) =>
+  Array.from({ length: n }, (_, i) => fn(n === 1 ? 0.5 : i / (n - 1), i));
+
+const SPAWN_PATTERNS = {
+  // 일렬
+  line: (n) => spread(n, (t) => ({ x: lerp(SPAWN.minX, SPAWN.maxX, t), y: 76 })),
+  // 지그재그 두 줄
+  zigzag: (n) =>
+    spread(n, (t, i) => ({
+      x: lerp(SPAWN.minX, SPAWN.maxX, t),
+      y: i % 2 === 0 ? SPAWN.minY + 14 : SPAWN.maxY - 14,
+    })),
+  // 타원형
+  circle: (n) =>
+    spread(n, (t) => ({
+      x: 300 + Math.cos(t * Math.PI * 2) * 240,
+      y: 76 + Math.sin(t * Math.PI * 2) * 33,
+    })),
+  // V자 (가운데가 아래)
+  vshape: (n) =>
+    spread(n, (t) => ({
+      x: lerp(SPAWN.minX, SPAWN.maxX, t),
+      y: lerp(SPAWN.maxY, SPAWN.minY, Math.abs(t - 0.5) * 2),
+    })),
+  // X자 (두 대각선 교차)
+  xshape: (n) =>
+    spread(n, (t, i) => ({
+      x: lerp(SPAWN.minX, SPAWN.maxX, t),
+      y: i % 2 === 0 ? lerp(SPAWN.minY, SPAWN.maxY, t) : lerp(SPAWN.maxY, SPAWN.minY, t),
+    })),
+  // 무작위 산개
+  scatter: (n) =>
+    Array.from({ length: n }, () => ({
+      x: SPAWN.minX + Math.random() * (SPAWN.maxX - SPAWN.minX),
+      y: SPAWN.minY + Math.random() * (SPAWN.maxY - SPAWN.minY),
+    })),
+};
+
+/** 무작위 패턴의 슬롯을 무작위 순서로 반환 */
+function randomPatternSlots(n) {
+  const keys = Object.keys(SPAWN_PATTERNS);
+  const slots = SPAWN_PATTERNS[keys[Math.floor(Math.random() * keys.length)]](n);
+  return slots.sort(() => Math.random() - 0.5);
+}
 
 /**
  * 반응형 구성요소 동작: 구성요소의 hit.action 값으로 실행할 동작을 고른다.
@@ -54,6 +110,11 @@ class Game {
     this.onGameOver = onGameOver;
     // 우승 조건: 'first' = 먼저 골인한 순서 / 'last' = 늦게 골인한 순서
     this.winMode = room.winMode === 'last' ? 'last' : 'first';
+    // 인당 공 개수
+    this.ballsPerPlayer = Math.min(
+      Math.max(1, Number(room.ballsPerPlayer) || 1),
+      MAX_BALLS_PER_PLAYER
+    );
 
     this.CAT_WALL = CAT_WALL;
     this.DEFAULT_MASK = DEFAULT_MASK;
@@ -63,13 +124,16 @@ class Game {
     // 중력을 낮춰 천천히 떨어지게 → 레이스가 길어지고 아이템 쓸 타이밍이 생김
     this.engine.gravity.y = 0.35;
 
-    this.balls = new Map(); // playerId -> Matter body
+    this.balls = new Map(); // ballKey(playerId:idx) -> Matter body
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]
-    this.finished = []; // 도착 순서대로 playerId
-    this.finishTimes = new Map(); // playerId -> 낙하 시작 후 완주 시간(ms)
+    this.finished = []; // 도착 순서대로 ballKey
+    this.finishTimes = new Map(); // ballKey -> 낙하 시작 후 완주 시간(ms)
     this.activeEffects = []; // { itemId, ball, until }
     this.startedAt = 0;
-    this.dropAt = 0;
+    this.dropAt = Infinity; // 셔플 중에는 무한대 → drop() 시점에 확정
+    this.shuffling = true;
+    this.shuffleTargets = new Map(); // ballKey -> {x, y}
+    this.nextShuffleAt = 0;
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
@@ -105,8 +169,8 @@ class Game {
    * 폭탄 구성요소와 충격파 아이템이 공용으로 사용.
    */
   explodeAt(x, y, radius, power, excludePlayerId) {
-    for (const [playerId, ball] of this.balls) {
-      if (ball.plugin.done || playerId === excludePlayerId) continue;
+    for (const ball of this.balls.values()) {
+      if (ball.plugin.done || ball.plugin.playerId === excludePlayerId) continue;
       const dx = ball.position.x - x;
       const dy = ball.position.y - y;
       const dist = Math.hypot(dx, dy);
@@ -127,29 +191,36 @@ class Game {
     return Date.now();
   }
 
-  /** 게임 시작: 공 생성, 아이템 배정, 루프 가동 */
+  /** 특정 플레이어의 아직 도착하지 않은 공들 */
+  aliveBallsOf(playerId) {
+    return [...this.balls.values()].filter(
+      (b) => b.plugin.playerId === playerId && !b.plugin.done
+    );
+  }
+
+  /** 게임 시작: 공 생성(인당 N개), 아이템 배정, 셔플 단계 진입 */
   start() {
     const players = [...this.room.players.values()];
 
-    // 공 스폰 위치를 섞어서 공평하게
-    const slots = players.map((_, i) => i).sort(() => Math.random() - 0.5);
-    const spanLeft = 70;
-    const spanRight = WORLD.width - 70;
-
-    players.forEach((player, i) => {
-      const t = players.length === 1 ? 0.5 : slots[i] / (players.length - 1);
-      const x = spanLeft + t * (spanRight - spanLeft) + (Math.random() - 0.5) * 10;
-      const ball = createBall(x, 70);
-      ball.plugin = { playerId: player.id };
-      this.balls.set(player.id, ball);
-      Matter.Composite.add(this.engine.world, ball);
-
-      // 랜덤 아이템 배정
+    for (const player of players) {
+      for (let i = 0; i < this.ballsPerPlayer; i++) {
+        const key = `${player.id}:${i}`;
+        const ball = createBall(300, 76);
+        ball.plugin = { playerId: player.id, idx: i, key };
+        this.balls.set(key, ball);
+        Matter.Composite.add(this.engine.world, ball);
+      }
+      // 랜덤 아이템 배정 (공 개수와 무관하게 인당 2개)
       this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER));
-    });
+    }
+
+    // 첫 배치 패턴을 즉시 적용
+    this.assignShuffleTargets();
+    for (const [key, ball] of this.balls) {
+      Matter.Body.setPosition(ball, this.shuffleTargets.get(key));
+    }
 
     this.startedAt = this.now();
-    this.dropAt = this.startedAt + COUNTDOWN_MS;
 
     // 각자에게 자기 아이템 포함 시작 정보 전송
     for (const player of players) {
@@ -158,8 +229,9 @@ class Game {
         .map((id) => itemMeta(ITEMS[id]));
       this.io.to(player.id).emit('game:started', {
         board: this.board,
-        countdownMs: COUNTDOWN_MS,
         winMode: this.winMode,
+        ballsPerPlayer: this.ballsPerPlayer,
+        shuffle: true,
         players: players.map((p) => ({
           id: p.id,
           name: p.name,
@@ -173,13 +245,28 @@ class Game {
     this.interval = setInterval(() => this.tick(), TICK_MS);
   }
 
+  /** 새 배치 패턴을 골라 공들의 이동 목표를 재배정 */
+  assignShuffleTargets() {
+    const slots = randomPatternSlots(this.balls.size);
+    let i = 0;
+    for (const key of this.balls.keys()) {
+      this.shuffleTargets.set(key, slots[i++]);
+    }
+    this.nextShuffleAt = this.now() + SHUFFLE_INTERVAL_MS;
+  }
+
+  /** 방장이 낙하 버튼을 누른 순간 — 지금 위치 그대로 낙하 시작 */
+  drop() {
+    if (!this.shuffling || this.over) return;
+    this.shuffling = false;
+    this.dropAt = this.now();
+  }
+
   tick() {
     if (this.over) return;
     const now = this.now();
     const elapsedSec = (now - this.startedAt) / 1000;
-
-    // 카운트다운 후 낙하 시작
-    const dropping = now >= this.dropAt;
+    const dropping = !this.shuffling;
 
     // 회전 구성요소 회전 (경과 시간 기반 → 클라이언트와 결정적으로 동기화)
     for (const s of this.spinners) {
@@ -206,41 +293,55 @@ class Game {
       return true;
     });
 
-    // 공 고정 처리 (카운트다운 대기 / 얼리기)
-    for (const ball of this.balls.values()) {
-      if (ball.plugin.done) continue;
-      if (!dropping) {
+    if (this.shuffling) {
+      // 셔플 단계: 주기적으로 새 패턴 배정, 공들은 목표 위치로 부드럽게 이동
+      if (now >= this.nextShuffleAt) this.assignShuffleTargets();
+      for (const [key, ball] of this.balls) {
+        const target = this.shuffleTargets.get(key);
         Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-        Matter.Body.setPosition(ball, ball.plugin.spawnPos || ball.position);
-        if (!ball.plugin.spawnPos) ball.plugin.spawnPos = { ...ball.position };
-      } else if (ball.plugin.frozen && ball.plugin.frozenPos) {
-        Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-        Matter.Body.setPosition(ball, ball.plugin.frozenPos);
+        Matter.Body.setPosition(ball, {
+          x: ball.position.x + (target.x - ball.position.x) * 0.12,
+          y: ball.position.y + (target.y - ball.position.y) * 0.12,
+        });
+      }
+      // 방장이 너무 오래 안 누르면 자동 낙하
+      if (now - this.startedAt > SHUFFLE_MAX_MS) this.drop();
+    } else {
+      // 얼린 공 고정
+      for (const ball of this.balls.values()) {
+        if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
+          Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+          Matter.Body.setPosition(ball, ball.plugin.frozenPos);
+        }
       }
     }
 
     Matter.Engine.update(this.engine, TICK_MS);
 
     // 도착 판정
-    for (const [playerId, ball] of this.balls) {
-      if (!ball.plugin.done && ball.position.y > this.goalY) {
-        ball.plugin.done = true;
-        Matter.Composite.remove(this.engine.world, ball);
-        this.finished.push(playerId);
-        this.finishTimes.set(playerId, now - this.dropAt); // 카운트다운 제외한 레이스 기록
-        const player = this.room.players.get(playerId);
-        this.io.to(this.room.code).emit('game:ballFinished', {
-          playerId,
-          name: player ? player.name : '?',
-          rank: this.finished.length,
-          timeMs: this.finishTimes.get(playerId),
-        });
+    if (dropping) {
+      for (const [key, ball] of this.balls) {
+        if (!ball.plugin.done && ball.position.y > this.goalY) {
+          ball.plugin.done = true;
+          Matter.Composite.remove(this.engine.world, ball);
+          this.finished.push(key);
+          this.finishTimes.set(key, now - this.dropAt);
+          const player = this.room.players.get(ball.plugin.playerId);
+          const name = player ? player.name : '?';
+          this.io.to(this.room.code).emit('game:ballFinished', {
+            playerId: ball.plugin.playerId,
+            ballIndex: ball.plugin.idx,
+            name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
+            rank: this.finished.length,
+            timeMs: this.finishTimes.get(key),
+          });
+        }
       }
     }
 
-    // 종료 판정: 전원 도착 or 제한시간 초과
+    // 종료 판정: 전 공 도착 or 낙하 후 제한시간 초과
     const allDone = [...this.balls.values()].every((b) => b.plugin.done);
-    if ((dropping && allDone) || now - this.startedAt > GAME_TIMEOUT_MS) {
+    if ((dropping && allDone) || (dropping && now - this.dropAt > GAME_TIMEOUT_MS)) {
       this.finish();
       return;
     }
@@ -248,16 +349,18 @@ class Game {
     // 스냅샷 전송 (30Hz)
     this.tickCount++;
     if (this.tickCount % SNAPSHOT_EVERY === 0) {
-      this.broadcastSnapshot(now, dropping);
+      this.broadcastSnapshot(now);
     }
   }
 
-  broadcastSnapshot(now, dropping) {
+  broadcastSnapshot(now) {
     const balls = [];
-    for (const [playerId, ball] of this.balls) {
+    for (const ball of this.balls.values()) {
       if (ball.plugin.done) continue;
       balls.push({
-        p: playerId,
+        k: ball.plugin.key,
+        p: ball.plugin.playerId,
+        i: ball.plugin.idx,
         x: Math.round(ball.position.x * 10) / 10,
         y: Math.round(ball.position.y * 10) / 10,
         g: ball.plugin.ghost ? 1 : 0,
@@ -274,32 +377,34 @@ class Game {
     this.io.to(this.room.code).emit('game:snapshot', {
       t: now,
       elapsed: now - this.startedAt, // 회전 구성요소 각도 계산용
-      countdown: dropping ? 0 : Math.max(0, this.dropAt - now),
+      sh: this.shuffling ? 1 : 0,
+      countdown: 0,
       balls,
       off,
     });
   }
 
   /**
-   * 아이템 사용 요청 처리
+   * 아이템 사용 요청 처리 — 효과는 해당 플레이어의 선두 공에 적용
    * @returns {string|null} 오류 메시지 (성공 시 null)
    */
   useItem(playerId, slotIndex, targetId) {
     if (this.over) return '게임이 끝났습니다.';
     const items = this.playerItems.get(playerId);
     if (!items || !items[slotIndex]) return '이미 사용한 아이템입니다.';
-    if (this.now() < this.dropAt) return '카운트다운 중에는 사용할 수 없습니다.';
+    if (this.shuffling) return '아직 시작 전입니다.';
 
     const item = ITEMS[items[slotIndex]];
     const ballOwnerId = item.target === 'opponent' ? targetId : playerId;
 
     if (item.target === 'opponent') {
       if (!targetId || targetId === playerId) return '대상을 선택해주세요.';
-      if (!this.balls.has(targetId)) return '대상이 없습니다.';
     }
 
-    const ball = this.balls.get(ballOwnerId);
-    if (!ball || ball.plugin.done) return '이미 도착한 공입니다.';
+    // 선두(골인에 가장 가까운) 공에 적용
+    const alive = this.aliveBallsOf(ballOwnerId);
+    if (alive.length === 0) return '이미 도착한 공입니다.';
+    const ball = alive.reduce((a, b) => (b.position.y > a.position.y ? b : a));
 
     items[slotIndex] = null; // 소모
     item.apply(this, ball);
@@ -322,14 +427,14 @@ class Game {
     return null;
   }
 
-  /** 플레이어 퇴장 시 공 제거 */
+  /** 플레이어 퇴장 시 공 전부 제거 */
   removePlayer(playerId) {
-    const ball = this.balls.get(playerId);
-    if (ball && !ball.plugin.done) {
-      ball.plugin.done = true;
-      Matter.Composite.remove(this.engine.world, ball);
+    for (const [key, ball] of [...this.balls]) {
+      if (ball.plugin.playerId !== playerId) continue;
+      if (!ball.plugin.done) Matter.Composite.remove(this.engine.world, ball);
+      this.balls.delete(key);
+      this.shuffleTargets.delete(key);
     }
-    this.balls.delete(playerId);
     this.playerItems.delete(playerId);
     if (!this.over && this.balls.size === 0) this.finish();
   }
@@ -339,32 +444,45 @@ class Game {
     this.over = true;
     clearInterval(this.interval);
 
+    // 공 단위 순서 계산 (기존 우승 조건 로직)
     const remaining = [...this.balls.entries()].filter(([, b]) => !b.plugin.done);
-    let order;
+    let ballOrder;
     if (this.winMode === 'last') {
       // 늦게 골인 우승: 제한시간까지 미도착(위쪽일수록 유리) → 늦게 도착한 순
       const remainingSorted = remaining
         .sort((a, b) => a[1].position.y - b[1].position.y)
-        .map(([id]) => id);
-      order = [...remainingSorted, ...[...this.finished].reverse()];
+        .map(([key]) => key);
+      ballOrder = [...remainingSorted, ...[...this.finished].reverse()];
     } else {
       // 먼저 골인 우승: 도착 순 → 미도착은 골인 지점에 가까운 순(y 큰 순)
       const remainingSorted = remaining
         .sort((a, b) => b[1].position.y - a[1].position.y)
-        .map(([id]) => id);
-      order = [...this.finished, ...remainingSorted];
+        .map(([key]) => key);
+      ballOrder = [...this.finished, ...remainingSorted];
     }
 
+    // 플레이어 단위로 축약: 각 플레이어의 가장 좋은 공이 그 플레이어의 성적
     const finishedSet = new Set(this.finished);
-    const ranking = order.map((playerId, i) => {
-      const player = this.room.players.get(playerId);
+    const seen = new Set();
+    const playerOrder = [];
+    for (const key of ballOrder) {
+      const ball = this.balls.get(key);
+      if (!ball) continue; // 나간 플레이어의 공
+      const pid = ball.plugin.playerId;
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      playerOrder.push({ pid, key });
+    }
+
+    const ranking = playerOrder.map(({ pid, key }, i) => {
+      const player = this.room.players.get(pid);
       return {
         rank: i + 1,
-        playerId,
+        playerId: pid,
         name: player ? player.name : '(나감)',
         color: player ? player.color : '#888',
-        finished: finishedSet.has(playerId),
-        timeMs: this.finishTimes.has(playerId) ? this.finishTimes.get(playerId) : null,
+        finished: finishedSet.has(key),
+        timeMs: this.finishTimes.has(key) ? this.finishTimes.get(key) : null,
       };
     });
 

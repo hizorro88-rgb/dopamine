@@ -306,10 +306,22 @@
     });
   }
 
+  // 인당 공 개수 (방 만들기)
+  const homeBallCount = $('home-ball-count');
+  homeBallCount.value = localStorage.getItem('pinball-balls') || '1';
+  homeBallCount.addEventListener('change', () =>
+    localStorage.setItem('pinball-balls', homeBallCount.value)
+  );
+
   $('btn-create').addEventListener('click', () => {
     socket.emit(
       'room:create',
-      { name: myName(), donorCode: myDonorCode(), winMode: homeWinMode },
+      {
+        name: myName(),
+        donorCode: myDonorCode(),
+        winMode: homeWinMode,
+        ballsPerPlayer: Number(homeBallCount.value),
+      },
       (res) => {
         if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
       }
@@ -555,8 +567,16 @@
     $('lobby-wm-first').disabled = !isHost;
     $('lobby-wm-last').disabled = !isHost;
 
+    // 인당 공 개수 (방장만 변경 가능)
+    $('lobby-ball-count').value = String(room.ballsPerPlayer || 1);
+    $('lobby-ball-count').disabled = !isHost;
+
     refreshMaps();
   }
+
+  $('lobby-ball-count').addEventListener('change', (e) => {
+    socket.emit('room:setBalls', { ballsPerPlayer: Number(e.target.value) });
+  });
 
   for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
     $(id).addEventListener('click', (e) => {
@@ -603,14 +623,16 @@
   $('btn-start').addEventListener('click', () => socket.emit('game:start'));
 
   // ── 게임 시작 ─────────────────────────────────────────
-  socket.on('game:started', ({ board, players, yourItems, countdownMs, winMode }) => {
+  socket.on('game:started', ({ board, players, yourItems, winMode, ballsPerPlayer, shuffle }) => {
     game = {
       board,
       winMode: winMode || 'first',
+      ballsPer: ballsPerPlayer || 1,
+      shuffling: !!shuffle,
       players: new Map(players.map((p) => [p.id, p])),
       items: yourItems, // [{id,name,emoji,desc,target,duration} | null]
       snapshots: [],
-      countdown: countdownMs,
+      countdown: 0,
       finishedRanks: [],
       overShown: false,
       camY: 0,
@@ -633,12 +655,22 @@
   });
 
   socket.on('game:snapshot', (snap) => {
-    if (!game) return;
+    if (!game || game.replay) return;
     snap.recv = performance.now();
     game.snapshots.push(snap);
     if (game.snapshots.length > 4) game.snapshots.shift();
     game.countdown = snap.countdown;
+    // 셔플 → 낙하 전환 순간 "GO!" 표시
+    if (game.shuffling && !snap.sh) {
+      toast('🎲 낙하 시작!');
+    }
+    game.shuffling = !!snap.sh;
     game.hiddenComps = new Set(snap.off || []);
+  });
+
+  $('btn-drop').addEventListener('click', () => {
+    socket.emit('game:drop');
+    $('btn-drop').classList.add('hidden');
   });
 
   socket.on('game:explosion', ({ x, y, radius }) => {
@@ -930,8 +962,10 @@
     const span = Math.max(curr.recv - prev.recv, 1);
     const alpha = Math.min((performance.now() - curr.recv) / span, 1);
 
+    // 공 매칭 키: 멀티볼은 k(playerId:idx), 리플레이는 p
+    const keyOf = (b) => b.k || b.p;
     return curr.balls.map((b) => {
-      const pb = prev.balls.find((x) => x.p === b.p);
+      const pb = prev.balls.find((x) => keyOf(x) === keyOf(b));
       if (!pb) return b;
       return {
         ...b,
@@ -992,10 +1026,12 @@
     const balls = interpolatedBalls();
     const elapsed = gameElapsedSec();
 
-    // 카메라: 내 공을 따라감. 내 공이 도착하면 선두(가장 아래) 공을 따라감.
+    // 카메라: 내 선두 공을 따라감. 내 공이 다 도착하면 선두(가장 아래) 공을 따라감.
     // 리플레이(이벤트 추첨)에서는 항상 선두 공을 따라감.
     const mapH = board.world.height;
-    const mine = game.replay ? null : balls.find((b) => b.p === myId);
+    const mine = game.replay
+      ? null
+      : balls.filter((b) => b.p === myId).reduce((a, b) => (!a || b.y > a.y ? b : a), null);
     const focus = mine || balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
     if (focus) {
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
@@ -1065,14 +1101,18 @@
         if (b.g) ctx.fillText('👻', b.x, b.y + 5);
       }
 
-      // 이름표 (후원자는 💖)
+      // 이름표 (후원자는 💖, 멀티볼은 번호 표기)
       const showLabel = !many || b.p === mineKey || b.p === focusKey;
       if (showLabel) {
+        const idxTag = game.ballsPer > 1 && b.i !== undefined ? `·${b.i + 1}` : '';
         ctx.font = 'bold 12px sans-serif';
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.textAlign = 'center';
         ctx.fillText(
-          (p && p.isDonor ? '💖' : '') + (p ? p.name : '?') + (b.p === mineKey ? ' ★' : ''),
+          (p && p.isDonor ? '💖' : '') +
+            (p ? p.name : '?') +
+            idxTag +
+            (b.p === mineKey ? ' ★' : ''),
           b.x,
           b.y - radius - 6
         );
@@ -1124,11 +1164,18 @@
       elapsed,
     });
 
-    // 카운트다운 (리플레이는 위에서 자체 표시)
+    // 상태 표시 + 방장 낙하 버튼 (리플레이는 위에서 자체 표시)
     if (!game.replay) {
-      const cd = game.countdown;
-      $('countdown').textContent =
-        cd > 0 ? String(Math.ceil(cd / 1000)) : game.snapshots.length ? '' : '준비...';
+      if (game.shuffling) {
+        const isHost = room && room.hostId === myId;
+        $('countdown').textContent = isHost ? '🎲 타이밍을 노리세요!' : '🎲 위치 섞는 중...';
+        $('btn-drop').classList.toggle('hidden', !isHost);
+      } else {
+        $('countdown').textContent = game.snapshots.length ? '' : '준비...';
+        $('btn-drop').classList.add('hidden');
+      }
+    } else {
+      $('btn-drop').classList.add('hidden');
     }
 
     requestAnimationFrame(renderFrame);

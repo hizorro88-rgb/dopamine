@@ -298,6 +298,42 @@ input[type='text']:focus {
   opacity: 0.75;
 }
 
+/* ── 인당 공 개수 선택 ── */
+.balls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--panel2);
+  border-radius: 10px;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.balls-row select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #3a3a5c;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+/* ── 낙하 버튼 ── */
+#btn-drop {
+  width: 100%;
+  animation: drop-pulse 1s ease-in-out infinite;
+}
+#btn-drop.hidden {
+  display: none;
+}
+@keyframes drop-pulse {
+  0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(93, 222, 120, 0); }
+  50% { filter: brightness(1.2); box-shadow: 0 0 18px rgba(93, 222, 120, 0.5); }
+}
+
 /* ── 명예의 전당 / 후원자 코드 ── */
 .home-links {
   display: flex;
@@ -581,11 +617,11 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-size: 44px;
+  font-size: 19px;
   font-weight: 800;
   text-align: center;
   color: var(--accent);
-  min-height: 54px;
+  min-height: 26px;
 }
 
 #toast-area {
