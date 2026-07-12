@@ -217,6 +217,80 @@ input[type='text']:focus {
   font-size: 12px;
 }
 
+/* ── 명예의 전당 / 후원자 코드 ── */
+.home-links {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+}
+.link-btn:hover {
+  color: var(--text);
+}
+#donor-box {
+  margin-top: 10px;
+}
+#donor-box.hidden {
+  display: none;
+}
+#donor-box input {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+#donor-status {
+  margin: 0;
+  min-height: 16px;
+}
+#donor-status.ok {
+  color: #ff8fb8;
+}
+#hall-list {
+  list-style: none;
+  margin-bottom: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  text-align: left;
+}
+#hall-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 6px;
+  border-bottom: 1px solid #2b2b45;
+  font-size: 14px;
+}
+#hall-list .hall-rank {
+  width: 30px;
+  font-size: 17px;
+}
+#hall-list .hall-amount {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+#hall-list .hall-empty {
+  justify-content: center;
+  color: var(--muted);
+  border: none;
+  padding: 18px 0;
+}
+
+/* 에픽 아이템 슬롯 강조 */
+.item-slot.epic {
+  border-color: #ffd76a;
+  box-shadow: 0 0 10px rgba(255, 215, 106, 0.25);
+}
+
 /* ── 맵 선택 ── */
 .map-box {
   background: var(--panel2);

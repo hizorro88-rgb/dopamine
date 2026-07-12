@@ -238,8 +238,8 @@ class Game {
       this.balls.set(player.id, ball);
       Matter.Composite.add(this.engine.world, ball);
 
-      // 랜덤 아이템 배정
-      this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER));
+      // 랜덤 아이템 배정 (후원자는 에픽 아이템 확률 UP)
+      this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER, player.isDonor));
     });
 
     this.startedAt = this.now();
@@ -253,7 +253,12 @@ class Game {
       this.io.to(player.id).emit('game:started', {
         board: this.board,
         countdownMs: COUNTDOWN_MS,
-        players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+        players: players.map((p) => ({
+          id: p.id,
+          name: p.name,
+          color: p.color,
+          isDonor: !!p.isDonor,
+        })),
         yourItems: items,
       });
     }

@@ -37,15 +37,20 @@ function sanitizeName(name) {
 }
 
 class RoomManager {
-  constructor(io) {
+  constructor(io, donorStore) {
     this.io = io;
     this.rooms = new Map(); // code -> room
     this.socketRoom = new Map(); // socketId -> code
     this.maps = new MapStore();
+    this.donors = donorStore || null;
+  }
+
+  isDonor(donorCode) {
+    return !!(this.donors && this.donors.findByCode(donorCode));
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const code = generateCode(this.rooms);
       const room = {
@@ -57,11 +62,11 @@ class RoomManager {
         mapId: 'classic',
       };
       this.rooms.set(code, room);
-      this.addPlayer(room, socket, sanitizeName(name));
+      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
       cb({ ok: true, code });
     });
 
-    socket.on('room:join', ({ code, name } = {}, cb) => {
+    socket.on('room:join', ({ code, name, donorCode } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const room = this.rooms.get(String(code || '').trim().toUpperCase());
       if (!room) return cb({ ok: false, error: '존재하지 않는 방 코드입니다.' });
@@ -69,8 +74,15 @@ class RoomManager {
         return cb({ ok: false, error: '게임이 진행 중인 방입니다. 잠시 후 다시 시도해주세요.' });
       if (room.players.size >= MAX_PLAYERS)
         return cb({ ok: false, error: `방이 가득 찼습니다. (최대 ${MAX_PLAYERS}명)` });
-      this.addPlayer(room, socket, sanitizeName(name));
+      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
       cb({ ok: true, code: room.code });
+    });
+
+    // 후원자 코드 확인 (홈 화면 즉시 피드백용)
+    socket.on('donor:check', ({ code } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      const donor = this.donors ? this.donors.findByCode(code) : null;
+      cb(donor ? { ok: true, name: donor.name } : { ok: false });
     });
 
     socket.on('game:start', () => {
@@ -141,10 +153,10 @@ class RoomManager {
     });
   }
 
-  addPlayer(room, socket, name) {
+  addPlayer(room, socket, name, isDonor = false) {
     const usedColors = new Set([...room.players.values()].map((p) => p.color));
     const color = COLORS.find((c) => !usedColors.has(c)) || COLORS[0];
-    room.players.set(socket.id, { id: socket.id, name, color });
+    room.players.set(socket.id, { id: socket.id, name, color, isDonor });
     this.socketRoom.set(socket.id, room.code);
     socket.join(room.code);
     this.broadcastRoom(room);

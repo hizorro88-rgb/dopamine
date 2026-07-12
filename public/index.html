@@ -21,8 +21,26 @@
       </div>
       <p id="home-error" class="error"></p>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
+      <div class="home-links">
+        <button id="btn-hall" class="link-btn">🏆 후원자 명예의 전당</button>
+        <button id="btn-donor-toggle" class="link-btn">💖 후원자 코드 입력</button>
+      </div>
+      <div id="donor-box" class="hidden">
+        <input id="input-donor-code" type="text" maxlength="9" placeholder="DN-XXXXXX" autocomplete="off" />
+        <p id="donor-status" class="hint"></p>
+      </div>
     </div>
   </section>
+
+  <!-- 후원자 명예의 전당 -->
+  <div id="hall-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>🏆 후원자 명예의 전당</h2>
+      <ol id="hall-list"></ol>
+      <p class="hint">서버 유지에 힘을 보태주신 분들입니다.<br>후원자는 게임에서 💖 배지와 에픽 아이템 확률 UP 혜택을 받아요!</p>
+      <button id="btn-hall-close" class="btn small">닫기</button>
+    </div>
+  </div>
 
   <!-- 대기실: 참가자 목록 + 초대 링크 + 시작 -->
   <section id="screen-lobby" class="screen">

@@ -188,8 +188,71 @@
     return name;
   }
 
+  // ── 후원자 코드 ──
+  const inputDonorCode = $('input-donor-code');
+  inputDonorCode.value = localStorage.getItem('pinball-donor-code') || '';
+
+  function myDonorCode() {
+    return inputDonorCode.value.trim().toUpperCase();
+  }
+
+  $('btn-donor-toggle').addEventListener('click', () => {
+    $('donor-box').classList.toggle('hidden');
+    if (!$('donor-box').classList.contains('hidden')) checkDonorCode();
+  });
+
+  function checkDonorCode() {
+    const code = myDonorCode();
+    const status = $('donor-status');
+    if (!code) {
+      status.textContent = '후원 후 받은 코드를 입력하면 💖 배지와 에픽 아이템 확률 UP!';
+      status.classList.remove('ok');
+      return;
+    }
+    socket.emit('donor:check', { code }, (res) => {
+      if (res.ok) {
+        localStorage.setItem('pinball-donor-code', code);
+        status.textContent = `💖 ${res.name}님, 후원 감사합니다! 혜택이 적용됩니다.`;
+        status.classList.add('ok');
+      } else {
+        status.textContent = '유효하지 않은 코드입니다.';
+        status.classList.remove('ok');
+      }
+    });
+  }
+  inputDonorCode.addEventListener('change', checkDonorCode);
+  // 저장된 코드가 있으면 입력창을 미리 열어 확인 표시
+  if (inputDonorCode.value) {
+    $('donor-box').classList.remove('hidden');
+    socket.on('connect', checkDonorCode);
+  }
+
+  // ── 명예의 전당 ──
+  $('btn-hall').addEventListener('click', () => {
+    fetch('/api/donors')
+      .then((r) => r.json())
+      .then(({ donors }) => {
+        const list = $('hall-list');
+        list.innerHTML = '';
+        if (!donors.length) {
+          list.innerHTML = '<li class="hall-empty">아직 후원자가 없어요. 첫 번째 후원자가 되어주세요!</li>';
+        }
+        const rankEmoji = ['👑', '🥈', '🥉'];
+        donors.forEach((d, i) => {
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="hall-rank">${rankEmoji[i] || i + 1}</span>
+            <span>💖 ${escapeHtml(d.name)}</span>
+            <span class="hall-amount">${d.amount > 0 ? d.amount.toLocaleString() + '원' : ''}</span>`;
+          list.appendChild(li);
+        });
+        $('hall-modal').classList.remove('hidden');
+      })
+      .catch(() => {});
+  });
+  $('btn-hall-close').addEventListener('click', () => $('hall-modal').classList.add('hidden'));
+
   $('btn-create').addEventListener('click', () => {
-    socket.emit('room:create', { name: myName() }, (res) => {
+    socket.emit('room:create', { name: myName(), donorCode: myDonorCode() }, (res) => {
       if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
     });
   });
@@ -200,7 +263,7 @@
   function joinRoom() {
     const code = inputCode.value.trim().toUpperCase();
     if (!code) return (homeError.textContent = '초대 코드를 입력해주세요.');
-    socket.emit('room:join', { code, name: myName() }, (res) => {
+    socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode() }, (res) => {
       if (!res.ok) homeError.textContent = res.error || '입장 실패';
     });
   }
@@ -225,7 +288,7 @@
     for (const p of room.players) {
       const li = document.createElement('li');
       li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>
-        <span>${escapeHtml(p.name)}${p.id === myId ? ' (나)' : ''}</span>
+        <span>${p.isDonor ? '💖 ' : ''}${escapeHtml(p.name)}${p.id === myId ? ' (나)' : ''}</span>
         ${p.id === room.hostId ? '<span class="host-badge">👑 방장</span>' : ''}`;
       list.appendChild(li);
     }
@@ -454,9 +517,10 @@
     slots.innerHTML = '';
     game.items.forEach((item, i) => {
       const div = document.createElement('div');
-      div.className = 'item-slot' + (item ? '' : ' used');
+      div.className =
+        'item-slot' + (item ? (item.grade === 'epic' ? ' epic' : '') : ' used');
       if (item) {
-        div.title = item.desc;
+        div.title = (item.grade === 'epic' ? '⭐ 에픽 · ' : '') + item.desc;
         div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.name}</span>`;
         div.addEventListener('click', () => onItemClick(i));
       } else {
@@ -639,11 +703,11 @@
       if (b.f) ctx.fillText('🧊', b.x, b.y + 5);
       if (b.g) ctx.fillText('👻', b.x, b.y + 5);
 
-      // 이름표
+      // 이름표 (후원자는 💖)
       ctx.font = 'bold 12px sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.fillText(
-        (p ? p.name : '?') + (b.p === myId ? ' ★' : ''),
+        (p && p.isDonor ? '💖' : '') + (p ? p.name : '?') + (b.p === myId ? ' ★' : ''),
         b.x,
         b.y - radius - 6
       );

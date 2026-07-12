@@ -162,6 +162,36 @@ DONATION_URL=https://toss.me/내아이디 DONATION_LABEL="💖 개발자 응원�
 | Ko-fi | 글로벌 | ko-fi.com 가입 후 PayPal 연동 → `ko-fi.com/아이디` | 기본 0% |
 | GitHub Sponsors | 개발자/오픈소스 | github.com/sponsors 등록 (한국 지원) | 0% |
 
+### 후원자 명예의 전당 & 혜택
+
+후원을 받으면 관리자가 후원자를 등록하고 **후원자 코드**를 발급받아 전달합니다.
+
+```bash
+# 서버 실행 시 관리자 키 설정
+ADMIN_KEY=비밀키 DONATION_URL=https://toss.me/내아이디 npm start
+
+# 후원자 등록 → 후원자 코드(DN-XXXXXX) 발급
+curl -X POST http://localhost:3000/api/admin/donors \
+  -H "x-admin-key: 비밀키" -H "Content-Type: application/json" \
+  -d '{"name":"홍길동","amount":10000}'
+# → {"ok":true,"code":"DN-ABC123","name":"홍길동"}
+```
+
+- **🏆 명예의 전당**: 홈 화면에서 누구나 후원자 목록(이름·금액, 금액순)을 볼 수 있습니다. 후원자 코드는 절대 공개되지 않습니다.
+- **💖 후원자 혜택**: 후원자가 홈 화면에서 코드를 입력하면 (localStorage에 저장되어 한 번만 입력)
+  - 대기실·게임 화면 이름에 💖 배지 표시
+  - **에픽 아이템 확률 2배** (25% → 50%)
+- 후원자 목록은 `data/donors.json`에 저장되며 직접 편집해도 됩니다.
+
+### 아이템 등급
+
+| 등급 | 아이템 | 기본 확률 | 후원자 확률 |
+|------|--------|-----------|-------------|
+| ⭐ 에픽 | 👻 유령 낙하, 🧊 얼리기, 💥 충격파 | 25% | **50%** |
+| 일반 | 🚀 로켓 부스트, 🌪️ 돌풍, 🎈 풍선 | 75% | 50% |
+
+등급은 `server/items.js` 각 아이템의 `grade` 필드로 지정하며, 가중치는 파일 상단 상수로 조절합니다.
+
 ## 게임 규칙 커스터마이징
 
 `server/game.js` 상단 상수:

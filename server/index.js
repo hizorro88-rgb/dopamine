@@ -3,9 +3,13 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const { RoomManager } = require('./rooms');
+const { DonorStore } = require('./donors');
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.json());
+
+const donors = new DonorStore();
 
 // 클라이언트 설정: 후원 링크 등 (환경변수로 주입, 없으면 버튼 숨김)
 // 예: DONATION_URL=https://toss.me/내아이디 npm start
@@ -16,10 +20,24 @@ app.get('/api/config', (_req, res) => {
   });
 });
 
+// 후원자 명예의 전당 (공개)
+app.get('/api/donors', (_req, res) => {
+  res.json({ donors: donors.list() });
+});
+
+// 후원자 등록 (관리자 전용) → 후원자 코드 발급
+app.post('/api/admin/donors', (req, res) => {
+  const key = process.env.ADMIN_KEY;
+  if (!key || req.get('x-admin-key') !== key) {
+    return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  }
+  res.json(donors.add(req.body || {}));
+});
+
 const server = http.createServer(app);
 const io = new Server(server);
 
-const rooms = new RoomManager(io);
+const rooms = new RoomManager(io, donors);
 io.on('connection', (socket) => rooms.handleConnection(socket));
 
 const PORT = process.env.PORT || 3000;
