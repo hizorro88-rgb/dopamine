@@ -217,6 +217,59 @@ input[type='text']:focus {
   font-size: 12px;
 }
 
+/* ── 이벤트 추첨 ── */
+#event-stats {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent2);
+  margin-bottom: 10px;
+}
+#event-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  max-height: 110px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  min-height: 24px;
+}
+#event-names .name-chip {
+  background: var(--panel2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#event-register-row {
+  margin-bottom: 6px;
+}
+#event-map-row {
+  margin: 12px 0;
+}
+#event-map-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #3a3a5c;
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+#event-progress.hidden {
+  display: none;
+}
+#event-my-status {
+  margin: 4px 0 0;
+  min-height: 16px;
+}
+#rank-more {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 4px;
+}
+
 /* ── 우승 조건 선택 ── */
 .winmode-row {
   display: flex;
@@ -649,6 +702,8 @@ input[type='text']:focus {
   border-radius: 16px;
   padding: 26px;
   width: min(340px, 90vw);
+  max-height: 90vh;
+  overflow-y: auto;
   text-align: center;
 }
 .modal-card h2,

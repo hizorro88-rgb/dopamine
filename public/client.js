@@ -12,10 +12,20 @@
   let myId = null;
   let room = null; // room:update 페이로드
   let game = null; // { board, players(Map), items, snapshots[], ... }
+  let eventRoom = null; // event:update 페이로드
+  let myParticipantId = null; // 이벤트 추첨에서 내 공 번호
+  let autoJoinedEvent = false;
   const $ = (id) => document.getElementById(id);
+
+  const urlEventCode = new URLSearchParams(location.search).get('event');
 
   socket.on('connect', () => {
     myId = socket.id;
+    // 이벤트 초대 링크(?event=CODE)로 들어온 경우 자동 입장
+    if (urlEventCode && !autoJoinedEvent) {
+      autoJoinedEvent = true;
+      joinEvent(urlEventCode.toUpperCase());
+    }
   });
 
   // ── 후원 링크 (서버 환경변수 DONATION_URL 설정 시에만 표시) ──
@@ -317,6 +327,198 @@
     });
   }
 
+  // ── 🎪 이벤트 추첨 ────────────────────────────────────
+  $('btn-event-create').addEventListener('click', () => {
+    socket.emit('event:create', {}, (res) => {
+      if (!res.ok) return (homeError.textContent = res.error || '이벤트 생성 실패');
+      eventRoom = { code: res.code };
+      $('input-event-name').value = localStorage.getItem('pinball-name') || '';
+      showScreen('event');
+    });
+  });
+
+  function joinEvent(code) {
+    socket.emit('event:join', { code }, (res) => {
+      if (!res.ok) return (homeError.textContent = res.error || '이벤트 입장 실패');
+      eventRoom = res;
+      myParticipantId = null;
+      $('input-event-name').value = localStorage.getItem('pinball-name') || '';
+      $('event-my-status').textContent = '';
+      renderEventScreen(res);
+      showScreen('event');
+      if (res.replay) beginReplay(res.replay); // 재생 중 늦게 합류 → 따라잡기
+    });
+  }
+
+  socket.on('event:update', (ev) => {
+    eventRoom = { ...eventRoom, ...ev };
+    renderEventScreen(eventRoom);
+  });
+
+  function renderEventScreen(ev) {
+    if (!ev || !ev.code) return;
+    $('event-code').textContent = ev.code;
+    $('event-participant-count').textContent = `참가 ${ev.participantCount || 0}/${ev.maxParticipants || 500}명`;
+    $('event-viewers').textContent = `시청 ${ev.viewers || 0}명`;
+
+    const names = $('event-names');
+    names.innerHTML = '';
+    for (const n of ev.recent || []) {
+      const chip = document.createElement('span');
+      chip.className = 'name-chip';
+      chip.textContent = n;
+      names.appendChild(chip);
+    }
+
+    const isHost = ev.hostId === myId;
+    const startBtn = $('btn-event-start');
+    if (ev.state === 'lobby') {
+      $('event-register-row').style.display = myParticipantId == null ? '' : 'none';
+      startBtn.disabled = !isHost || (ev.participantCount || 0) < 2;
+      startBtn.textContent = isHost
+        ? '🎲 추첨 시작'
+        : '⏳ 호스트가 추첨을 시작하기를 기다리는 중';
+      $('event-progress').classList.add('hidden');
+    } else if (ev.state === 'simulating') {
+      $('event-register-row').style.display = 'none';
+      startBtn.disabled = true;
+      startBtn.textContent = '🎬 녹화 중...';
+      $('event-progress').classList.remove('hidden');
+    } else {
+      // playing: 재생 중이거나 종료
+      $('event-register-row').style.display = 'none';
+      startBtn.disabled = !isHost;
+      startBtn.textContent = isHost ? '🔄 새 추첨 준비' : '재생 중';
+    }
+
+    // 맵 선택 (호스트 전용)
+    socket.emit('maps:list', null, (res) => {
+      if (!res || !res.ok || !eventRoom) return;
+      const select = $('event-map-select');
+      select.innerHTML = '';
+      for (const m of res.maps) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.builtin ? '⭐' : '🛠'} ${m.name} — 길이 ${m.height}`;
+        select.appendChild(opt);
+      }
+      select.value = ev.map ? ev.map.id : 'classic';
+      select.disabled = ev.hostId !== myId || ev.state !== 'lobby';
+    });
+  }
+
+  $('event-map-select').addEventListener('change', (e) => {
+    socket.emit('event:setMap', { mapId: e.target.value });
+  });
+
+  $('btn-event-register').addEventListener('click', () => {
+    const name = $('input-event-name').value.trim();
+    if (!name) return ($('event-error').textContent = '이름을 입력해주세요.');
+    socket.emit('event:register', { name }, (res) => {
+      if (!res.ok) return ($('event-error').textContent = res.error || '참가 실패');
+      $('event-error').textContent = '';
+      myParticipantId = res.participantId;
+      $('event-my-status').textContent = `✅ "${name}" 참가 완료! (${res.participantId + 1}번 공)`;
+      $('event-register-row').style.display = 'none';
+    });
+  });
+
+  $('btn-event-start').addEventListener('click', () => {
+    if (!eventRoom) return;
+    if (eventRoom.state === 'playing') {
+      socket.emit('event:again'); // 새 추첨 준비 (참가자 유지)
+      myParticipantId = myParticipantId; // 참가 등록도 서버에 유지됨
+    } else {
+      socket.emit('event:start');
+    }
+  });
+
+  $('btn-event-copy').addEventListener('click', async () => {
+    const url = `${location.origin}${location.pathname}?event=${eventRoom.code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      $('btn-event-copy').textContent = '✅ 복사 완료!';
+    } catch {
+      prompt('아래 링크를 복사해서 공유해주세요:', url);
+    }
+    setTimeout(() => ($('btn-event-copy').textContent = '🔗 초대 링크 복사'), 1500);
+  });
+
+  socket.on('event:simprogress', ({ pct }) => {
+    $('event-progress').classList.remove('hidden');
+    $('event-progress-pct').textContent = pct;
+  });
+
+  socket.on('event:error', ({ error }) => {
+    $('event-error').textContent = error || '오류가 발생했습니다.';
+  });
+
+  socket.on('event:ready', (info) => beginReplay(info));
+
+  async function beginReplay({ replayUrl, startAt, serverNow }) {
+    try {
+      const replay = await (await fetch(replayUrl)).json();
+      const offset = serverNow - Date.now(); // 서버 시계 보정
+      startReplayPlayback(replay, startAt, offset);
+    } catch {
+      $('event-error').textContent = '리플레이 다운로드에 실패했습니다. 새로고침 해주세요.';
+    }
+  }
+
+  function startReplayPlayback(replay, startAt, offset) {
+    game = {
+      board: replay.board,
+      winMode: 'first',
+      players: new Map(replay.players.map((p) => [p.id, p])),
+      items: [],
+      snapshots: [],
+      countdown: 0,
+      finishedRanks: [],
+      overShown: false,
+      camY: 0,
+      explosions: [],
+      hiddenComps: new Set(),
+      shakeUntil: 0,
+      replay: {
+        frames: replay.frames,
+        events: replay.events,
+        ranking: replay.ranking,
+        durationMs: replay.durationMs,
+        startAt,
+        offset,
+        fi: 0,
+        ei: 0,
+      },
+    };
+    $('item-bar').style.display = 'none'; // 시청자는 아이템 없음 (자동 발동)
+    document.querySelector('#rank-board h3').textContent = `🎪 이벤트 추첨 · 참가 ${replay.players.length}명`;
+    $('rank-list').innerHTML = '';
+    $('toast-area').innerHTML = '';
+    $('result-modal').classList.add('hidden');
+    $('target-modal').classList.add('hidden');
+    showScreen('game');
+    setupCanvas();
+    requestAnimationFrame(renderFrame);
+  }
+
+  function dispatchReplayEvent(ev) {
+    if (ev.type === 'finish') {
+      appendFinishRow(ev);
+      if (ev.rank === 1) toast(`🎉 1등 당첨: ${ev.name}!`);
+    } else if (ev.type === 'item') {
+      toast(
+        ev.self
+          ? `${ev.item.emoji} ${ev.by} → ${ev.item.name} 발동!`
+          : `${ev.item.emoji} ${ev.by} → ${ev.target}에게 ${ev.item.name}!`
+      );
+    } else if (ev.type === 'explosion') {
+      game.explosions.push({ x: ev.x, y: ev.y, radius: ev.radius, start: performance.now() });
+      if (Math.abs(ev.y - (game.camY + VIEW.height / 2)) < VIEW.height) {
+        game.shakeUntil = performance.now() + 250;
+      }
+    }
+  }
+
   // ── 대기실 ────────────────────────────────────────────
   let mapList = []; // maps:list 캐시
 
@@ -418,6 +620,7 @@
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
+    $('item-bar').style.display = ''; // 리플레이 시청 후 복원
     // 순위판 제목에 우승 조건 표시
     document.querySelector('#rank-board h3').textContent =
       game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승';
@@ -447,23 +650,41 @@
     }
   });
 
-  socket.on('game:ballFinished', ({ playerId, name, rank, timeMs }) => {
-    if (!game) return;
-    game.finishedRanks.push({ playerId, name, rank });
-    const p = game.players.get(playerId);
-    const isLast = game.winMode === 'last';
-    const li = document.createElement('li');
-    // 늦게 골인 모드에서는 도착 순서가 순위와 반대이므로 "n번째 도착"으로 표시
-    li.innerHTML = `<span class="rank-num">${rank}${isLast ? '번째' : '등'}</span>
-      <span class="player-dot" style="background:${p ? p.color : '#888'}"></span>
-      <span>${escapeHtml(name)}${playerId === myId ? ' (나)' : ''}</span>
-      <span class="result-time">${formatTime(timeMs)}</span>`;
-    $('rank-list').appendChild(li);
-    if (rank === 1) {
+  /** 실시간 순위판에 도착 기록 추가 (10명까지, 이후는 카운터) */
+  function appendFinishRow({ playerId, name, rank, timeMs, p: participantId }) {
+    const key = playerId !== undefined ? playerId : participantId;
+    game.finishedRanks.push({ playerId: key, name, rank });
+    const list = $('rank-list');
+    if (rank <= 10) {
+      const p = game.players.get(key);
+      const isLast = game.winMode === 'last';
+      const mineKey = game.replay ? myParticipantId : myId;
+      const li = document.createElement('li');
+      // 늦게 골인 모드에서는 도착 순서가 순위와 반대이므로 "n번째 도착"으로 표시
+      li.innerHTML = `<span class="rank-num">${rank}${isLast ? '번째' : '등'}</span>
+        <span class="player-dot" style="background:${p ? p.color : '#888'}"></span>
+        <span>${escapeHtml(name)}${key === mineKey ? ' (나)' : ''}</span>
+        <span class="result-time">${formatTime(timeMs)}</span>`;
+      list.appendChild(li);
+    } else {
+      let more = document.getElementById('rank-more');
+      if (!more) {
+        more = document.createElement('li');
+        more.id = 'rank-more';
+        list.appendChild(more);
+      }
+      more.textContent = `... 외 ${rank - 10}명 도착`;
+    }
+  }
+
+  socket.on('game:ballFinished', (data) => {
+    if (!game || game.replay) return;
+    appendFinishRow(data);
+    if (data.rank === 1) {
       toast(
-        isLast
-          ? `⚡ ${name}님이 가장 먼저 도착... 늦게 골인이 우승인데요!`
-          : `🏆 ${name}님이 1등으로 도착!`
+        game.winMode === 'last'
+          ? `⚡ ${data.name}님이 가장 먼저 도착... 늦게 골인이 우승인데요!`
+          : `🏆 ${data.name}님이 1등으로 도착!`
       );
     }
   });
@@ -481,13 +702,21 @@
   });
 
   socket.on('game:over', ({ ranking }) => {
-    if (!game) return;
+    if (!game || game.replay) return;
     game.overShown = true;
+    showResults(ranking, { event: false });
+  });
+
+  /** 최종 결과 화면 (아이템전/이벤트 추첨 공용) */
+  function showResults(ranking, { event = false } = {}) {
+    const mineKey = event ? myParticipantId : myId;
 
     // 우승자 배너
     const winner = ranking[0];
     $('winner-banner').textContent = winner
-      ? `🏆 ${winner.name}${winner.playerId === myId ? ' (나)' : ''} 우승!`
+      ? event
+        ? `🎉 1등 당첨: ${winner.name}${winner.playerId === mineKey ? ' (나!)' : ''}`
+        : `🏆 ${winner.name}${winner.playerId === mineKey ? ' (나)' : ''} 우승!`
       : '';
 
     // 시상대 (1~3등, 표시 순서: 2등-1등-3등)
@@ -503,27 +732,35 @@
       col.innerHTML = `
         <span class="podium-medal">${medals[r.rank - 1]}</span>
         <span class="podium-ball" style="background:${r.color};color:${r.color}"></span>
-        <span class="podium-name">${escapeHtml(r.name)}${r.playerId === myId ? ' ★' : ''}</span>
+        <span class="podium-name">${escapeHtml(r.name)}${r.playerId === mineKey ? ' ★' : ''}</span>
         <span class="podium-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>
         <div class="podium-block">${r.rank}등</div>`;
       podium.appendChild(col);
     }
 
-    // 4등 이하 목록
+    // 4등 이하 목록 (최대 50명 표시)
     const list = $('result-list');
     list.innerHTML = '';
-    for (const r of ranking.slice(3)) {
+    for (const r of ranking.slice(3, 53)) {
       const li = document.createElement('li');
       li.innerHTML = `<span class="rank-num">${r.rank}등</span>
         <span class="player-dot" style="background:${r.color}"></span>
-        <span>${escapeHtml(r.name)}${r.playerId === myId ? ' (나)' : ''}</span>
+        <span>${escapeHtml(r.name)}${r.playerId === mineKey ? ' (나)' : ''}</span>
         <span class="result-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>`;
       list.appendChild(li);
     }
+    if (ranking.length > 53) {
+      const li = document.createElement('li');
+      li.style.justifyContent = 'center';
+      li.style.color = 'var(--muted)';
+      li.textContent = `... 외 ${ranking.length - 53}명`;
+      list.appendChild(li);
+    }
 
+    $('btn-back-lobby').textContent = event ? '이벤트로 돌아가기' : '대기실로 돌아가기';
     $('result-modal').classList.remove('hidden');
     startConfetti();
-  });
+  }
 
   // ── 색종이 축하 효과 ──────────────────────────────────
   const CONFETTI_COLORS = ['#ff5d5d', '#ffb03a', '#ffe14d', '#5dde78', '#4dc9ff', '#c86dff'];
@@ -571,10 +808,16 @@
 
   $('btn-back-lobby').addEventListener('click', () => {
     $('result-modal').classList.add('hidden');
+    const wasReplay = game && game.replay;
     game = null;
-    if (room) {
+    if (wasReplay && eventRoom) {
+      renderEventScreen(eventRoom);
+      showScreen('event');
+    } else if (room) {
       renderLobby();
       showScreen('lobby');
+    } else {
+      showScreen('home');
     }
   });
 
@@ -708,13 +951,51 @@
 
   function renderFrame() {
     if (!game) return;
+
+    // ── 이벤트 리플레이: 재생 시각에 맞춰 프레임/이벤트 공급 ──
+    if (game.replay) {
+      const rp = game.replay;
+      const playT = Date.now() + rp.offset - rp.startAt;
+      if (playT < 0) {
+        $('countdown').textContent = `추첨 시작 ${Math.ceil(-playT / 1000)}초 전`;
+      } else {
+        $('countdown').textContent = '';
+        while (rp.fi < rp.frames.length && rp.frames[rp.fi].t <= playT) {
+          const f = rp.frames[rp.fi++];
+          game.snapshots.push({
+            recv: performance.now() - (playT - f.t),
+            elapsed: f.t,
+            countdown: 0,
+            balls: f.b.map(([p, x, y, fl]) => ({
+              p,
+              x,
+              y,
+              g: fl & 1 ? 1 : 0,
+              f: fl & 2 ? 1 : 0,
+              b: fl & 4 ? 1 : 0,
+            })),
+          });
+          if (game.snapshots.length > 4) game.snapshots.shift();
+          game.hiddenComps = new Set(f.off || []);
+        }
+        while (rp.ei < rp.events.length && rp.events[rp.ei].t <= playT) {
+          dispatchReplayEvent(rp.events[rp.ei++]);
+        }
+        if (playT > rp.durationMs + 1500 && !game.overShown) {
+          game.overShown = true;
+          showResults(rp.ranking, { event: true });
+        }
+      }
+    }
+
     const { board } = game;
     const balls = interpolatedBalls();
     const elapsed = gameElapsedSec();
 
     // 카메라: 내 공을 따라감. 내 공이 도착하면 선두(가장 아래) 공을 따라감.
+    // 리플레이(이벤트 추첨)에서는 항상 선두 공을 따라감.
     const mapH = board.world.height;
-    const mine = balls.find((b) => b.p === myId);
+    const mine = game.replay ? null : balls.find((b) => b.p === myId);
     const focus = mine || balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
     if (focus) {
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
@@ -746,8 +1027,11 @@
       drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
     }
 
-    // 공
+    // 공 (인원이 많으면 그림자/이름표 생략 — 선두와 내 공만 이름표)
     const r = board.ballRadius;
+    const many = game.players.size > 30;
+    const mineKey = game.replay ? myParticipantId : myId;
+    const focusKey = focus ? focus.p : null;
     for (const b of balls) {
       const p = game.players.get(b.p);
       const color = p ? p.color : '#888';
@@ -759,8 +1043,10 @@
       ctx.beginPath();
       ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
+      if (!many) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12;
+      }
       ctx.fill();
       ctx.shadowBlur = 0;
 
@@ -772,19 +1058,25 @@
       ctx.restore();
 
       // 상태 이모지
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      if (b.f) ctx.fillText('🧊', b.x, b.y + 5);
-      if (b.g) ctx.fillText('👻', b.x, b.y + 5);
+      if (b.f || b.g) {
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        if (b.f) ctx.fillText('🧊', b.x, b.y + 5);
+        if (b.g) ctx.fillText('👻', b.x, b.y + 5);
+      }
 
       // 이름표 (후원자는 💖)
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillText(
-        (p && p.isDonor ? '💖' : '') + (p ? p.name : '?') + (b.p === myId ? ' ★' : ''),
-        b.x,
-        b.y - radius - 6
-      );
+      const showLabel = !many || b.p === mineKey || b.p === focusKey;
+      if (showLabel) {
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          (p && p.isDonor ? '💖' : '') + (p ? p.name : '?') + (b.p === mineKey ? ' ★' : ''),
+          b.x,
+          b.y - radius - 6
+        );
+      }
     }
 
     // 폭발 이펙트 (확장 링 + 화염 + 파편)
@@ -832,10 +1124,12 @@
       elapsed,
     });
 
-    // 카운트다운
-    const cd = game.countdown;
-    $('countdown').textContent =
-      cd > 0 ? String(Math.ceil(cd / 1000)) : game.snapshots.length ? '' : '준비...';
+    // 카운트다운 (리플레이는 위에서 자체 표시)
+    if (!game.replay) {
+      const cd = game.countdown;
+      $('countdown').textContent =
+        cd > 0 ? String(Math.ceil(cd / 1000)) : game.snapshots.length ? '' : '준비...';
+    }
 
     requestAnimationFrame(renderFrame);
   }

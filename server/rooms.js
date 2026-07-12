@@ -6,7 +6,8 @@ const { Game } = require('./game');
 const { MapStore } = require('./maps');
 const { StatsStore } = require('./stats');
 
-const MAX_PLAYERS = 8;
+// 아이템전(직접 아이템 사용)은 최대 10명 — 그 이상은 이벤트 추첨 모드 사용
+const MAX_PLAYERS = 10;
 const COLORS = [
   '#ff5d5d',
   '#ffb03a',
@@ -16,6 +17,8 @@ const COLORS = [
   '#7a7aff',
   '#c86dff',
   '#ff7ad9',
+  '#5fe3c4',
+  '#e08c5f',
 ];
 
 // 헷갈리는 문자(0/O, 1/I) 제외

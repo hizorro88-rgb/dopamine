@@ -37,8 +37,24 @@ app.post('/api/admin/donors', (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server);
 
+const { EventManager } = require('./events');
+
 const rooms = new RoomManager(io, donors);
-io.on('connection', (socket) => rooms.handleConnection(socket));
+const events = new EventManager(io, rooms.maps);
+io.on('connection', (socket) => {
+  rooms.handleConnection(socket);
+  events.handleConnection(socket);
+});
+
+// 이벤트 리플레이 (gzip 으로 미리 압축해둔 것을 그대로 서빙)
+app.get('/api/replay/:code', (req, res) => {
+  const gz = events.getReplayGz(req.params.code);
+  if (!gz) return res.status(404).json({ error: '리플레이가 없습니다.' });
+  res.set('Content-Type', 'application/json');
+  res.set('Content-Encoding', 'gzip');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send(gz);
+});
 
 // 전체 순위 (누적 전적 리더보드, 공개)
 app.get('/api/leaderboard', (_req, res) => {

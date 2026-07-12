@@ -23,6 +23,7 @@
         <input id="input-code" type="text" maxlength="6" placeholder="초대 코드" autocomplete="off" />
         <button id="btn-join" class="btn">입장</button>
       </div>
+      <button id="btn-event-create" class="btn" style="width:100%;margin-top:12px">🎪 이벤트 추첨 만들기 <span class="hint" style="font-size:11px">(최대 500명)</span></button>
       <p id="home-error" class="error"></p>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
       <div class="home-links">
@@ -80,6 +81,34 @@
       <button id="btn-start" class="btn primary" disabled>🚀 게임 시작</button>
       <p id="lobby-hint" class="hint"></p>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
+    </div>
+  </section>
+
+  <!-- 이벤트 추첨: 수백 명 참가 등록 → 시뮬레이션 녹화 → 동기화 시청 -->
+  <section id="screen-event" class="screen">
+    <div class="card">
+      <h2>🎪 이벤트 추첨</h2>
+      <div class="invite-box">
+        <div class="invite-code" id="event-code">------</div>
+        <button id="btn-event-copy" class="btn small">🔗 초대 링크 복사</button>
+      </div>
+      <div id="event-stats">
+        <span id="event-participant-count">참가 0명</span> · <span id="event-viewers">시청 0명</span>
+      </div>
+      <div id="event-names"></div>
+      <div class="join-row" id="event-register-row">
+        <input id="input-event-name" type="text" maxlength="12" placeholder="추첨에 걸 이름" autocomplete="off" />
+        <button id="btn-event-register" class="btn">✋ 참가</button>
+      </div>
+      <p id="event-my-status" class="hint"></p>
+      <div class="map-row" id="event-map-row">
+        <select id="event-map-select" disabled></select>
+      </div>
+      <button id="btn-event-start" class="btn primary" disabled>🎲 추첨 시작</button>
+      <div id="event-progress" class="hidden">
+        <p class="hint">🎬 낙하 시뮬레이션 녹화 중... <span id="event-progress-pct">0</span>%</p>
+      </div>
+      <p id="event-error" class="error"></p>
     </div>
   </section>
 

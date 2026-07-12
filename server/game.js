@@ -10,17 +10,15 @@
 
 const Matter = require('matter-js');
 const { ITEMS, itemMeta, randomItems } = require('./items');
-const { WORLD, buildShapes } = require('../public/components.js');
+const { WORLD } = require('../public/components.js');
+const {
+  buildBoard,
+  createBall,
+  CAT_WALL,
+  DEFAULT_MASK,
+  BALL_RESTITUTION,
+} = require('./board');
 
-// 충돌 카테고리
-const CAT_WALL = 0x0001; // 외벽 (유령 상태에서도 충돌)
-const CAT_PEG = 0x0002; // 맵 구성요소 (유령 상태에서는 통과)
-const CAT_BALL = 0x0004;
-const DEFAULT_MASK = CAT_WALL | CAT_PEG | CAT_BALL;
-
-const BALL_RADIUS = 13;
-const BALL_RESTITUTION = 0.7;
-const GOAL_MARGIN = 55; // 맵 바닥에서 이만큼 위가 골인선
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
 const COUNTDOWN_MS = 3000; // 시작 카운트다운
 const GAME_TIMEOUT_MS = 180000; // 제한시간 (넘으면 현재 위치로 순위 결정)
@@ -70,15 +68,18 @@ class Game {
     this.finished = []; // 도착 순서대로 playerId
     this.finishTimes = new Map(); // playerId -> 낙하 시작 후 완주 시간(ms)
     this.activeEffects = []; // { itemId, ball, until }
-    this.spinners = []; // { body, spin, pivot, angle } — 회전 구성요소
-    this.reactive = new Map(); // rootBodyId -> 반응형 구성요소 인스턴스 (폭탄 등)
     this.startedAt = 0;
     this.dropAt = 0;
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
 
-    this.board = this.buildBoard(mapDef);
+    const built = buildBoard(this.engine, mapDef);
+    this.board = built.board;
+    this.spinners = built.spinners;
+    this.reactive = built.reactive;
+    this.height = built.height;
+    this.goalY = built.goalY;
 
     // 공 ↔ 반응형 구성요소 충돌 감지
     Matter.Events.on(this.engine, 'collisionStart', (ev) => {
@@ -126,97 +127,6 @@ class Game {
     return Date.now();
   }
 
-  /** 맵 정의로부터 보드 생성. 클라이언트 렌더링용 데이터를 반환한다. */
-  buildBoard(mapDef) {
-    // 맵마다 길이가 다를 수 있음
-    const H = Number(mapDef.height) || WORLD.height;
-    this.height = H;
-    this.goalY = H - GOAL_MARGIN;
-
-    const bodies = [];
-    const frame = [];
-
-    // 외벽 (좌/우/천장) — 모든 맵 공통
-    const addFrameWall = (x, y, w, h) => {
-      bodies.push(
-        Matter.Bodies.rectangle(x, y, w, h, {
-          isStatic: true,
-          collisionFilter: { category: CAT_WALL, mask: 0xffff },
-        })
-      );
-      frame.push({ x, y, w, h, angle: 0 });
-    };
-    addFrameWall(-10, H / 2, 20, H * 2);
-    addFrameWall(WORLD.width + 10, H / 2, 20, H * 2);
-    addFrameWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
-
-    // 맵 구성요소 → 물리 바디 (도형을 그대로 변환)
-    const renderComponents = [];
-    for (const comp of mapDef.components) {
-      const built = buildShapes(comp.type, comp.props);
-      if (!built) continue; // 알 수 없는 타입은 무시
-
-      const opts = {
-        isStatic: true,
-        restitution: built.restitution,
-        collisionFilter: { category: CAT_PEG, mask: 0xffff },
-      };
-      const parts = built.shapes.map((s) =>
-        s.kind === 'circle'
-          ? Matter.Bodies.circle(comp.x + s.x, comp.y + s.y, s.r, opts)
-          : Matter.Bodies.rectangle(comp.x + s.x, comp.y + s.y, s.w, s.h, {
-              ...opts,
-              angle: s.angle || 0,
-            })
-      );
-      const body =
-        parts.length === 1 ? parts[0] : Matter.Body.create({ parts, isStatic: true });
-      bodies.push(body);
-
-      // 회전 구성요소는 배치 지점을 축으로 매 틱 회전
-      if (built.spin) {
-        this.spinners.push({
-          body,
-          spin: built.spin,
-          pivot: { x: comp.x, y: comp.y },
-          angle: 0,
-        });
-      }
-
-      // 반응형 구성요소(폭탄 등)는 충돌 감지 대상으로 등록
-      if (built.hit) {
-        this.reactive.set(body.id, {
-          index: renderComponents.length, // 이 구성요소의 렌더링 인덱스
-          body,
-          x: comp.x,
-          y: comp.y,
-          hit: built.hit,
-          exploded: false,
-          respawnAt: 0,
-        });
-      }
-
-      renderComponents.push({
-        type: comp.type,
-        x: comp.x,
-        y: comp.y,
-        shapes: built.shapes,
-        spin: built.spin || 0,
-      });
-    }
-
-    Matter.Composite.add(this.engine.world, bodies);
-
-    return {
-      world: { width: WORLD.width, height: H },
-      frame,
-      components: renderComponents,
-      goal: { x: WORLD.width / 2, y: this.goalY, width: 236 },
-      ballRadius: BALL_RADIUS,
-      mapName: mapDef.name,
-    };
-  }
-
   /** 게임 시작: 공 생성, 아이템 배정, 루프 가동 */
   start() {
     const players = [...this.room.players.values()];
@@ -229,13 +139,7 @@ class Game {
     players.forEach((player, i) => {
       const t = players.length === 1 ? 0.5 : slots[i] / (players.length - 1);
       const x = spanLeft + t * (spanRight - spanLeft) + (Math.random() - 0.5) * 10;
-      const ball = Matter.Bodies.circle(x, 70, BALL_RADIUS, {
-        restitution: BALL_RESTITUTION,
-        friction: 0.02,
-        frictionAir: 0.008,
-        density: 0.0015,
-        collisionFilter: { category: CAT_BALL, mask: DEFAULT_MASK },
-      });
+      const ball = createBall(x, 70);
       ball.plugin = { playerId: player.id };
       this.balls.set(player.id, ball);
       Matter.Composite.add(this.engine.world, ball);
@@ -474,4 +378,4 @@ class Game {
   }
 }
 
-module.exports = { Game };
+module.exports = { Game, HIT_ACTIONS };
