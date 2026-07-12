@@ -10,9 +10,7 @@
 
 const Matter = require('matter-js');
 const { ITEMS, itemMeta, randomItems } = require('./items');
-const { buildShapes } = require('../public/components.js');
-
-const WORLD = { width: 600, height: 900 };
+const { WORLD, buildShapes } = require('../public/components.js');
 
 // 충돌 카테고리
 const CAT_WALL = 0x0001; // 외벽 (유령 상태에서도 충돌)
@@ -22,10 +20,10 @@ const DEFAULT_MASK = CAT_WALL | CAT_PEG | CAT_BALL;
 
 const BALL_RADIUS = 13;
 const BALL_RESTITUTION = 0.7;
-const GOAL_Y = 845; // 이 선을 넘으면 도착
+const GOAL_Y = WORLD.height - 55; // 이 선을 넘으면 도착
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
 const COUNTDOWN_MS = 3000; // 시작 카운트다운
-const GAME_TIMEOUT_MS = 120000; // 제한시간 (넘으면 현재 위치로 순위 결정)
+const GAME_TIMEOUT_MS = 180000; // 제한시간 (넘으면 현재 위치로 순위 결정)
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz

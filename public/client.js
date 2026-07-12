@@ -1,10 +1,11 @@
 /* global io, PinballComponents */
 (() => {
   const socket = io();
-  const { COMPONENTS, defaultProps, buildShapes } = PinballComponents;
+  const { WORLD, COMPONENTS, defaultProps, buildShapes } = PinballComponents;
 
-  const WORLD = { width: 600, height: 900 };
-  const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: 800 };
+  // 화면에 보이는 뷰포트 크기 (월드는 세로로 훨씬 길다 → 카메라가 따라감)
+  const VIEW = { width: 600, height: 900 };
+  const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: WORLD.height - 100 };
 
   // ── 상태 ──────────────────────────────────────────────
   let myId = null;
@@ -50,13 +51,6 @@
     ctx.restore();
   }
 
-  function drawFrameWalls(ctx, walls) {
-    ctx.fillStyle = '#3a3a5c';
-    for (const w of walls) {
-      ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
-    }
-  }
-
   function drawGoal(ctx, goal) {
     const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y + 20);
     grad.addColorStop(0, 'rgba(93,222,120,0)');
@@ -68,6 +62,64 @@
     ctx.textAlign = 'center';
     ctx.fillText('GOAL', goal.x, goal.y + 8);
   }
+
+  /**
+   * 미니맵 렌더러 (게임/에디터 공용)
+   * 전체 월드를 축소해 구성요소·공·현재 화면 영역을 표시한다.
+   */
+  function drawMinimap(mCanvas, { components, balls, camY, elapsed, selected }) {
+    const mctx = mCanvas.getContext('2d');
+    const s = mCanvas.width / WORLD.width;
+    mctx.setTransform(s, 0, 0, s, 0, 0);
+    mctx.clearRect(0, 0, WORLD.width, WORLD.height);
+
+    // 골인 지점
+    mctx.fillStyle = 'rgba(93,222,120,0.3)';
+    mctx.fillRect(0, WORLD.height - 70, WORLD.width, 70);
+
+    // 구성요소 (회전체는 실제 각도로)
+    for (const comp of components) {
+      drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0);
+    }
+
+    // 선택된 구성요소 강조 (에디터)
+    if (selected) {
+      mctx.strokeStyle = '#5dde78';
+      mctx.lineWidth = 12;
+      mctx.beginPath();
+      mctx.arc(selected.x, selected.y, 44, 0, Math.PI * 2);
+      mctx.stroke();
+    }
+
+    // 공 (미니맵에서 보이도록 확대)
+    if (balls) {
+      for (const b of balls) {
+        mctx.beginPath();
+        mctx.arc(b.x, b.y, b.mine ? 34 : 26, 0, Math.PI * 2);
+        mctx.fillStyle = b.color;
+        mctx.fill();
+        if (b.mine) {
+          mctx.strokeStyle = '#ffffff';
+          mctx.lineWidth = 10;
+          mctx.stroke();
+        }
+      }
+    }
+
+    // 현재 화면 영역
+    mctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    mctx.lineWidth = 10;
+    mctx.strokeRect(5, camY + 5, WORLD.width - 10, VIEW.height - 10);
+  }
+
+  function setupMinimapCanvas(mCanvas) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = 90; // CSS 픽셀 기준 내부 해상도
+    mCanvas.width = w * dpr;
+    mCanvas.height = w * (WORLD.height / WORLD.width) * dpr;
+  }
+
+  const clampCam = (y) => Math.min(Math.max(y, 0), WORLD.height - VIEW.height);
 
   // ── 홈: 방 만들기 / 참여 ──────────────────────────────
   const inputName = $('input-name');
@@ -183,6 +235,7 @@
       countdown: countdownMs,
       finishedRanks: [],
       overShown: false,
+      camY: 0,
     };
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
@@ -334,13 +387,15 @@
   // ── 게임 캔버스 렌더링 ────────────────────────────────
   const canvas = $('canvas');
   const ctx = canvas.getContext('2d');
+  const minimap = $('minimap');
   let scale = 1;
 
   function setupCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = WORLD.width * dpr;
-    canvas.height = WORLD.height * dpr;
+    canvas.width = VIEW.width * dpr;
+    canvas.height = VIEW.height * dpr;
     scale = dpr;
+    setupMinimapCanvas(minimap);
   }
 
   // 스냅샷 보간: 마지막 두 스냅샷 사이를 부드럽게 이동
@@ -376,21 +431,34 @@
   function renderFrame() {
     if (!game) return;
     const { board } = game;
+    const balls = interpolatedBalls();
+    const elapsed = gameElapsedSec();
+
+    // 카메라: 내 공을 따라감. 내 공이 도착하면 선두(가장 아래) 공을 따라감.
+    const mine = balls.find((b) => b.p === myId);
+    const focus = mine || balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
+    if (focus) {
+      const target = clampCam(focus.y - VIEW.height * 0.42);
+      game.camY += (target - game.camY) * 0.08;
+    }
+    const camY = game.camY;
+
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.clearRect(0, 0, board.world.width, board.world.height);
+    ctx.clearRect(0, 0, VIEW.width, VIEW.height);
+    ctx.save();
+    ctx.translate(0, -camY);
 
     drawGoal(ctx, board.goal);
-    drawFrameWalls(ctx, board.frame);
 
-    // 맵 구성요소 (회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
-    const elapsed = gameElapsedSec();
+    // 맵 구성요소 (화면 근처만 그리기, 회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
     for (const comp of board.components) {
+      if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) continue;
       drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
     }
 
     // 공
     const r = board.ballRadius;
-    for (const b of interpolatedBalls()) {
+    for (const b of balls) {
       const p = game.players.get(b.p);
       const color = p ? p.color : '#888';
       const radius = b.b ? r * 1.6 : r;
@@ -429,6 +497,19 @@
       );
     }
 
+    ctx.restore();
+
+    // 미니맵
+    drawMinimap(minimap, {
+      components: board.components,
+      balls: balls.map((b) => {
+        const p = game.players.get(b.p);
+        return { x: b.x, y: b.y, color: p ? p.color : '#888', mine: b.p === myId };
+      }),
+      camY,
+      elapsed,
+    });
+
     // 카운트다운
     const cd = game.countdown;
     $('countdown').textContent =
@@ -444,17 +525,20 @@
     tool: 'peg', // 팔레트에서 선택된 구성요소 타입
     selected: -1, // 선택된 comps 인덱스
     dragging: false,
+    camY: 0,
   };
 
   const eCanvas = $('editor-canvas');
   const eCtx = eCanvas.getContext('2d');
+  const eMinimap = $('editor-minimap');
   let eScale = 1;
 
   function setupEditorCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    eCanvas.width = WORLD.width * dpr;
-    eCanvas.height = WORLD.height * dpr;
+    eCanvas.width = VIEW.width * dpr;
+    eCanvas.height = VIEW.height * dpr;
     eScale = dpr;
+    setupMinimapCanvas(eMinimap);
   }
 
   function rebuildComp(comp) {
@@ -467,6 +551,7 @@
     editor.comps = [];
     editor.selected = -1;
     editor.tool = 'peg';
+    editor.camY = 0;
     $('input-map-name').value = '';
     $('editor-msg').textContent = '';
     renderPalette();
@@ -544,12 +629,12 @@
     }
   }
 
-  // 캔버스 좌표 변환
+  // 캔버스 좌표 변환 (에디터 카메라 반영)
   function eventToWorld(e) {
     const rect = eCanvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) / rect.width) * WORLD.width,
-      y: ((e.clientY - rect.top) / rect.height) * WORLD.height,
+      x: ((e.clientX - rect.left) / rect.width) * VIEW.width,
+      y: ((e.clientY - rect.top) / rect.height) * VIEW.height + editor.camY,
     };
   }
 
@@ -608,6 +693,35 @@
     editor.dragging = false;
   });
 
+  // 휠 스크롤로 긴 맵 이동
+  eCanvas.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      editor.camY = clampCam(editor.camY + e.deltaY);
+    },
+    { passive: false }
+  );
+
+  // 에디터 미니맵: 클릭/드래그로 화면 이동
+  function minimapJump(e) {
+    const rect = eMinimap.getBoundingClientRect();
+    const worldY = ((e.clientY - rect.top) / rect.height) * WORLD.height;
+    editor.camY = clampCam(worldY - VIEW.height / 2);
+  }
+  eMinimap.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    minimapJump(e);
+    eMinimap.setPointerCapture(e.pointerId);
+    const move = (ev) => minimapJump(ev);
+    const up = () => {
+      eMinimap.removeEventListener('pointermove', move);
+      eMinimap.removeEventListener('pointerup', up);
+    };
+    eMinimap.addEventListener('pointermove', move);
+    eMinimap.addEventListener('pointerup', up);
+  });
+
   function deleteSelected() {
     if (editor.selected < 0) return;
     editor.comps.splice(editor.selected, 1);
@@ -624,6 +738,8 @@
       editor.selected = -1;
       renderPropsPanel();
     }
+    if (e.key === 'ArrowDown') editor.camY = clampCam(editor.camY + 80);
+    if (e.key === 'ArrowUp') editor.camY = clampCam(editor.camY - 80);
   });
 
   $('btn-map-save').addEventListener('click', () => {
@@ -649,24 +765,28 @@
 
   function renderEditor() {
     if (!editor.active) return;
+    const camY = editor.camY;
     eCtx.setTransform(eScale, 0, 0, eScale, 0, 0);
-    eCtx.clearRect(0, 0, WORLD.width, WORLD.height);
+    eCtx.clearRect(0, 0, VIEW.width, VIEW.height);
+    eCtx.save();
+    eCtx.translate(0, -camY);
 
     // 배치 불가 구역 표시
     eCtx.fillStyle = 'rgba(77,201,255,0.07)';
     eCtx.fillRect(0, 0, WORLD.width, EDIT_BOUNDS.minY - 20);
     eCtx.fillStyle = 'rgba(93,222,120,0.07)';
-    eCtx.fillRect(0, EDIT_BOUNDS.maxY + 20, WORLD.width, WORLD.height);
+    eCtx.fillRect(0, EDIT_BOUNDS.maxY + 20, WORLD.width, WORLD.height - EDIT_BOUNDS.maxY - 20);
     eCtx.font = '13px sans-serif';
     eCtx.textAlign = 'center';
     eCtx.fillStyle = 'rgba(77,201,255,0.6)';
     eCtx.fillText('⬇ 공 시작 구역', WORLD.width / 2, 60);
     eCtx.fillStyle = 'rgba(93,222,120,0.6)';
-    eCtx.fillText('GOAL', WORLD.width / 2, 860);
+    eCtx.fillText('GOAL', WORLD.width / 2, WORLD.height - 40);
 
     // 구성요소 (회전체는 미리보기로 실제 속도로 회전)
     const t = performance.now() / 1000;
     editor.comps.forEach((comp, i) => {
+      if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) return;
       drawComponent(eCtx, comp, comp.spin ? comp.spin * t : 0);
       if (i === editor.selected) {
         eCtx.strokeStyle = '#5dde78';
@@ -682,6 +802,16 @@
         eCtx.stroke();
         eCtx.setLineDash([]);
       }
+    });
+
+    eCtx.restore();
+
+    // 에디터 미니맵
+    drawMinimap(eMinimap, {
+      components: editor.comps,
+      camY,
+      elapsed: t,
+      selected: editor.selected >= 0 ? editor.comps[editor.selected] : null,
     });
 
     requestAnimationFrame(renderEditor);

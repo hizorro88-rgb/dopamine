@@ -47,10 +47,13 @@
   <!-- 맵 에디터: 누구나 맵을 만들어 서버에 공유 -->
   <section id="screen-editor" class="screen">
     <div id="editor-layout">
-      <canvas id="editor-canvas"></canvas>
+      <div id="editor-wrap">
+        <canvas id="editor-canvas"></canvas>
+        <canvas id="editor-minimap" class="minimap"></canvas>
+      </div>
       <div id="editor-side">
         <h3>🛠 맵 에디터</h3>
-        <p class="hint">구성요소를 고르고 보드를 클릭해 배치하세요.<br>배치된 요소는 드래그로 옮길 수 있어요.</p>
+        <p class="hint">구성요소를 고르고 보드를 클릭해 배치하세요.<br>배치된 요소는 드래그로 옮길 수 있어요.<br>맵이 길어요! 휠 스크롤 또는 미니맵 클릭으로 이동하세요.</p>
         <div id="palette"></div>
         <div id="editor-props"></div>
         <button id="btn-comp-delete" class="btn small" disabled>🗑 선택한 요소 삭제</button>
@@ -65,7 +68,10 @@
   <!-- 게임 화면 -->
   <section id="screen-game" class="screen">
     <div id="game-layout">
-      <canvas id="canvas"></canvas>
+      <div id="canvas-wrap">
+        <canvas id="canvas"></canvas>
+        <canvas id="minimap" class="minimap"></canvas>
+      </div>
       <div id="game-side">
         <div id="countdown"></div>
         <div id="toast-area"></div>

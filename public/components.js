@@ -26,6 +26,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const DEG = Math.PI / 180;
 
+  // 월드(보드) 크기 — 서버 물리와 클라이언트 렌더링/에디터가 공유
+  const WORLD = { width: 600, height: 2400 };
+
   const COMPONENTS = {
     // 기본 핀
     peg: {
@@ -143,5 +146,5 @@
     return def.build({ ...defaultProps(def), ...(props || {}) });
   }
 
-  return { COMPONENTS, defaultProps, buildShapes };
+  return { WORLD, COMPONENTS, defaultProps, buildShapes };
 });

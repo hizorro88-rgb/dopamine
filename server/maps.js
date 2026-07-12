@@ -5,14 +5,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const { COMPONENTS, defaultProps } = require('../public/components.js');
+const { WORLD, COMPONENTS, defaultProps } = require('../public/components.js');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'maps.json');
 
 // 에디터에서 배치 가능한 영역 (위: 공 시작 구역 / 아래: 골인 구역 제외)
-const BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: 800 };
-const MAX_COMPONENTS = 150;
+const BOUNDS = { minX: 25, maxX: 575, minY: 130, maxY: WORLD.height - 100 };
+const MAX_COMPONENTS = 400;
 const MAX_CUSTOM_MAPS = 200;
 
 // ── 기본 맵 ──────────────────────────────────────────────
@@ -21,19 +21,25 @@ function peg(x, y, size = 8) {
   return { type: 'peg', x, y, props: { size } };
 }
 
+// 맵 하단 공통: 골인 지점으로 좁아지는 깔때기
 function funnel() {
+  const H = WORLD.height;
   return [
-    { type: 'wall', x: 115, y: 745, props: { length: 290, angle: 27.5 } },
-    { type: 'wall', x: 485, y: 745, props: { length: 290, angle: -27.5 } },
-    { type: 'wall', x: 232, y: 835, props: { length: 70, angle: 90 } },
-    { type: 'wall', x: 368, y: 835, props: { length: 70, angle: 90 } },
+    { type: 'wall', x: 115, y: H - 155, props: { length: 290, angle: 27.5 } },
+    { type: 'wall', x: 485, y: H - 155, props: { length: 290, angle: -27.5 } },
+    { type: 'wall', x: 232, y: H - 65, props: { length: 70, angle: 90 } },
+    { type: 'wall', x: 368, y: H - 65, props: { length: 70, angle: 90 } },
   ];
+}
+
+function pegRow(comps, y, offset = 0) {
+  for (let x = 84 + offset; x <= 516; x += 54) comps.push(peg(x, y));
 }
 
 function classicComponents() {
   const comps = [];
   let row = 0;
-  for (let y = 170; y <= 640; y += 58) {
+  for (let y = 170; y <= WORLD.height - 260; y += 62) {
     const offset = row % 2 === 0 ? 0 : 29;
     for (let x = 55 + offset; x <= 545; x += 58) comps.push(peg(x, y));
     row++;
@@ -43,18 +49,47 @@ function classicComponents() {
 
 function spinnerParkComponents() {
   const comps = [];
-  for (let x = 84; x <= 516; x += 54) comps.push(peg(x, 170));
-  for (let x = 111; x <= 489; x += 54) comps.push(peg(x, 222));
 
-  comps.push({ type: 'bumper', x: 300, y: 305, props: { size: 24 } });
-  comps.push({ type: 'bumper', x: 85, y: 370, props: { size: 18 } });
-  comps.push({ type: 'bumper', x: 515, y: 370, props: { size: 18 } });
+  // 1구간: 핀 + 범퍼 삼각
+  pegRow(comps, 170);
+  pegRow(comps, 222, 27);
+  comps.push({ type: 'bumper', x: 300, y: 320, props: { size: 24 } });
+  comps.push({ type: 'bumper', x: 110, y: 385, props: { size: 18 } });
+  comps.push({ type: 'bumper', x: 490, y: 385, props: { size: 18 } });
 
-  comps.push({ type: 'spinner', x: 170, y: 440, props: { length: 160, speed: 2 } });
-  comps.push({ type: 'spinner', x: 430, y: 440, props: { length: 160, speed: -2 } });
-  comps.push({ type: 'cross', x: 300, y: 575, props: { length: 150, speed: 1.5 } });
+  // 2구간: 회전 막대 쌍 + 중앙 십자
+  comps.push({ type: 'spinner', x: 170, y: 530, props: { length: 160, speed: 2 } });
+  comps.push({ type: 'spinner', x: 430, y: 530, props: { length: 160, speed: -2 } });
+  comps.push({ type: 'cross', x: 300, y: 690, props: { length: 150, speed: 1.5 } });
 
-  for (let x = 84; x <= 516; x += 54) comps.push(peg(x, 668));
+  // 3구간: 핀 + 가운데로 모으는 경사벽
+  pegRow(comps, 830);
+  pegRow(comps, 882, 27);
+  comps.push({ type: 'wall', x: 120, y: 1000, props: { length: 200, angle: 35 } });
+  comps.push({ type: 'wall', x: 480, y: 1000, props: { length: 200, angle: -35 } });
+  comps.push({ type: 'bumper', x: 300, y: 1020, props: { size: 20 } });
+
+  // 4구간: 대형 중앙 회전 막대 + 사이드 범퍼
+  comps.push({ type: 'spinner', x: 300, y: 1170, props: { length: 220, speed: 2.5 } });
+  comps.push({ type: 'bumper', x: 85, y: 1170, props: { size: 16 } });
+  comps.push({ type: 'bumper', x: 515, y: 1170, props: { size: 16 } });
+
+  // 5구간: 회전 십자 쌍
+  comps.push({ type: 'cross', x: 170, y: 1350, props: { length: 130, speed: -2 } });
+  comps.push({ type: 'cross', x: 430, y: 1350, props: { length: 130, speed: 2 } });
+
+  // 6구간: 핀 + 지그재그 벽
+  pegRow(comps, 1490);
+  pegRow(comps, 1542, 27);
+  comps.push({ type: 'wall', x: 180, y: 1670, props: { length: 280, angle: 20 } });
+  comps.push({ type: 'wall', x: 420, y: 1820, props: { length: 280, angle: -20 } });
+
+  // 7구간: 마지막 관문 — 빠른 회전 막대 + 중앙 범퍼
+  comps.push({ type: 'spinner', x: 150, y: 1975, props: { length: 150, speed: -3 } });
+  comps.push({ type: 'spinner', x: 450, y: 1975, props: { length: 150, speed: 3 } });
+  comps.push({ type: 'bumper', x: 300, y: 2080, props: { size: 22 } });
+  pegRow(comps, 2170);
+
   return [...comps, ...funnel()];
 }
 
