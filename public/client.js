@@ -64,17 +64,20 @@
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
         if (!flat && s.r >= 5) {
-          // 금속 광택: 좌상단 하이라이트 → 우하단 음영
+          // 무광 금속: 절제된 상단광 → 하단 음영 + 얇은 윤곽
           const g = ctx.createRadialGradient(
-            s.x - s.r * 0.35, s.y - s.r * 0.4, s.r * 0.1,
+            s.x - s.r * 0.3, s.y - s.r * 0.35, s.r * 0.15,
             s.x, s.y, s.r
           );
-          g.addColorStop(0, 'rgba(255,255,255,0.45)');
-          g.addColorStop(0.4, 'rgba(255,255,255,0.06)');
-          g.addColorStop(0.85, 'rgba(0,0,0,0.18)');
-          g.addColorStop(1, 'rgba(0,0,0,0.45)');
+          g.addColorStop(0, 'rgba(255,255,255,0.22)');
+          g.addColorStop(0.45, 'rgba(255,255,255,0.03)');
+          g.addColorStop(0.85, 'rgba(0,0,0,0.22)');
+          g.addColorStop(1, 'rgba(0,0,0,0.5)');
           ctx.fillStyle = g;
           ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
       } else {
         ctx.save();
@@ -85,13 +88,16 @@
         else ctx.rect(-s.w / 2, -s.h / 2, s.w, s.h);
         ctx.fill();
         if (!flat) {
-          // 브러시드 메탈 느낌의 상하 음영
+          // 브러시드 메탈 느낌의 상하 음영 (절제)
           const g = ctx.createLinearGradient(0, -s.h / 2, 0, s.h / 2);
-          g.addColorStop(0, 'rgba(255,255,255,0.22)');
-          g.addColorStop(0.5, 'rgba(255,255,255,0.02)');
-          g.addColorStop(1, 'rgba(0,0,0,0.35)');
+          g.addColorStop(0, 'rgba(255,255,255,0.12)');
+          g.addColorStop(0.5, 'rgba(255,255,255,0.01)');
+          g.addColorStop(1, 'rgba(0,0,0,0.32)');
           ctx.fillStyle = g;
           ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
         ctx.restore();
       }
@@ -100,22 +106,54 @@
   }
 
   function drawGoal(ctx, goal) {
-    // 황금 결승선 — 모든 것이 결정되는 곳
-    const grad = ctx.createLinearGradient(0, goal.y - 70, 0, goal.y + 20);
-    grad.addColorStop(0, 'rgba(212,175,55,0)');
-    grad.addColorStop(1, 'rgba(212,175,55,0.32)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(goal.x - goal.width / 2, goal.y - 70, goal.width, 85);
+    // 체커 피니시 라인 — 레이싱의 격식
+    const left = goal.x - goal.width / 2;
+    const cols = 20;
+    const sq = goal.width / cols;
+    for (let r = 0; r < 2; r++) {
+      for (let i = 0; i < cols; i++) {
+        ctx.fillStyle =
+          (i + r) % 2 === 0 ? 'rgba(212,175,55,0.28)' : 'rgba(12,12,16,0.65)';
+        ctx.fillRect(left + i * sq, goal.y + 2 + r * sq, sq + 0.5, sq);
+      }
+    }
+    // 골드 헤어라인 (골인선)
     ctx.strokeStyle = 'rgba(212,175,55,0.55)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(goal.x - goal.width / 2, goal.y + 15);
-    ctx.lineTo(goal.x + goal.width / 2, goal.y + 15);
+    ctx.moveTo(left, goal.y);
+    ctx.lineTo(left + goal.width, goal.y);
     ctx.stroke();
-    ctx.fillStyle = '#e3c778';
-    ctx.font = "bold 15px 'Noto Serif KR', serif";
+    // 은은한 접근 글로우
+    const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y);
+    grad.addColorStop(0, 'rgba(212,175,55,0)');
+    grad.addColorStop(1, 'rgba(212,175,55,0.10)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(left, goal.y - 60, goal.width, 60);
+    ctx.fillStyle = 'rgba(217,192,122,0.85)';
+    ctx.font = "600 13px 'Noto Serif KR', serif";
     ctx.textAlign = 'center';
-    ctx.fillText('F I N I S H', goal.x, goal.y + 6);
+    ctx.fillText('F I N I S H', goal.x, goal.y - 10);
+  }
+
+  /** 보드 장식: 좌우 골드 헤어라인 + 깊이 눈금 (계측기 느낌) */
+  function drawBoardDecor(ctx, board) {
+    const H = board.world.height;
+    ctx.strokeStyle = 'rgba(212,175,55,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(1.5, 0);
+    ctx.lineTo(1.5, H);
+    ctx.moveTo(WORLD.width - 1.5, 0);
+    ctx.lineTo(WORLD.width - 1.5, H);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(212,175,55,0.20)';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'right';
+    for (let y = 300; y < H - 120; y += 300) {
+      ctx.fillRect(WORLD.width - 14, y, 12, 1);
+      ctx.fillText(String(y), WORLD.width - 17, y + 3);
+    }
   }
 
   /**
@@ -1218,6 +1256,7 @@
     ctx.save();
     ctx.translate(shakeX, -camY + shakeY);
 
+    drawBoardDecor(ctx, board);
     drawGoal(ctx, board.goal);
 
     // 맵 구성요소 (화면 근처만 그리기, 회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
@@ -1260,26 +1299,37 @@
         }
       }
 
-      // 본체 — 당구공처럼 광택 있는 구체
+      // 본체 — 연마된 금속구: 절제된 음영 + 작고 날카로운 스펙큘러
       ctx.beginPath();
       ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       const sheen = ctx.createRadialGradient(
-        b.x - radius * 0.35, b.y - radius * 0.4, radius * 0.1,
+        b.x - radius * 0.28, b.y - radius * 0.32, radius * 0.2,
         b.x, b.y, radius
       );
-      sheen.addColorStop(0, 'rgba(255,255,255,0.75)');
-      sheen.addColorStop(0.3, 'rgba(255,255,255,0.12)');
-      sheen.addColorStop(0.75, 'rgba(0,0,0,0.15)');
-      sheen.addColorStop(1, 'rgba(0,0,0,0.5)');
+      sheen.addColorStop(0, 'rgba(255,255,255,0.30)');
+      sheen.addColorStop(0.4, 'rgba(255,255,255,0.04)');
+      sheen.addColorStop(0.78, 'rgba(0,0,0,0.16)');
+      sheen.addColorStop(1, 'rgba(0,0,0,0.55)');
       ctx.fillStyle = sheen;
       ctx.fill();
+      // 날카로운 스펙큘러 점
+      ctx.beginPath();
+      ctx.arc(b.x - radius * 0.32, b.y - radius * 0.38, radius * 0.16, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fill();
+      // 윤곽으로 형태를 조임
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
       // 내 공은 금테로 표시
       if (b.p === mineKey) {
-        ctx.strokeStyle = 'rgba(212,175,55,0.9)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(212,175,55,0.85)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
       ctx.restore();

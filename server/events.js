@@ -30,7 +30,8 @@ function generateCode(existing) {
 }
 
 function participantColor(i) {
-  return `hsl(${Math.round((i * 137.5) % 360)}, 72%, 62%)`;
+  // 채도를 낮춘 주얼 톤 (원색 무지개 방지)
+  return `hsl(${Math.round((i * 137.5) % 360)}, 42%, 58%)`;
 }
 
 class EventManager {
