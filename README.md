@@ -192,6 +192,22 @@ windmill: {
 - `props` — 에디터에 슬라이더로 자동 노출되고, 서버 저장 시 min/max로 잘려 검증됩니다
 - `hit` — (선택) 공이 닿으면 발동하는 **반응형 동작** 데이터. 폭탄이 사용하는 방식으로, `{ action: 'explode', radius, power, respawnMs }` 처럼 선언하면 `server/game.js`의 `HIT_ACTIONS[action]` 이 실행합니다. 새 반응형 동작(닿으면 순간이동, 속도 감소 등)은 `HIT_ACTIONS`에 함수 하나를 추가하면 됩니다
 
+## 🌐 GitHub Pages (github.io) — 소개 페이지 + 브라우저 데모
+
+GitHub Pages는 **정적 파일 전용**이라 멀티플레이 서버(Socket.IO + 서버 물리)는 올릴 수 없습니다.
+대신 이 저장소는 `site/` 폴더의 **랜딩 페이지 + 서버 없이 브라우저에서만 도는 낙하 데모**를
+GitHub Actions로 자동 배포합니다 (`.github/workflows/pages.yml`).
+
+- 데모는 실제 게임과 같은 물리 상수·같은 기본 맵·같은 10배속으로 8개의 공을 떨어뜨립니다 (혼자 보는 시뮬레이션)
+- `site/config.js` 의 `PINBALL_SERVER_URL` 에 실제 서버 주소를 넣으면 **"🎮 지금 플레이"** 버튼이 나타나 방문자를 진짜 게임으로 보냅니다
+
+**활성화 방법**
+1. 이 브랜치를 기본 브랜치(main)에 머지하면 워크플로가 자동 실행됩니다
+2. 첫 실행이 Pages를 자동 활성화합니다. 실패하면 저장소 **Settings → Pages → Source: GitHub Actions** 선택 후 Actions 탭에서 재실행
+3. 완료되면 `https://<계정>.github.io/dopamine/` 에서 접속
+
+진짜 멀티플레이 서비스는 아래처럼 집 PC(또는 클라우드)에서 하세요.
+
 ## 배포하기 (집 데스크탑을 서버로)
 
 항상 켜져 있는 PC가 있다면 별도 비용 없이 서버로 쓸 수 있습니다.

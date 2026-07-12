@@ -1,0 +1,151 @@
+/* DOPAMINE 랜딩 + 데모 — 카지노 누아르 */
+:root {
+  --bg: #0b0b0e;
+  --card: #141419;
+  --line: #262219;
+  --gold: #d4af37;
+  --text: #e8e4da;
+  --muted: #8a8578;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: radial-gradient(ellipse at 50% -10%, #17141c 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  text-align: center;
+}
+a { color: var(--gold); }
+
+.hero { padding: 72px 16px 40px; }
+.brand {
+  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
+  font-size: 64px;
+  font-weight: 400;
+  letter-spacing: 10px;
+  margin-right: -10px;
+  background: linear-gradient(180deg, #f3e3ae 10%, #d4af37 45%, #8a6a24 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
+}
+.brand-tag { color: var(--gold); letter-spacing: 6px; font-size: 14px; margin-top: 4px; }
+.subtitle { color: var(--muted); margin-top: 12px; font-size: 14px; }
+.hint { color: var(--muted); font-size: 12px; margin-top: 14px; line-height: 1.7; }
+
+.cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.btn {
+  display: inline-block;
+  background: #1d1d24;
+  border: 1px solid #34343d;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.15s;
+}
+.btn:hover { filter: brightness(1.25); }
+.btn.primary {
+  background: linear-gradient(180deg, #e8cd7a, #c49a2e);
+  border-color: #8a6a24;
+  color: #211a08;
+}
+.btn.small { padding: 8px 14px; font-size: 13px; }
+.btn.selected { border-color: var(--gold); color: var(--gold); }
+.hidden { display: none !important; }
+
+.features {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 12px 16px 30px;
+}
+.feature {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 16px;
+  width: 200px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.feature span { font-size: 24px; display: block; margin-bottom: 6px; }
+.feature b { color: var(--text); font-size: 14px; }
+
+.demo-section { padding: 30px 16px 50px; }
+.demo-section h2 {
+  font-family: 'Gothic A1', sans-serif;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+.demo-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.map-btns { display: flex; gap: 8px; }
+
+#demo-layout {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+#canvas-wrap {
+  position: relative;
+  background: #101013;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+#canvas { display: block; }
+#minimap {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 6px;
+  background: rgba(10, 10, 12, 0.82);
+}
+#demo-side {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  width: 240px;
+  text-align: left;
+}
+#demo-side h3 {
+  font-family: 'Gothic A1', sans-serif;
+  font-size: 13px;
+  color: var(--gold);
+  margin-bottom: 10px;
+}
+#rank-list { list-style: none; font-size: 13px; }
+#rank-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid #1e1b14;
+}
+#rank-list .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+#rank-list .num { color: var(--gold); font-family: 'Bebas Neue', sans-serif; width: 26px; }
+#rank-list .time { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+footer { padding: 30px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+
+@media (max-width: 700px) {
+  .brand { font-size: 44px; letter-spacing: 6px; margin-right: -6px; }
+  #demo-side { width: min(94vw, 420px); }
+}

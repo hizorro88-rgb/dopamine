@@ -1,0 +1,54 @@
+# GitHub Pages 배포 — 정적 랜딩 + 브라우저 데모 (site/ 폴더)
+# 멀티플레이 서버(Socket.IO)는 Pages에서 돌 수 없으므로,
+# 여기서는 소개 페이지와 서버 없이 도는 낙하 데모만 배포한다.
+name: GitHub Pages 배포
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'public/components.js'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 정적 사이트 조립
+        run: |
+          npm ci --omit=dev
+          mkdir -p _site
+          cp site/* _site/
+          cp public/components.js _site/
+          cp node_modules/matter-js/build/matter.min.js _site/
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
