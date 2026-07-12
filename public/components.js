@@ -43,7 +43,7 @@
       props: [{ key: 'size', label: '크기', min: 5, max: 16, step: 1, default: 8 }],
       build(p) {
         return {
-          shapes: [{ kind: 'circle', x: 0, y: 0, r: p.size, fill: '#565685' }],
+          shapes: [{ kind: 'circle', x: 0, y: 0, r: p.size, fill: '#7b7f8c' }],
           spin: 0,
           restitution: 0.5,
         };
@@ -60,8 +60,8 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'circle', x: 0, y: 0, r: p.size, fill: '#e0558a' },
-            { kind: 'circle', x: 0, y: 0, r: p.size * 0.55, fill: '#ff8fb8' },
+            { kind: 'circle', x: 0, y: 0, r: p.size, fill: '#a82e3f' },
+            { kind: 'circle', x: 0, y: 0, r: p.size * 0.55, fill: '#d45560' },
           ],
           spin: 0,
           restitution: 1.4,
@@ -82,7 +82,7 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 14, angle: p.angle * DEG, fill: '#3a3a5c' },
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 14, angle: p.angle * DEG, fill: '#4a4c55' },
           ],
           spin: 0,
           restitution: 0.2,
@@ -103,8 +103,8 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, fill: '#8f7bff' },
-            { kind: 'circle', x: 0, y: 0, r: 9, fill: '#c3b8ff' },
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, fill: '#b13a4e' },
+            { kind: 'circle', x: 0, y: 0, r: 9, fill: '#d4af37' },
           ],
           spin: p.speed,
           restitution: 0.8,
@@ -126,10 +126,10 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'circle', x: 0, y: 0, r: 16, fill: '#3c3c52' },
-            { kind: 'circle', x: -5, y: -5, r: 5, fill: '#6a6a92' },
-            { kind: 'rect', x: 10, y: -15, w: 12, h: 5, angle: -0.7, fill: '#9a7b52' },
-            { kind: 'circle', x: 14, y: -19, r: 4, fill: '#ffb03a' },
+            { kind: 'circle', x: 0, y: 0, r: 16, fill: '#232329' },
+            { kind: 'circle', x: -5, y: -5, r: 5, fill: '#45454f' },
+            { kind: 'rect', x: 10, y: -15, w: 12, h: 5, angle: -0.7, fill: '#8a6d4a' },
+            { kind: 'circle', x: 14, y: -19, r: 4, fill: '#e0a13a' },
           ],
           spin: 0,
           restitution: 0.3,
@@ -156,9 +156,9 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, fill: '#5bc9b1' },
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, angle: 90 * DEG, fill: '#5bc9b1' },
-            { kind: 'circle', x: 0, y: 0, r: 9, fill: '#a8ecdc' },
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, fill: '#2e7e62' },
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 12, angle: 90 * DEG, fill: '#2e7e62' },
+            { kind: 'circle', x: 0, y: 0, r: 9, fill: '#d4af37' },
           ],
           spin: p.speed,
           restitution: 0.8,

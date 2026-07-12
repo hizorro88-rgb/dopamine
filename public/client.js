@@ -52,16 +52,30 @@
 
   // ── 공용: 구성요소 도형 렌더러 ─────────────────────────
   // 서버가 내려준 shapes 를 그대로 그린다. 새 구성요소가 추가돼도 수정 불필요.
-  function drawComponent(ctx, comp, angle) {
+  // flat=true(미니맵)면 광택 오버레이 생략.
+  function drawComponent(ctx, comp, angle, flat) {
     ctx.save();
     ctx.translate(comp.x, comp.y);
     if (angle) ctx.rotate(angle);
     for (const s of comp.shapes) {
-      ctx.fillStyle = s.fill || '#565685';
+      ctx.fillStyle = s.fill || '#7b7f8c';
       if (s.kind === 'circle') {
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
+        if (!flat && s.r >= 5) {
+          // 금속 광택: 좌상단 하이라이트 → 우하단 음영
+          const g = ctx.createRadialGradient(
+            s.x - s.r * 0.35, s.y - s.r * 0.4, s.r * 0.1,
+            s.x, s.y, s.r
+          );
+          g.addColorStop(0, 'rgba(255,255,255,0.45)');
+          g.addColorStop(0.4, 'rgba(255,255,255,0.06)');
+          g.addColorStop(0.85, 'rgba(0,0,0,0.18)');
+          g.addColorStop(1, 'rgba(0,0,0,0.45)');
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
       } else {
         ctx.save();
         ctx.translate(s.x, s.y);
@@ -70,6 +84,15 @@
         if (ctx.roundRect) ctx.roundRect(-s.w / 2, -s.h / 2, s.w, s.h, 5);
         else ctx.rect(-s.w / 2, -s.h / 2, s.w, s.h);
         ctx.fill();
+        if (!flat) {
+          // 브러시드 메탈 느낌의 상하 음영
+          const g = ctx.createLinearGradient(0, -s.h / 2, 0, s.h / 2);
+          g.addColorStop(0, 'rgba(255,255,255,0.22)');
+          g.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+          g.addColorStop(1, 'rgba(0,0,0,0.35)');
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
         ctx.restore();
       }
     }
@@ -77,15 +100,22 @@
   }
 
   function drawGoal(ctx, goal) {
-    const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y + 20);
-    grad.addColorStop(0, 'rgba(93,222,120,0)');
-    grad.addColorStop(1, 'rgba(93,222,120,0.35)');
+    // 황금 결승선 — 모든 것이 결정되는 곳
+    const grad = ctx.createLinearGradient(0, goal.y - 70, 0, goal.y + 20);
+    grad.addColorStop(0, 'rgba(212,175,55,0)');
+    grad.addColorStop(1, 'rgba(212,175,55,0.32)');
     ctx.fillStyle = grad;
-    ctx.fillRect(goal.x - goal.width / 2, goal.y - 60, goal.width, 75);
-    ctx.fillStyle = '#5dde78';
-    ctx.font = 'bold 15px sans-serif';
+    ctx.fillRect(goal.x - goal.width / 2, goal.y - 70, goal.width, 85);
+    ctx.strokeStyle = 'rgba(212,175,55,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(goal.x - goal.width / 2, goal.y + 15);
+    ctx.lineTo(goal.x + goal.width / 2, goal.y + 15);
+    ctx.stroke();
+    ctx.fillStyle = '#e3c778';
+    ctx.font = "bold 15px 'Noto Serif KR', serif";
     ctx.textAlign = 'center';
-    ctx.fillText('GOAL', goal.x, goal.y + 8);
+    ctx.fillText('F I N I S H', goal.x, goal.y + 6);
   }
 
   /**
@@ -102,14 +132,14 @@
     mctx.clearRect(0, 0, WORLD.width, height);
 
     // 골인 지점
-    mctx.fillStyle = 'rgba(93,222,120,0.3)';
+    mctx.fillStyle = 'rgba(212,175,55,0.32)';
     mctx.fillRect(0, height - 70, WORLD.width, 70);
 
     // 구성요소 (회전체는 실제 각도로, 터진 폭탄은 숨김)
     for (let i = 0; i < components.length; i++) {
       if (hidden && hidden.has(i)) continue;
       const comp = components[i];
-      drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0);
+      drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0, true);
     }
 
     // 폭발 표시
@@ -129,7 +159,7 @@
 
     // 선택된 구성요소 강조 (에디터)
     if (selected) {
-      mctx.strokeStyle = '#5dde78';
+      mctx.strokeStyle = '#d4af37';
       mctx.lineWidth = 12;
       mctx.beginPath();
       mctx.arc(selected.x, selected.y, 44, 0, Math.PI * 2);
@@ -795,7 +825,8 @@
   }
 
   // ── 색종이 축하 효과 ──────────────────────────────────
-  const CONFETTI_COLORS = ['#ff5d5d', '#ffb03a', '#ffe14d', '#5dde78', '#4dc9ff', '#c86dff'];
+  // 금박·은박·크림슨 — 승자의 색
+  const CONFETTI_COLORS = ['#d4af37', '#e8d48b', '#b23a48', '#f0ead6', '#c0c0c8', '#8a6d4a'];
   function startConfetti() {
     const c = $('confetti');
     c.width = c.clientWidth;
@@ -971,6 +1002,8 @@
         ...b,
         x: pb.x + (b.x - pb.x) * alpha,
         y: pb.y + (b.y - pb.y) * alpha,
+        px: pb.x, // 모션 트레일용 직전 위치
+        py: pb.y,
       };
     });
   }
@@ -1076,21 +1109,47 @@
       ctx.save();
       if (b.g) ctx.globalAlpha = 0.45; // 유령 상태
 
+      // 모션 트레일 (속도가 빠를수록 길게)
+      if (b.px !== undefined && !game.shuffling) {
+        const dx = b.x - b.px;
+        const dy = b.y - b.py;
+        const speed = Math.hypot(dx, dy);
+        if (speed > 2) {
+          const len = Math.min(speed * 2.2, radius * 4);
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = (b.g ? 0.45 : 1) * 0.22;
+          ctx.lineWidth = radius * 1.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(b.x - (dx / speed) * len, b.y - (dy / speed) * len);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+          ctx.globalAlpha = b.g ? 0.45 : 1;
+        }
+      }
+
+      // 본체 — 당구공처럼 광택 있는 구체
       ctx.beginPath();
       ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      if (!many) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 12;
-      }
       ctx.fill();
-      ctx.shadowBlur = 0;
+      const sheen = ctx.createRadialGradient(
+        b.x - radius * 0.35, b.y - radius * 0.4, radius * 0.1,
+        b.x, b.y, radius
+      );
+      sheen.addColorStop(0, 'rgba(255,255,255,0.75)');
+      sheen.addColorStop(0.3, 'rgba(255,255,255,0.12)');
+      sheen.addColorStop(0.75, 'rgba(0,0,0,0.15)');
+      sheen.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = sheen;
+      ctx.fill();
 
-      // 하이라이트
-      ctx.beginPath();
-      ctx.arc(b.x - radius * 0.3, b.y - radius * 0.3, radius * 0.35, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fill();
+      // 내 공은 금테로 표시
+      if (b.p === mineKey) {
+        ctx.strokeStyle = 'rgba(212,175,55,0.9)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
       ctx.restore();
 
       // 상태 이모지
@@ -1454,19 +1513,19 @@
 
     // 배치 불가 구역 표시
     const maxY = editMaxY();
-    eCtx.fillStyle = 'rgba(77,201,255,0.07)';
+    eCtx.fillStyle = 'rgba(212,175,55,0.05)';
     eCtx.fillRect(0, 0, WORLD.width, EDIT_BOUNDS.minY - 20);
-    eCtx.fillStyle = 'rgba(93,222,120,0.07)';
+    eCtx.fillStyle = 'rgba(212,175,55,0.07)';
     eCtx.fillRect(0, maxY + 20, WORLD.width, editor.height - maxY - 20);
     eCtx.font = '13px sans-serif';
     eCtx.textAlign = 'center';
-    eCtx.fillStyle = 'rgba(77,201,255,0.6)';
+    eCtx.fillStyle = 'rgba(212,175,55,0.55)';
     eCtx.fillText('⬇ 공 시작 구역', WORLD.width / 2, 60);
-    eCtx.fillStyle = 'rgba(93,222,120,0.6)';
+    eCtx.fillStyle = 'rgba(227,199,120,0.65)';
     eCtx.fillText('GOAL', WORLD.width / 2, editor.height - 40);
 
     // 맵 바닥 경계선
-    eCtx.strokeStyle = 'rgba(93,222,120,0.4)';
+    eCtx.strokeStyle = 'rgba(212,175,55,0.4)';
     eCtx.lineWidth = 2;
     eCtx.beginPath();
     eCtx.moveTo(0, editor.height);
@@ -1479,7 +1538,7 @@
       if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) return;
       drawComponent(eCtx, comp, comp.spin ? comp.spin * t : 0);
       if (i === editor.selected) {
-        eCtx.strokeStyle = '#5dde78';
+        eCtx.strokeStyle = '#d4af37';
         eCtx.lineWidth = 2;
         eCtx.setLineDash([6, 4]);
         let radius = 16;

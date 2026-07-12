@@ -5,14 +5,15 @@
 }
 
 :root {
-  --bg: #12121c;
-  --panel: #1d1d2e;
-  --panel2: #262640;
-  --text: #eef0ff;
-  --muted: #9aa0c3;
-  --accent: #5dde78;
-  --accent2: #4dc9ff;
-  --danger: #ff5d5d;
+  --bg: #08080c;
+  --panel: #121218;
+  --panel2: #1b1b23;
+  --text: #ece7da;
+  --muted: #97907f;
+  --accent: #d4af37; /* 금 */
+  --accent2: #e3c778; /* 밝은 금 */
+  --danger: #c8374b;
+  --gold-grad: linear-gradient(135deg, #e8cd7c, #b8903a 55%, #8a6a24);
 }
 
 html,
@@ -21,7 +22,7 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at 50% 0%, #1c1c30 0%, var(--bg) 65%);
+  background: radial-gradient(ellipse at 50% -20%, #221d16 0%, #0d0c12 45%, var(--bg) 80%);
   color: var(--text);
   font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   overflow: hidden;
@@ -39,7 +40,7 @@ body {
 
 .card {
   background: var(--panel);
-  border: 1px solid #32324e;
+  border: 1px solid #2a2721;
   border-radius: 18px;
   padding: 34px 30px;
   width: min(380px, 92vw);
@@ -47,24 +48,51 @@ body {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
+h1,
+h2,
+h3 {
+  font-family: 'Noto Serif KR', 'Apple SD Gothic Neo', serif;
+}
 h1 {
   font-size: 30px;
   margin-bottom: 8px;
 }
 h2 {
   margin-bottom: 14px;
+  letter-spacing: 1px;
 }
 .subtitle {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   margin-bottom: 24px;
+  letter-spacing: 0.5px;
+}
+
+/* ── 브랜드 타이틀 ── */
+.brand {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 10px;
+  margin-bottom: 2px;
+  background: linear-gradient(180deg, #f3e3ae 10%, #d4af37 45%, #8a6a24 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
+}
+.brand-tag {
+  font-family: 'Noto Serif KR', serif;
+  font-size: 14px;
+  letter-spacing: 4px;
+  color: var(--accent2);
+  margin-bottom: 14px;
 }
 
 input[type='text'] {
   width: 100%;
   padding: 13px 15px;
   border-radius: 10px;
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
   font-size: 15px;
@@ -103,8 +131,9 @@ input[type='text']:focus {
 }
 .btn.primary {
   width: 100%;
-  background: linear-gradient(135deg, var(--accent), #35b859);
-  color: #0c2213;
+  background: var(--gold-grad);
+  color: #1c1304;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .btn.small {
   padding: 8px 14px;
@@ -124,8 +153,8 @@ input[type='text']:focus {
   content: '';
   flex: 1;
   height: 1px;
-  background: #34345229;
-  background: #343452;
+  background: #332f2629;
+  background: #332f26;
 }
 
 .join-row {
@@ -156,8 +185,9 @@ input[type='text']:focus {
   margin-bottom: 18px;
 }
 .invite-code {
+  font-family: 'Noto Serif KR', serif;
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 8px;
   color: var(--accent2);
   margin-bottom: 10px;
@@ -197,8 +227,8 @@ input[type='text']:focus {
   margin-top: 16px;
   padding: 9px 18px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #ffb03a, #ff8a5c);
-  color: #3a2410;
+  background: linear-gradient(135deg, #d9a856, #b06a3a);
+  color: #1e1206;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
@@ -251,7 +281,7 @@ input[type='text']:focus {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
   font-size: 14px;
@@ -280,7 +310,7 @@ input[type='text']:focus {
   flex: 1;
   padding: 10px 6px;
   border-radius: 10px;
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--muted);
   font-size: 13px;
@@ -290,7 +320,7 @@ input[type='text']:focus {
 }
 .winmode-btn.selected {
   border-color: var(--accent);
-  background: #23402c;
+  background: #2e2716;
   color: var(--text);
 }
 .winmode-btn:disabled {
@@ -314,7 +344,7 @@ input[type='text']:focus {
 .balls-row select {
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   background: var(--panel);
   color: var(--text);
   font-size: 13px;
@@ -330,8 +360,8 @@ input[type='text']:focus {
   display: none;
 }
 @keyframes drop-pulse {
-  0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(93, 222, 120, 0); }
-  50% { filter: brightness(1.2); box-shadow: 0 0 18px rgba(93, 222, 120, 0.5); }
+  0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(212, 175, 55, 0); }
+  50% { filter: brightness(1.2); box-shadow: 0 0 18px rgba(212, 175, 55, 0.55); }
 }
 
 /* ── 명예의 전당 / 후원자 코드 ── */
@@ -348,6 +378,7 @@ input[type='text']:focus {
   font-size: 12px;
   cursor: pointer;
   padding: 4px;
+  white-space: nowrap;
 }
 .link-btn:hover {
   color: var(--text);
@@ -389,7 +420,7 @@ input[type='text']:focus {
   align-items: center;
   gap: 10px;
   padding: 9px 6px;
-  border-bottom: 1px solid #2b2b45;
+  border-bottom: 1px solid #262219;
   font-size: 14px;
 }
 #board-list .board-stats {
@@ -413,7 +444,7 @@ input[type='text']:focus {
   align-items: center;
   gap: 10px;
   padding: 9px 6px;
-  border-bottom: 1px solid #2b2b45;
+  border-bottom: 1px solid #262219;
   font-size: 14px;
 }
 #hall-list .hall-rank {
@@ -454,7 +485,7 @@ input[type='text']:focus {
   flex: 1;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   background: var(--panel);
   color: var(--text);
   font-size: 14px;
@@ -481,8 +512,8 @@ input[type='text']:focus {
   aspect-ratio: 600 / 900;
 }
 #editor-canvas {
-  background: linear-gradient(180deg, #171726 0%, #10101c 100%);
-  border: 1px solid #32324e;
+  background: linear-gradient(180deg, #131318 0%, #0a0a0e 100%);
+  border: 1px solid #2a2721;
   border-radius: 14px;
   width: 100%;
   height: 100%;
@@ -496,7 +527,7 @@ input[type='text']:focus {
   flex-direction: column;
   gap: 10px;
   background: var(--panel);
-  border: 1px solid #32324e;
+  border: 1px solid #2a2721;
   border-radius: 14px;
   padding: 16px;
   max-height: calc(100vh - 20px);
@@ -516,7 +547,7 @@ input[type='text']:focus {
 }
 .palette-btn {
   background: var(--panel2);
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   border-radius: 10px;
   padding: 10px 4px;
   text-align: center;
@@ -532,7 +563,7 @@ input[type='text']:focus {
 }
 .palette-btn.selected {
   border-color: var(--accent);
-  background: #23402c;
+  background: #2e2716;
 }
 #editor-props {
   display: flex;
@@ -585,8 +616,8 @@ input[type='text']:focus {
   aspect-ratio: 600 / 900;
 }
 #canvas {
-  background: linear-gradient(180deg, #171726 0%, #10101c 100%);
-  border: 1px solid #32324e;
+  background: linear-gradient(180deg, #131318 0%, #0a0a0e 100%);
+  border: 1px solid #2a2721;
   border-radius: 14px;
   width: 100%;
   height: 100%;
@@ -600,7 +631,7 @@ input[type='text']:focus {
   top: 10px;
   right: 10px;
   background: rgba(13, 13, 22, 0.82);
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   border-radius: 8px;
   pointer-events: none;
 }
@@ -617,8 +648,10 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-size: 19px;
+  font-family: 'Noto Serif KR', serif;
+  font-size: 18px;
   font-weight: 800;
+  letter-spacing: 1px;
   text-align: center;
   color: var(--accent);
   min-height: 26px;
@@ -652,7 +685,7 @@ input[type='text']:focus {
 #item-bar,
 #rank-board {
   background: var(--panel);
-  border: 1px solid #32324e;
+  border: 1px solid #2a2721;
   border-radius: 14px;
   padding: 14px;
 }
@@ -670,7 +703,7 @@ input[type='text']:focus {
 .item-slot {
   flex: 1;
   background: var(--panel2);
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   border-radius: 12px;
   padding: 12px 6px;
   text-align: center;
@@ -707,7 +740,7 @@ input[type='text']:focus {
   gap: 8px;
   padding: 7px 4px;
   font-size: 14px;
-  border-bottom: 1px solid #2b2b45;
+  border-bottom: 1px solid #262219;
 }
 #result-list li {
   font-size: 16px;
@@ -734,7 +767,7 @@ input[type='text']:focus {
 }
 .modal-card {
   background: var(--panel);
-  border: 1px solid #3a3a5c;
+  border: 1px solid #37332a;
   border-radius: 16px;
   padding: 26px;
   width: min(340px, 90vw);
@@ -778,11 +811,14 @@ input[type='text']:focus {
   z-index: 1;
 }
 #winner-banner {
-  font-size: 20px;
-  font-weight: 800;
+  font-family: 'Noto Serif KR', serif;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 1px;
   color: #ffd76a;
   margin-bottom: 18px;
   min-height: 26px;
+  text-shadow: 0 2px 16px rgba(212, 175, 55, 0.35);
 }
 #podium {
   display: flex;
@@ -822,7 +858,7 @@ input[type='text']:focus {
 .podium-block {
   width: 100%;
   border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #3d3d60, #2b2b45);
+  background: linear-gradient(180deg, #4a463c, #262219);
   display: flex;
   align-items: center;
   justify-content: center;
