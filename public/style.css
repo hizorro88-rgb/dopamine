@@ -191,6 +191,32 @@ input[type='text']:focus {
   color: #ffd76a;
 }
 
+/* ── 후원 링크 ── */
+.donate-link {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffb03a, #ff8a5c);
+  color: #3a2410;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.08s, filter 0.15s;
+}
+.donate-link:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.donate-link.hidden,
+.donate-hint.hidden {
+  display: none;
+}
+.donate-hint {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
 /* ── 맵 선택 ── */
 .map-box {
   background: var(--panel2);

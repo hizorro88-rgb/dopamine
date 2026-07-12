@@ -18,6 +18,20 @@
     myId = socket.id;
   });
 
+  // ── 후원 링크 (서버 환경변수 DONATION_URL 설정 시에만 표시) ──
+  fetch('/api/config')
+    .then((r) => r.json())
+    .then((cfg) => {
+      if (!cfg.donationUrl) return;
+      document.querySelectorAll('.donate-link').forEach((a) => {
+        a.href = cfg.donationUrl;
+        a.textContent = cfg.donationLabel;
+        a.classList.remove('hidden');
+      });
+      document.querySelectorAll('.donate-hint').forEach((el) => el.classList.remove('hidden'));
+    })
+    .catch(() => {});
+
   // ── 화면 전환 ─────────────────────────────────────────
   function showScreen(name) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));

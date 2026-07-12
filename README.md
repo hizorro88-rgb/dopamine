@@ -141,6 +141,27 @@ windmill: {
 - `props` — 에디터에 슬라이더로 자동 노출되고, 서버 저장 시 min/max로 잘려 검증됩니다
 - `hit` — (선택) 공이 닿으면 발동하는 **반응형 동작** 데이터. 폭탄이 사용하는 방식으로, `{ action: 'explode', radius, power, respawnMs }` 처럼 선언하면 `server/game.js`의 `HIT_ACTIONS[action]` 이 실행합니다. 새 반응형 동작(닿으면 순간이동, 속도 감소 등)은 `HIT_ACTIONS`에 함수 하나를 추가하면 됩니다
 
+## 후원 버튼 (서버 유지비)
+
+환경변수에 후원 링크를 넣고 서버를 실행하면 홈·대기실·게임 결과 화면에 후원 버튼이 나타납니다.
+링크가 없으면 버튼은 자동으로 숨겨집니다.
+
+```bash
+DONATION_URL=https://toss.me/내아이디 npm start
+
+# 버튼 문구도 바꾸고 싶다면
+DONATION_URL=https://toss.me/내아이디 DONATION_LABEL="💖 개발자 응원하기" npm start
+```
+
+후원 링크 만들기 (쉬운 순):
+
+| 수단 | 대상 | 만드는 법 | 수수료 |
+|------|------|-----------|--------|
+| 토스아이디 | 한국 | 토스 앱 → 전체 → 토스아이디 만들기 → `toss.me/아이디` | 없음 |
+| 카카오페이 송금링크 | 한국 | 카카오페이 → 송금 → 송금링크 만들기 | 없음 |
+| Ko-fi | 글로벌 | ko-fi.com 가입 후 PayPal 연동 → `ko-fi.com/아이디` | 기본 0% |
+| GitHub Sponsors | 개발자/오픈소스 | github.com/sponsors 등록 (한국 지원) | 0% |
+
 ## 게임 규칙 커스터마이징
 
 `server/game.js` 상단 상수:
