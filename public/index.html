@@ -26,6 +26,7 @@
       <p id="home-error" class="error"></p>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
       <div class="home-links">
+        <button id="btn-board" class="link-btn">📊 전체 순위</button>
         <button id="btn-hall" class="link-btn">🏆 후원자 명예의 전당</button>
         <button id="btn-donor-toggle" class="link-btn">💖 후원자 코드 입력</button>
       </div>
@@ -36,12 +37,22 @@
     </div>
   </section>
 
+  <!-- 전체 순위 (누적 전적 리더보드) -->
+  <div id="board-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>📊 전체 순위</h2>
+      <ol id="board-list"></ol>
+      <p class="hint">모든 게임의 결과가 닉네임 기준으로 누적됩니다.<br>점수 = 참가자 수 − 순위 + 1 (2인 이상 게임만 집계)</p>
+      <button id="btn-board-close" class="btn small">닫기</button>
+    </div>
+  </div>
+
   <!-- 후원자 명예의 전당 -->
   <div id="hall-modal" class="modal hidden">
     <div class="modal-card">
       <h2>🏆 후원자 명예의 전당</h2>
       <ol id="hall-list"></ol>
-      <p class="hint">서버 유지에 힘을 보태주신 분들입니다.<br>후원자는 게임에서 💖 배지와 에픽 아이템 확률 UP 혜택을 받아요!</p>
+      <p class="hint">서버 유지에 힘을 보태주신 분들입니다.<br>후원자는 게임에서 💖 배지를 달아드려요!</p>
       <button id="btn-hall-close" class="btn small">닫기</button>
     </div>
   </div>
@@ -136,6 +147,7 @@
         <div id="podium"></div>
         <ol id="result-list"></ol>
         <button id="btn-back-lobby" class="btn primary">대기실로 돌아가기</button>
+        <button id="btn-board-result" class="link-btn">📊 전체 순위 보기</button>
         <a class="donate-link hidden" target="_blank" rel="noopener"></a>
         <p class="hint donate-hint hidden">재밌으셨다면 서버 유지에 힘을 보태주세요!</p>
       </div>

@@ -240,8 +240,8 @@ class Game {
       this.balls.set(player.id, ball);
       Matter.Composite.add(this.engine.world, ball);
 
-      // 랜덤 아이템 배정 (후원자는 에픽 아이템 확률 UP)
-      this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER, player.isDonor));
+      // 랜덤 아이템 배정
+      this.playerItems.set(player.id, randomItems(ITEMS_PER_PLAYER));
     });
 
     this.startedAt = this.now();
@@ -465,7 +465,7 @@ class Game {
     });
 
     this.io.to(this.room.code).emit('game:over', { ranking });
-    this.onGameOver();
+    this.onGameOver(ranking);
   }
 
   stop() {

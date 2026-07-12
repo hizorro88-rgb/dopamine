@@ -40,6 +40,11 @@ const io = new Server(server);
 const rooms = new RoomManager(io, donors);
 io.on('connection', (socket) => rooms.handleConnection(socket));
 
+// 전체 순위 (누적 전적 리더보드, 공개)
+app.get('/api/leaderboard', (_req, res) => {
+  res.json({ leaderboard: rooms.stats.list() });
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🎱 핀볼 공뽑기 서버 실행 중: http://localhost:${PORT}`);

@@ -11,16 +11,15 @@
  *   emoji    : 표시 이모지
  *   desc     : 설명 (아이템 버튼 툴팁 등)
  *   target   : 'self' | 'opponent'  — 대상 선택 UI가 자동으로 뜸
- *   grade    : 'normal' | 'epic' — 에픽은 등장 확률이 낮고, 후원자는 확률 UP
+ *   grade    : 'normal' | 'epic' — 에픽은 등장 확률이 낮음 (모든 플레이어 동일)
  *   duration : 지속시간 ms (0이면 즉발형, expire 호출 안 됨)
  *   apply(game, ball)  : 효과 시작. ball.plugin 에 상태 저장 가능
  *   expire(game, ball) : duration 경과 후 효과 해제 (즉발형이면 생략 가능)
  */
 
-// 아이템 등장 가중치: 일반 3 : 에픽 1 (후원자는 에픽 3 → 확률 2배)
+// 아이템 등장 가중치: 일반 3 : 에픽 1
 const NORMAL_WEIGHT = 3;
 const EPIC_WEIGHT = 1;
-const EPIC_WEIGHT_DONOR = 3;
 
 const Matter = require('matter-js');
 
@@ -138,19 +137,11 @@ function itemMeta(item) {
   return { id, name, emoji, desc, target, grade, duration };
 }
 
-/**
- * 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 적용)
- * 일반 플레이어: 에픽 확률 25% / 후원자: 50%
- */
-function randomItems(n, isDonor = false) {
+/** 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 적용 — 에픽 확률 25%) */
+function randomItems(n) {
   const pool = Object.values(ITEMS).map((item) => ({
     id: item.id,
-    weight:
-      item.grade === 'epic'
-        ? isDonor
-          ? EPIC_WEIGHT_DONOR
-          : EPIC_WEIGHT
-        : NORMAL_WEIGHT,
+    weight: item.grade === 'epic' ? EPIC_WEIGHT : NORMAL_WEIGHT,
   }));
   const total = pool.reduce((sum, e) => sum + e.weight, 0);
   const picked = [];

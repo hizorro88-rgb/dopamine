@@ -4,6 +4,7 @@
 
 const { Game } = require('./game');
 const { MapStore } = require('./maps');
+const { StatsStore } = require('./stats');
 
 const MAX_PLAYERS = 8;
 const COLORS = [
@@ -43,6 +44,7 @@ class RoomManager {
     this.socketRoom = new Map(); // socketId -> code
     this.maps = new MapStore();
     this.donors = donorStore || null;
+    this.stats = new StatsStore();
   }
 
   isDonor(donorCode) {
@@ -92,7 +94,8 @@ class RoomManager {
       if (room.players.size < 1) return;
       const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
       room.state = 'playing';
-      room.game = new Game(room, this.io, mapDef, () => {
+      room.game = new Game(room, this.io, mapDef, (ranking) => {
+        this.stats.record(ranking); // 전체 순위(리더보드)에 누적
         room.state = 'lobby';
         room.game = null;
         this.broadcastRoom(room);

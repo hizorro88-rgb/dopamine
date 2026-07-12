@@ -282,12 +282,42 @@ input[type='text']:focus {
 #donor-status.ok {
   color: #ff8fb8;
 }
-#hall-list {
+/* 결과 화면 위에도 뜰 수 있는 모달 */
+.modal.top-modal {
+  z-index: 60;
+}
+
+#hall-list,
+#board-list {
   list-style: none;
   margin-bottom: 16px;
   max-height: 300px;
   overflow-y: auto;
   text-align: left;
+}
+#board-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 6px;
+  border-bottom: 1px solid #2b2b45;
+  font-size: 14px;
+}
+#board-list .board-stats {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+#board-list .board-points {
+  font-weight: 700;
+  color: var(--accent2);
+}
+#board-list .board-empty {
+  justify-content: center;
+  color: var(--muted);
+  border: none;
+  padding: 18px 0;
 }
 #hall-list li {
   display: flex;

@@ -205,7 +205,7 @@
     const code = myDonorCode();
     const status = $('donor-status');
     if (!code) {
-      status.textContent = '후원 후 받은 코드를 입력하면 💖 배지와 에픽 아이템 확률 UP!';
+      status.textContent = '후원 후 받은 코드를 입력하면 이름에 💖 배지가 표시됩니다!';
       status.classList.remove('ok');
       return;
     }
@@ -226,6 +226,36 @@
     $('donor-box').classList.remove('hidden');
     socket.on('connect', checkDonorCode);
   }
+
+  // ── 전체 순위 (누적 전적 리더보드) ──
+  function openLeaderboard() {
+    fetch('/api/leaderboard')
+      .then((r) => r.json())
+      .then(({ leaderboard }) => {
+        const list = $('board-list');
+        list.innerHTML = '';
+        if (!leaderboard.length) {
+          list.innerHTML =
+            '<li class="board-empty">아직 기록이 없어요. 첫 게임을 시작해보세요! (2인 이상 게임만 집계)</li>';
+        }
+        const rankEmoji = ['🥇', '🥈', '🥉'];
+        for (const e of leaderboard) {
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="hall-rank">${rankEmoji[e.rank - 1] || e.rank}</span>
+            <span>${escapeHtml(e.name)}</span>
+            <span class="board-stats">
+              <span class="board-points">${e.points}점</span><br>
+              ${e.wins}승 / ${e.plays}판
+            </span>`;
+          list.appendChild(li);
+        }
+        $('board-modal').classList.remove('hidden');
+      })
+      .catch(() => {});
+  }
+  $('btn-board').addEventListener('click', openLeaderboard);
+  $('btn-board-result').addEventListener('click', openLeaderboard);
+  $('btn-board-close').addEventListener('click', () => $('board-modal').classList.add('hidden'));
 
   // ── 명예의 전당 ──
   $('btn-hall').addEventListener('click', () => {
