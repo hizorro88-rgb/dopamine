@@ -11,13 +11,17 @@
  *   emoji    : 표시 이모지
  *   desc     : 설명 (아이템 버튼 툴팁 등)
  *   target   : 'self' | 'opponent'  — 대상 선택 UI가 자동으로 뜸
- *   grade    : 'normal' | 'epic' — 에픽은 등장 확률이 낮음 (모든 플레이어 동일)
+ *   grade    : 'normal' | 'epic' | 'legend'
+ *              에픽은 등장 확률이 낮음. 레전드는 랜덤 풀에서 제외되고
+ *              게임당 10% 확률로 단 한 명에게만 부여됨 (game.js KARMA_CHANCE)
  *   duration : 지속시간 ms (0이면 즉발형, expire 호출 안 됨)
- *   apply(game, ball)  : 효과 시작. ball.plugin 에 상태 저장 가능
+ *   apply(game, ball, ctx)  : 효과 시작. ball.plugin 에 상태 저장 가능.
+ *                             ctx.byPlayerId = 사용한 플레이어 (시스템 발동이면 없음)
+ *   tick(game, ball)   : (선택) 지속시간 동안 매 물리 틱마다 호출
  *   expire(game, ball) : duration 경과 후 효과 해제 (즉발형이면 생략 가능)
  */
 
-// 아이템 등장 가중치: 일반 3 : 에픽 1
+// 아이템 등장 가중치: 일반 3 : 에픽 1 (레전드는 풀에서 제외)
 const NORMAL_WEIGHT = 3;
 const EPIC_WEIGHT = 1;
 
@@ -109,6 +113,127 @@ const ITEMS = {
     },
   },
 
+  // 7번: 3초간 내 선두 공이 골인 쪽으로 강하게 끌려감
+  magnet: {
+    id: 'magnet',
+    name: '자석',
+    emoji: '🧲',
+    desc: '3초간 내 공이 골인 지점으로 강하게 끌려갑니다.',
+    target: 'self',
+    grade: 'epic',
+    duration: 3000,
+    apply(game, ball) {
+      ball.plugin.magnet = true;
+    },
+    tick(game, ball) {
+      if (!ball.plugin.magnet) return;
+      const pullX = (300 - ball.position.x) * 0.004;
+      Matter.Body.setVelocity(ball, {
+        x: ball.velocity.x * 0.92 + pullX,
+        y: Math.min(ball.velocity.y + 0.45, 15),
+      });
+    },
+    expire(game, ball) {
+      ball.plugin.magnet = false;
+    },
+  },
+
+  // 8번: 상대 선두 공과 내 선두 공의 위치를 맞바꾸기
+  swap: {
+    id: 'swap',
+    name: '위치 교환',
+    emoji: '🔀',
+    desc: '상대방의 선두 공과 내 선두 공의 위치를 맞바꿉니다.',
+    target: 'opponent',
+    grade: 'epic',
+    duration: 0,
+    apply(game, ball, ctx) {
+      // 내 선두 공 찾기 (시스템 발동이면 무작위 다른 공과 교환)
+      let other = null;
+      if (ctx && ctx.byPlayerId && game.aliveBallsOf) {
+        const mine = game.aliveBallsOf(ctx.byPlayerId);
+        if (mine.length) other = mine.reduce((a, b) => (b.position.y > a.position.y ? b : a));
+      }
+      if (!other) {
+        const alive = [...game.balls.values()].filter((b) => !b.plugin.done && b !== ball);
+        if (!alive.length) return;
+        other = alive[Math.floor(Math.random() * alive.length)];
+      }
+      const p1 = { ...ball.position };
+      const p2 = { ...other.position };
+      const v1 = { ...ball.velocity };
+      const v2 = { ...other.velocity };
+      Matter.Body.setPosition(ball, p2);
+      Matter.Body.setPosition(other, p1);
+      Matter.Body.setVelocity(ball, v2);
+      Matter.Body.setVelocity(other, v1);
+      // 얼어있던 공은 고정 위치도 갱신
+      if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...p2 };
+      if (other.plugin.frozenPos) other.plugin.frozenPos = { ...p1 };
+    },
+  },
+
+  // 9번: 상대 선두 공을 맵의 20% 만큼 위로 순간이동
+  portal: {
+    id: 'portal',
+    name: '포탈',
+    emoji: '🕳️',
+    desc: '상대방의 선두 공을 한참 위로 되돌려보냅니다.',
+    target: 'opponent',
+    grade: 'normal',
+    duration: 0,
+    apply(game, ball) {
+      const H = game.height || 2400;
+      const newY = Math.max(140, ball.position.y - H * 0.22);
+      Matter.Body.setPosition(ball, { x: ball.position.x, y: newY });
+      Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+      if (ball.plugin.frozenPos) ball.plugin.frozenPos = { x: ball.position.x, y: newY };
+    },
+  },
+
+  // 10번: 3초간 나를 제외한 모든 공 감속
+  lightning: {
+    id: 'lightning',
+    name: '번개',
+    emoji: '⚡',
+    desc: '3초간 나를 제외한 모든 공이 찌릿— 느려집니다.',
+    target: 'self',
+    grade: 'epic',
+    duration: 3000,
+    apply(game, ball) {
+      const myPid = ball.plugin.playerId;
+      for (const b of game.balls.values()) {
+        if (b.plugin.done || b.plugin.playerId === myPid) continue;
+        b.plugin.slowed = true;
+        game.activeEffects.push({ itemId: 'lightning', ball: b, until: game.now() + this.duration });
+      }
+    },
+    tick(game, ball) {
+      if (!ball.plugin.slowed) return;
+      Matter.Body.setVelocity(ball, {
+        x: ball.velocity.x * 0.88,
+        y: Math.min(ball.velocity.y * 0.88, 2.5),
+      });
+    },
+    expire(game, ball) {
+      ball.plugin.slowed = false;
+    },
+  },
+
+  // ★ 레전드: 인생은 돌고돌아 — 저주받은 공은 골인하는 순간 원점으로
+  karma: {
+    id: 'karma',
+    name: '인생은 돌고돌아',
+    emoji: '🎡',
+    desc: '상대방의 공에 몰래 저주를 겁니다. 저주받은 공은 골인하는 순간... 처음부터 다시 시작합니다.',
+    target: 'opponent',
+    grade: 'legend',
+    duration: 0,
+    apply(game, ball) {
+      ball.plugin.karma = true; // 발동은 game.js 도착 판정에서
+    },
+  },
+
   // 6번: 상대방 공을 3초간 풍선처럼 커지고 잘 튀게 만들기
   balloon: {
     id: 'balloon',
@@ -137,12 +262,14 @@ function itemMeta(item) {
   return { id, name, emoji, desc, target, grade, duration };
 }
 
-/** 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 적용 — 에픽 확률 25%) */
+/** 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 적용 — 레전드는 제외) */
 function randomItems(n) {
-  const pool = Object.values(ITEMS).map((item) => ({
-    id: item.id,
-    weight: item.grade === 'epic' ? EPIC_WEIGHT : NORMAL_WEIGHT,
-  }));
+  const pool = Object.values(ITEMS)
+    .filter((item) => item.grade !== 'legend')
+    .map((item) => ({
+      id: item.id,
+      weight: item.grade === 'epic' ? EPIC_WEIGHT : NORMAL_WEIGHT,
+    }));
   const total = pool.reduce((sum, e) => sum + e.weight, 0);
   const picked = [];
   for (let i = 0; i < n; i++) {

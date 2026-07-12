@@ -469,6 +469,17 @@ input[type='text']:focus {
   box-shadow: 0 0 10px rgba(255, 215, 106, 0.25);
 }
 
+/* 레전드 아이템 슬롯: 크림슨-골드 오라 */
+.item-slot.legend {
+  border-color: var(--danger);
+  box-shadow: 0 0 14px rgba(200, 55, 75, 0.45), 0 0 5px rgba(212, 175, 55, 0.5);
+  animation: legend-pulse 1.6s ease-in-out infinite;
+}
+@keyframes legend-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(200, 55, 75, 0.3), 0 0 4px rgba(212, 175, 55, 0.35); }
+  50% { box-shadow: 0 0 18px rgba(200, 55, 75, 0.6), 0 0 8px rgba(212, 175, 55, 0.6); }
+}
+
 /* ── 맵 선택 ── */
 .map-box {
   background: var(--panel2);

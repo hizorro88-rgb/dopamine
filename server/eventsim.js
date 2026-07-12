@@ -48,6 +48,9 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     DEFAULT_MASK,
     BALL_RESTITUTION,
     balls,
+    height,
+    goalY,
+    activeEffects,
     now: () => simNow,
     explodeAt(x, y, radius, power, excludePlayerId) {
       for (const [pid, ball] of balls) {
@@ -97,8 +100,8 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     if (action) action(sim, inst, ballBody);
   }
 
-  // 자동 아이템 발동 스케줄: 시뮬레이션 전체에 걸쳐 무작위 시점
-  const itemIds = Object.keys(ITEMS);
+  // 자동 아이템 발동 스케줄: 시뮬레이션 전체에 걸쳐 무작위 시점 (레전드 제외)
+  const itemIds = Object.keys(ITEMS).filter((id) => ITEMS[id].grade !== 'legend');
   const triggerCount = Math.min(MAX_AUTO_ITEMS, Math.max(4, Math.floor(participants.length / 4)));
   const triggers = Array.from({ length: triggerCount }, () => ({
     t: 2000 + Math.random() * 70000,
@@ -171,6 +174,12 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
           if (item.expire && !fx.ball.plugin.done) item.expire(sim, fx.ball);
           activeEffects.splice(i, 1);
         }
+      }
+
+      // 지속형 아이템 매 틱 효과 (자석, 번개 등)
+      for (const fx of activeEffects) {
+        const item = ITEMS[fx.itemId];
+        if (item.tick && !fx.ball.plugin.done) item.tick(sim, fx.ball);
       }
 
       // 자동 아이템 발동

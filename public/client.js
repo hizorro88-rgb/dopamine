@@ -722,6 +722,14 @@
     }
   });
 
+  // 🎡 인생은 돌고돌아 발동: 골인 직전의 공이 원점으로
+  socket.on('game:karma', ({ name, x, y }) => {
+    if (!game) return;
+    toast(`🎡 인생은 돌고돌아! ${name}의 공이 골인 직전에 원점으로...!`);
+    game.explosions.push({ x, y, radius: 130, start: performance.now() });
+    game.shakeUntil = performance.now() + 350;
+  });
+
   /** 실시간 순위판에 도착 기록 추가 (10명까지, 이후는 카운터) */
   function appendFinishRow({ playerId, name, rank, timeMs, p: participantId }) {
     const key = playerId !== undefined ? playerId : participantId;
@@ -907,10 +915,13 @@
     slots.innerHTML = '';
     game.items.forEach((item, i) => {
       const div = document.createElement('div');
-      div.className =
-        'item-slot' + (item ? (item.grade === 'epic' ? ' epic' : '') : ' used');
+      const gradeClass =
+        item && item.grade === 'legend' ? ' legend' : item && item.grade === 'epic' ? ' epic' : '';
+      div.className = 'item-slot' + (item ? gradeClass : ' used');
       if (item) {
-        div.title = (item.grade === 'epic' ? '⭐ 에픽 · ' : '') + item.desc;
+        div.title =
+          (item.grade === 'legend' ? '👑 레전드 · ' : item.grade === 'epic' ? '⭐ 에픽 · ' : '') +
+          item.desc;
         div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.name}</span>`;
         div.addEventListener('click', () => onItemClick(i));
       } else {

@@ -23,6 +23,7 @@ const {
 } = require('./board');
 
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
+const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률로 단 한 명에게 부여
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const SHUFFLE_MAX_MS = 45000; // 방장이 안 누르면 자동 낙하
@@ -219,6 +220,12 @@ class Game {
       this.playerItems.set(player.id, this.autoPilot ? [] : randomItems(ITEMS_PER_PLAYER));
     }
 
+    // 🎡 인생은 돌고돌아: 10% 확률로 단 한 명에게만 (2인 이상, 올랜덤 제외)
+    if (!this.autoPilot && players.length >= 2 && Math.random() < KARMA_CHANCE) {
+      const lucky = players[Math.floor(Math.random() * players.length)];
+      this.playerItems.get(lucky.id).push('karma');
+    }
+
     // 첫 배치 패턴을 즉시 적용
     this.assignShuffleTargets();
     for (const [key, ball] of this.balls) {
@@ -277,11 +284,11 @@ class Game {
     }
   }
 
-  /** 올랜덤: 무작위 아이템을 무작위 공에 발동 */
+  /** 올랜덤: 무작위 아이템을 무작위 공에 발동 (레전드 제외) */
   autoFire() {
     const alive = [...this.balls.values()].filter((b) => !b.plugin.done);
     if (alive.length === 0) return;
-    const itemIds = Object.keys(ITEMS);
+    const itemIds = Object.keys(ITEMS).filter((id) => ITEMS[id].grade !== 'legend');
     const item = ITEMS[itemIds[Math.floor(Math.random() * itemIds.length)]];
     const ball = alive[Math.floor(Math.random() * alive.length)];
     item.apply(this, ball);
@@ -328,6 +335,12 @@ class Game {
       return true;
     });
 
+    // 지속형 아이템 매 틱 효과 (자석 끌림, 번개 감속 등)
+    for (const fx of this.activeEffects) {
+      const item = ITEMS[fx.itemId];
+      if (item.tick && !fx.ball.plugin.done) item.tick(this, fx.ball);
+    }
+
     if (this.shuffling) {
       // 셔플 단계: 주기적으로 새 패턴 배정, 공들은 목표 위치로 부드럽게 이동
       if (now >= this.nextShuffleAt) this.assignShuffleTargets();
@@ -362,6 +375,24 @@ class Game {
     if (dropping) {
       for (const [key, ball] of this.balls) {
         if (!ball.plugin.done && ball.position.y > this.goalY) {
+          // 🎡 인생은 돌고돌아: 저주받은 공은 골인 대신 원점으로
+          if (ball.plugin.karma) {
+            ball.plugin.karma = false; // 1회성
+            const player = this.room.players.get(ball.plugin.playerId);
+            const name = player ? player.name : '?';
+            Matter.Body.setPosition(ball, {
+              x: 60 + Math.random() * 480,
+              y: 76,
+            });
+            Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+            if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...ball.position };
+            this.io.to(this.room.code).emit('game:karma', {
+              name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
+              x: 300,
+              y: this.goalY - 40,
+            });
+            continue;
+          }
           ball.plugin.done = true;
           Matter.Composite.remove(this.engine.world, ball);
           this.finished.push(key);
@@ -447,7 +478,7 @@ class Game {
     const ball = alive.reduce((a, b) => (b.position.y > a.position.y ? b : a));
 
     items[slotIndex] = null; // 소모
-    item.apply(this, ball);
+    item.apply(this, ball, { byPlayerId: playerId });
     if (item.duration > 0) {
       this.activeEffects.push({
         itemId: item.id,
