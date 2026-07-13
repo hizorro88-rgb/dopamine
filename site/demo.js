@@ -293,22 +293,36 @@
     c.translate(comp.x, comp.y);
     if (angle) c.rotate(angle);
     for (const s of comp.shapes) {
-      c.fillStyle = s.fill || '#7b7f8c';
+      const color = s.fill || '#35e0ff';
+      if (!flat) {
+        c.shadowColor = s.glow || color;
+        c.shadowBlur = 13;
+      }
+      c.fillStyle = color;
       if (s.kind === 'circle') {
         c.beginPath();
         c.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         c.fill();
         if (!flat && s.r >= 5) {
-          c.strokeStyle = 'rgba(0,0,0,0.4)';
-          c.stroke();
+          c.shadowBlur = 0;
+          c.beginPath();
+          c.arc(s.x, s.y, s.r * 0.45, 0, Math.PI * 2);
+          c.fillStyle = 'rgba(255,255,255,0.35)';
+          c.fill();
         }
       } else {
         c.save();
         c.translate(s.x, s.y);
         c.rotate(s.angle || 0);
         c.fillRect(-s.w / 2, -s.h / 2, s.w, s.h);
+        if (!flat && s.h >= 8) {
+          c.shadowBlur = 0;
+          c.fillStyle = 'rgba(255,255,255,0.30)';
+          c.fillRect(-s.w / 2 + 2, -1, s.w - 4, 2);
+        }
         c.restore();
       }
+      c.shadowBlur = 0;
     }
     c.restore();
   }
@@ -333,15 +347,19 @@
         ctx.fillStyle = (i + r) % 2 === 0 ? 'rgba(220,215,200,0.55)' : 'rgba(20,20,24,0.9)';
         ctx.fillRect(goal.x - goal.width / 2 + i * sq, goal.y + r * sq, sq, sq);
       }
-    ctx.strokeStyle = 'rgba(212,175,55,0.55)';
+    ctx.save();
+    ctx.shadowColor = '#35e0ff';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = 'rgba(53,224,255,0.8)';
     ctx.beginPath();
     ctx.moveTo(goal.x - goal.width / 2, goal.y);
     ctx.lineTo(goal.x + goal.width / 2, goal.y);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(217,192,122,0.85)';
+    ctx.fillStyle = 'rgba(235,250,255,0.92)';
     ctx.font = "15px 'Bebas Neue', 'Gothic A1', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('F I N I S H', goal.x, goal.y - 10);
+    ctx.restore();
 
     // 구성요소
     sim.comps.forEach((comp, i) => {
@@ -351,19 +369,20 @@
       drawComponent(ctx, comp, sp ? sp.angle : 0, false);
     });
 
-    // 공
+    // 공 — 발광 구슬
     for (const ball of sim.balls) {
       if (ball.plugin.done) continue;
       const { x, y } = ball.position;
+      ctx.shadowColor = ball.plugin.meta.color;
+      ctx.shadowBlur = 11;
       ctx.beginPath();
       ctx.arc(x, y, 7, 0, Math.PI * 2);
       ctx.fillStyle = ball.plugin.meta.color;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.stroke();
+      ctx.shadowBlur = 0;
       ctx.beginPath();
-      ctx.arc(x - 2, y - 2.4, 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.arc(x - 1.4, y - 1.7, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.fill();
     }
 

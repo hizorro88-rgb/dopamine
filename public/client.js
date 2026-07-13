@@ -54,55 +54,48 @@
 
   // ── 공용: 구성요소 도형 렌더러 ─────────────────────────
   // 서버가 내려준 shapes 를 그대로 그린다. 새 구성요소가 추가돼도 수정 불필요.
-  // flat=true(미니맵)면 광택 오버레이 생략.
+  // 네온 스타일: 도형 색 그대로 채우고 같은 색으로 은은한 글로우(shadowBlur).
+  // flat=true(미니맵)면 글로우 생략.
   function drawComponent(ctx, comp, angle, flat) {
     ctx.save();
     ctx.translate(comp.x, comp.y);
     if (angle) ctx.rotate(angle);
     for (const s of comp.shapes) {
-      ctx.fillStyle = s.fill || '#7b7f8c';
+      const color = s.fill || '#35e0ff';
+      if (!flat) {
+        ctx.shadowColor = s.glow || color;
+        ctx.shadowBlur = 13;
+      }
+      ctx.fillStyle = color;
       if (s.kind === 'circle') {
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
         if (!flat && s.r >= 5) {
-          // 무광 금속: 절제된 상단광 → 하단 음영 + 얇은 윤곽
-          const g = ctx.createRadialGradient(
-            s.x - s.r * 0.3, s.y - s.r * 0.35, s.r * 0.15,
-            s.x, s.y, s.r
-          );
-          g.addColorStop(0, 'rgba(255,255,255,0.22)');
-          g.addColorStop(0.45, 'rgba(255,255,255,0.03)');
-          g.addColorStop(0.85, 'rgba(0,0,0,0.22)');
-          g.addColorStop(1, 'rgba(0,0,0,0.5)');
-          ctx.fillStyle = g;
+          // 네온 코어: 중심을 살짝 밝혀 발광체처럼
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r * 0.45, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
         }
       } else {
         ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(s.angle || 0);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(-s.w / 2, -s.h / 2, s.w, s.h, 5);
+        if (ctx.roundRect) ctx.roundRect(-s.w / 2, -s.h / 2, s.w, s.h, 4);
         else ctx.rect(-s.w / 2, -s.h / 2, s.w, s.h);
         ctx.fill();
-        if (!flat) {
-          // 브러시드 메탈 느낌의 상하 음영 (절제)
-          const g = ctx.createLinearGradient(0, -s.h / 2, 0, s.h / 2);
-          g.addColorStop(0, 'rgba(255,255,255,0.12)');
-          g.addColorStop(0.5, 'rgba(255,255,255,0.01)');
-          g.addColorStop(1, 'rgba(0,0,0,0.32)');
-          ctx.fillStyle = g;
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
+        if (!flat && s.h >= 8) {
+          // 막대 중심선을 밝혀 네온관 느낌
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(255,255,255,0.30)';
+          ctx.fillRect(-s.w / 2 + 2, -1, s.w - 4, 2);
         }
         ctx.restore();
       }
+      ctx.shadowBlur = 0;
     }
     ctx.restore();
   }
@@ -119,37 +112,48 @@
         ctx.fillRect(left + i * sq, goal.y + 2 + r * sq, sq + 0.5, sq);
       }
     }
-    // 골드 헤어라인 (골인선)
-    ctx.strokeStyle = 'rgba(212,175,55,0.55)';
+    // 네온 헤어라인 (골인선)
+    ctx.save();
+    ctx.shadowColor = '#35e0ff';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = 'rgba(53,224,255,0.8)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(left, goal.y);
     ctx.lineTo(left + goal.width, goal.y);
     ctx.stroke();
     // 은은한 접근 글로우
+    ctx.shadowBlur = 0;
     const grad = ctx.createLinearGradient(0, goal.y - 60, 0, goal.y);
-    grad.addColorStop(0, 'rgba(212,175,55,0)');
-    grad.addColorStop(1, 'rgba(212,175,55,0.10)');
+    grad.addColorStop(0, 'rgba(53,224,255,0)');
+    grad.addColorStop(1, 'rgba(53,224,255,0.09)');
     ctx.fillStyle = grad;
     ctx.fillRect(left, goal.y - 60, goal.width, 60);
-    ctx.fillStyle = 'rgba(217,192,122,0.85)';
+    ctx.shadowColor = '#35e0ff';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = 'rgba(235,250,255,0.92)';
     ctx.font = "15px 'Bebas Neue', 'Gothic A1', sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('F I N I S H', goal.x, goal.y - 10);
+    ctx.restore();
   }
 
-  /** 보드 장식: 좌우 골드 헤어라인 + 깊이 눈금 (계측기 느낌) */
+  /** 보드 장식: 좌우 네온 파이프 라인 + 깊이 눈금 */
   function drawBoardDecor(ctx, board) {
     const H = board.world.height;
-    ctx.strokeStyle = 'rgba(212,175,55,0.12)';
-    ctx.lineWidth = 1;
+    ctx.save();
+    ctx.shadowColor = '#35e0ff';
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(233,237,244,0.55)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(1.5, 0);
     ctx.lineTo(1.5, H);
     ctx.moveTo(WORLD.width - 1.5, 0);
     ctx.lineTo(WORLD.width - 1.5, H);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(212,175,55,0.20)';
+    ctx.restore();
+    ctx.fillStyle = 'rgba(53,224,255,0.30)';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'right';
     for (let y = 300; y < H - 120; y += 300) {
@@ -172,7 +176,7 @@
     mctx.clearRect(0, 0, WORLD.width, height);
 
     // 골인 지점
-    mctx.fillStyle = 'rgba(212,175,55,0.32)';
+    mctx.fillStyle = 'rgba(53,224,255,0.30)';
     mctx.fillRect(0, height - 70, WORLD.width, 70);
 
     // 구성요소 (회전체는 실제 각도로, 터진 폭탄은 숨김)
@@ -1456,36 +1460,25 @@
         }
       }
 
-      // 본체 — 연마된 금속구: 절제된 음영 + 작고 날카로운 스펙큘러
+      // 본체 — 발광 구슬: 공 색 그대로 채우고 같은 색 글로우
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 11;
       ctx.beginPath();
       ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
-      const sheen = ctx.createRadialGradient(
-        b.x - radius * 0.28, b.y - radius * 0.32, radius * 0.2,
-        b.x, b.y, radius
-      );
-      sheen.addColorStop(0, 'rgba(255,255,255,0.30)');
-      sheen.addColorStop(0.4, 'rgba(255,255,255,0.04)');
-      sheen.addColorStop(0.78, 'rgba(0,0,0,0.16)');
-      sheen.addColorStop(1, 'rgba(0,0,0,0.55)');
-      ctx.fillStyle = sheen;
-      ctx.fill();
-      // 날카로운 스펙큘러 점
+      ctx.shadowBlur = 0;
+      // 밝은 코어
       ctx.beginPath();
-      ctx.arc(b.x - radius * 0.32, b.y - radius * 0.38, radius * 0.16, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.arc(b.x - radius * 0.2, b.y - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.fill();
-      // 윤곽으로 형태를 조임
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
 
-      // 내 공은 금테로 표시
+      // 내 공은 흰 테두리 + 금테로 표시
       if (b.p === mineKey) {
-        ctx.strokeStyle = 'rgba(212,175,55,0.85)';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(212,175,55,0.9)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }

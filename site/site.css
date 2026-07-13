@@ -103,7 +103,7 @@ a { color: var(--gold); }
 }
 #canvas-wrap {
   position: relative;
-  background: #101013;
+  background: radial-gradient(ellipse at 50% 0%, #0b0e13 0%, #030305 70%);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
