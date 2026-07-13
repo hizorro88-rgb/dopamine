@@ -99,7 +99,38 @@
 
   // ── 공용: 구성요소 도형 렌더러 ─────────────────────────
   // 서버가 내려준 shapes 를 그대로 그린다. 새 구성요소가 추가돼도 수정 불필요.
-  // 네온 스타일: 도형 색 그대로 채우고 같은 색으로 은은한 글로우(shadowBlur).
+  // 네온 스타일: 도형 색 그대로 채우고 같은 색으로 은은한 글로우.
+  // shadowBlur 는 프레임마다 그리기엔 너무 비싸므로(모바일 끊김의 주범)
+  // 원형은 글로우를 미리 구운 스프라이트를 캐시해서 drawImage 로 찍는다.
+  const glowSprites = new Map(); // 'color|r|glow' -> canvas
+  function glowCircleSprite(color, r, glow) {
+    const key = color + '|' + r + '|' + glow;
+    let c = glowSprites.get(key);
+    if (!c) {
+      const pad = 16;
+      const scale = 2; // 확대돼도 선명하도록 2배 해상도로 굽는다
+      c = document.createElement('canvas');
+      c.width = c.height = Math.ceil((r + pad) * 2 * scale);
+      const g = c.getContext('2d');
+      const cx = c.width / 2;
+      g.shadowColor = glow;
+      g.shadowBlur = 13 * scale;
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(cx, cx, r * scale, 0, Math.PI * 2);
+      g.fill();
+      if (r >= 5) {
+        g.shadowBlur = 0;
+        g.fillStyle = 'rgba(255,255,255,0.35)';
+        g.beginPath();
+        g.arc(cx, cx, r * 0.45 * scale, 0, Math.PI * 2);
+        g.fill();
+      }
+      glowSprites.set(key, c);
+    }
+    return c;
+  }
+
   // flat=true(미니맵)면 글로우 생략.
   function drawComponent(ctx, comp, angle, flat) {
     ctx.save();
@@ -114,15 +145,15 @@
       // 미니맵(flat)에서는 어두운 도형 대신 글로우 색으로 — 폭탄이 빨간 점으로 보임
       ctx.fillStyle = flat ? s.glow || color : color;
       if (s.kind === 'circle') {
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fill();
-        if (!flat && s.r >= 5) {
-          // 네온 코어: 중심을 살짝 밝혀 발광체처럼
+        if (!flat) {
+          // 미리 구운 글로우 스프라이트로 — shadowBlur 실시간 렌더 대비 수십 배 빠름
           ctx.shadowBlur = 0;
+          const sp = glowCircleSprite(color, s.r, s.glow || color);
+          const size = sp.width / 2;
+          ctx.drawImage(sp, s.x - size / 2, s.y - size / 2, size, size);
+        } else {
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r * 0.45, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
           ctx.fill();
         }
       } else {
@@ -212,9 +243,13 @@
    * 미니맵 렌더러 (게임/에디터 공용)
    * 전체 월드를 축소해 구성요소·공·현재 화면 영역을 표시한다.
    */
+  // 미니맵 정적 레이어 캐시: 고정 구성요소는 한 번만 그려두고 매 프레임 복사한다
+  // (구성요소가 수백 개인 맵에서 매 프레임 전부 다시 그리면 모바일이 버벅인다)
+  let miniStatic = null; // { canvas, key }
+
   function drawMinimap(
     mCanvas,
-    { height, components, balls, camY, elapsed, selected, hidden, explosions }
+    { height, components, balls, camY, elapsed, selected, hidden, explosions, dynamic }
   ) {
     const mctx = mCanvas.getContext('2d');
     const s = mCanvas.width / WORLD.width;
@@ -225,11 +260,42 @@
     mctx.fillStyle = 'rgba(53,224,255,0.30)';
     mctx.fillRect(0, height - 70, WORLD.width, 70);
 
-    // 구성요소 (회전체는 실제 각도로, 터진 폭탄은 숨김)
-    for (let i = 0; i < components.length; i++) {
-      if (hidden && hidden.has(i)) continue;
-      const comp = components[i];
-      drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0, true);
+    if (dynamic) {
+      // 에디터: 구성요소가 계속 바뀌므로 캐시 없이 그대로 그린다
+      for (let i = 0; i < components.length; i++) {
+        const comp = components[i];
+        drawComponent(mctx, comp, comp.spin ? comp.spin * elapsed : 0, true);
+      }
+    } else {
+      // 게임: 회전하지 않는 구성요소는 정적 레이어로 캐시 (숨김 상태가 바뀌면 갱신)
+      const key =
+        mCanvas.width + ':' + height + ':' + components.length + ':' +
+        (hidden ? [...hidden].sort().join(',') : '');
+      if (!miniStatic || miniStatic.key !== key) {
+        const cache = document.createElement('canvas');
+        cache.width = mCanvas.width;
+        cache.height = mCanvas.height;
+        const cctx = cache.getContext('2d');
+        cctx.setTransform(s, 0, 0, s, 0, 0);
+        for (let i = 0; i < components.length; i++) {
+          if (hidden && hidden.has(i)) continue;
+          const comp = components[i];
+          if (comp.spin) continue; // 회전체는 매 프레임 실시간으로
+          drawComponent(cctx, comp, 0, true);
+        }
+        miniStatic = { canvas: cache, key };
+      }
+      mctx.save();
+      mctx.setTransform(1, 0, 0, 1, 0, 0);
+      mctx.drawImage(miniStatic.canvas, 0, 0);
+      mctx.restore();
+      // 회전체만 실시간
+      for (let i = 0; i < components.length; i++) {
+        const comp = components[i];
+        if (!comp.spin) continue;
+        if (hidden && hidden.has(i)) continue;
+        drawComponent(mctx, comp, comp.spin * elapsed, true);
+      }
     }
 
     // 폭발 표시
@@ -1093,6 +1159,7 @@
     };
     game.speedMult = 1;
     renderSpeedRow();
+    miniStatic = null; // 새 게임 → 미니맵 정적 캐시 갱신
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
     // 올랜덤·관전자는 아이템 바 숨김
@@ -1572,7 +1639,10 @@
     const focus = balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
     if (focus) {
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
-      game.camY += (target - game.camY) * 0.08;
+      // 부드럽게 따라가되, 빠른 공에도 절대 뒤처지지 않도록 하드 클램프
+      game.camY += (target - game.camY) * 0.22;
+      if (target - game.camY > 130) game.camY = target - 130;
+      else if (game.camY - target > 320) game.camY = target + 320;
     }
     const camY = game.camY;
 
@@ -2121,6 +2191,7 @@
       camY,
       elapsed: t,
       selected: editor.selected >= 0 ? editor.comps[editor.selected] : null,
+      dynamic: true, // 편집 중이므로 캐시 없이
     });
 
     requestAnimationFrame(renderEditor);

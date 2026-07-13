@@ -43,7 +43,25 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   if (ceiling) addFrameWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
 
   const renderComponents = [];
-  for (const comp of mapDef.components) {
+
+  // 가장자리 킥커: 양옆 벽을 타고 그냥 미끄러져 내려가지 못하도록
+  // 일정 간격마다 안쪽으로 쳐내는 사선 벽을 모든 맵에 자동 배치한다.
+  // 단, 맵이 이미 그 근처에 벽(통로·장벽)을 두고 있다면 설계를 존중해 건너뛴다.
+  const mapWalls = (mapDef.components || []).filter((c) => c.type === 'wall');
+  const nearWall = (x, y) =>
+    mapWalls.some((w) => Math.abs(w.x - x) < 110 && Math.abs(w.y - y) < 300);
+  const kickers = [];
+  for (let y = 520; y < goalY - 380; y += 560) {
+    if (!nearWall(32, y)) {
+      kickers.push({ type: 'wall', x: 32, y, props: { length: 90, angle: 58 } });
+    }
+    const ry = y + 280;
+    if (ry < goalY - 380 && !nearWall(WORLD.width - 32, ry)) {
+      kickers.push({ type: 'wall', x: WORLD.width - 32, y: ry, props: { length: 90, angle: -58 } });
+    }
+  }
+  const allComponents = [...(mapDef.components || []), ...kickers];
+  for (const comp of allComponents) {
     const built = buildShapes(comp.type, comp.props);
     if (!built) continue; // 알 수 없는 타입은 무시
 

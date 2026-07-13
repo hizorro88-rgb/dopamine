@@ -92,7 +92,7 @@ function spinnerParkComponents() {
   comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
   pegRow(comps, 2170);
 
-  return [...tileY(comps, 3, 2250), ...funnel()];
+  return [...tileY(comps, 2, 2250), ...funnel()];
 }
 
 // ── 픽셀 아트 헬퍼: 미니맵에서 그림이 보이는 맵을 만들기 위한 도구 ──
@@ -203,7 +203,7 @@ function canyonComponents() {
   }
   // 마지막 스피너 관문
   comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
-  return [...tileY(comps, 3, 3000), ...funnel(9600)];
+  return [...tileY(comps, 2, 3000), ...funnel(6400)];
 }
 
 // 🌪 깔때기 폭포: 구멍 위치가 번갈아 바뀌는 깔때기 연속 — 병목에서 순위가 뒤집힌다
@@ -231,7 +231,7 @@ function cascadeComponents() {
   // 마지막 구간: 폭탄 지뢰밭
   comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
   comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
-  return [...tileY(comps, 3, 2650), ...funnel(8700)];
+  return [...tileY(comps, 2, 2650), ...funnel(5800)];
 }
 
 // 💣 지뢰밭: 아무것도 없는 맵에 재생성 폭탄만 —
@@ -247,7 +247,7 @@ function minefieldComponents() {
   // 빽빽한 지뢰 격자: 140px 간격 14줄, 줄마다 4~5개 지그재그 —
   // 어디로 떨어져도 두세 발은 밟는다. 재생성 시간을 3~6초로 엇갈리게 해
   // 폭발 리듬이 겹치지 않고 끊임없이 터진다.
-  const H = 7200;
+  const H = 4800;
   let i = 0;
   for (let y = 240; y <= H - 320; y += 140) {
     const xs = (y / 140) % 2 === 0 ? [60, 180, 300, 420, 540] : [120, 240, 360, 480];
@@ -265,8 +265,7 @@ function minefieldComponents() {
   }
   // 대형 왕지뢰 (구간마다 하나씩)
   comps.push(bomb(300, 1150, { radius: 230, power: 19, respawn: 6 }));
-  comps.push(bomb(300, 3550, { radius: 230, power: 19, respawn: 6 }));
-  comps.push(bomb(300, 5950, { radius: 230, power: 19, respawn: 6 }));
+  comps.push(bomb(300, 3350, { radius: 230, power: 19, respawn: 6 }));
   // 🚨 문지기 폭탄 3중 배치: 골인 직전 깔때기 목을 막고 선두를 되받아친다.
   // 터진 뒤 재생성되기 전(게임 시간 6초)에 도착하는 공만 무사히 통과!
   comps.push(bomb(272, H - 130, { radius: 170, power: 19, respawn: 6 }));
@@ -315,7 +314,7 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
-  return [...tileY(comps, 3, 2250), ...funnel(7200)];
+  return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 👾 픽셀 인베이더: 8비트 외계인 편대 (눈은 폭탄!) + UFO 회전 막대
@@ -339,7 +338,7 @@ function invaderComponents() {
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
-  return [...tileY(comps, 3, 2250), ...funnel(7200)];
+  return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 🍄 대왕 버섯: 갓(호) + 노란 점무늬 + 줄기 얼굴(폭탄 눈) + 아기 버섯들
@@ -365,7 +364,7 @@ function mushroomComponents() {
     lineDots(comps, x - 18, y + 15, x - 18, y + 85, 35, 5);
     lineDots(comps, x + 18, y + 15, x + 18, y + 85, 35, 5);
   }
-  return [...tileY(comps, 3, 2250), ...funnel(7200)];
+  return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 💀 해적 해골: 두개골 + 폭탄 눈 + 이빨 + 엇갈린 뼈다귀(벽) + 유골 별자리
@@ -407,7 +406,7 @@ function skullComponents() {
   }
   comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -4 } });
   comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 4 } });
-  return [...tileY(comps, 3, 2250), ...funnel(7200)];
+  return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 🚀 로켓 발사: 기체 + 창문 + 날개 + 회전 불꽃 + 별밤
@@ -442,7 +441,7 @@ function rocketComponents() {
   comps.push({ type: 'bumper', x: 90, y: 2150, props: { size: 14 } });
   comps.push({ type: 'bumper', x: 540, y: 2420, props: { size: 14 } });
   arcDots(comps, 470, 2100, 75, -140, 60, 9, 6);
-  return [...tileY(comps, 3, 2800), ...funnel(9000)];
+  return [...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
 // ❤️ 하트 폭포: 점점 작아지는 하트 셋 — 마지막 심장은 터진다
@@ -473,7 +472,7 @@ function heartsComponents() {
   }
   // 두근두근 바람개비
   comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
-  return [...tileY(comps, 3, 2250), ...funnel(7200)];
+  return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 🌀 웜홀 정거장: 포탈로 옆·아래·위로 워프 — 낙하가 비선형이 된다
@@ -482,53 +481,49 @@ function wormholeComponents() {
   const portal = (x, y, channel) => ({ type: 'portal', x, y, props: { channel } });
 
   // 1구간: 핀 밭 + 좌우 워프 (ch1 — 왼쪽 포탈에 빨려들면 오른쪽에서 튀어나온다)
-  pegRow(comps, 250);
-  pegRow(comps, 320, 27);
-  comps.push(portal(70, 560, 1));
-  comps.push(portal(530, 560, 1));
-  comps.push({ type: 'wall', x: 150, y: 480, props: { length: 180, angle: 30 } }); // 왼쪽 포탈로 유도
-  lineDots(comps, 300, 500, 440, 470, 40, 6);
+  pegRow(comps, 220);
+  pegRow(comps, 290, 27);
+  comps.push(portal(70, 500, 1));
+  comps.push(portal(530, 500, 1));
+  comps.push({ type: 'wall', x: 150, y: 420, props: { length: 180, angle: 30 } });
+  lineDots(comps, 300, 440, 440, 410, 40, 6);
 
-  // 2구간: 지름길 사다리 (ch2 — 900에서 타면 2900으로 순간 강하!)
-  comps.push(portal(300, 900, 2));
-  ringDots(comps, 300, 900, 60, 10, 6); // 포탈 주위 장식 링
-  pegRow(comps, 1150);
-  pegRow(comps, 1220, 27);
-  comps.push({ type: 'cross', x: 300, y: 1450, props: { length: 130, speed: 4 } });
-  pegRow(comps, 1700);
-  comps.push({ type: 'spinner', x: 170, y: 1950, props: { length: 150, speed: -5 } });
-  comps.push({ type: 'spinner', x: 430, y: 1950, props: { length: 150, speed: 5 } });
-  pegRow(comps, 2200, 27);
-  comps.push({ type: 'bumper', x: 300, y: 2450, props: { size: 20 } });
-  comps.push(portal(300, 2900, 2)); // ch2 출구
+  // 2구간: 지름길 사다리 (ch2 — 760에서 타면 2150으로 순간 강하!)
+  comps.push(portal(300, 760, 2));
+  ringDots(comps, 300, 760, 60, 10, 6);
+  pegRow(comps, 1000);
+  pegRow(comps, 1070, 27);
+  comps.push({ type: 'cross', x: 300, y: 1280, props: { length: 130, speed: 4 } });
+  comps.push({ type: 'spinner', x: 170, y: 1550, props: { length: 150, speed: -5 } });
+  comps.push({ type: 'spinner', x: 430, y: 1550, props: { length: 150, speed: 5 } });
+  pegRow(comps, 1800, 27);
+  comps.push({ type: 'bumper', x: 300, y: 1980, props: { size: 20 } });
+  comps.push(portal(300, 2150, 2)); // ch2 출구
 
-  // 3구간: 저주의 뱀 포탈 (ch3 — 4100에서 밟으면 1150으로 되돌아간다!)
-  pegRow(comps, 3300);
-  pegRow(comps, 3370, 27);
-  comps.push({ type: 'bomb', x: 100, y: 3650, props: { radius: 140, power: 14, respawn: 6 } });
-  comps.push({ type: 'bomb', x: 500, y: 3650, props: { radius: 140, power: 14, respawn: 6 } });
-  comps.push(portal(300, 4100, 3)); // 🐍 입구 — 가운데를 지키는 함정
-  comps.push({ type: 'wall', x: 150, y: 4020, props: { length: 200, angle: 25 } });
-  comps.push({ type: 'wall', x: 450, y: 4020, props: { length: 200, angle: -25 } });
-  comps.push(portal(450, 1150, 3)); // 🐍 출구 — 위쪽으로 강제 소환
+  // 3구간: 저주의 뱀 포탈 (ch3 — 2750에서 밟으면 1000으로 되돌아간다!)
+  pegRow(comps, 2400);
+  pegRow(comps, 2470, 27);
+  comps.push({ type: 'bomb', x: 100, y: 2600, props: { radius: 140, power: 14, respawn: 6 } });
+  comps.push({ type: 'bomb', x: 500, y: 2600, props: { radius: 140, power: 14, respawn: 6 } });
+  comps.push(portal(300, 2750, 3)); // 🐍 입구 — 가운데를 지키는 함정
+  comps.push({ type: 'wall', x: 150, y: 2680, props: { length: 200, angle: 25 } });
+  comps.push({ type: 'wall', x: 450, y: 2680, props: { length: 200, angle: -25 } });
+  comps.push(portal(450, 1000, 3)); // 🐍 출구 — 위쪽으로 강제 소환
 
-  // 4구간: 핀 + 회전 관문
-  pegRow(comps, 4500);
-  pegRow(comps, 4570, 27);
-  comps.push({ type: 'cross', x: 170, y: 4850, props: { length: 120, speed: -4 } });
-  comps.push({ type: 'cross', x: 430, y: 4850, props: { length: 120, speed: 4 } });
-  pegRow(comps, 5150);
+  // 4구간: 좌우 워프 한 번 더 (ch4) + 회전 관문
+  comps.push(portal(80, 3250, 4));
+  comps.push(portal(520, 3250, 4));
+  lineDots(comps, 200, 3200, 400, 3250, 44, 6);
+  comps.push({ type: 'cross', x: 170, y: 3550, props: { length: 120, speed: -4 } });
+  comps.push({ type: 'cross', x: 430, y: 3550, props: { length: 120, speed: 4 } });
 
-  // 5구간: 좌우 워프 한 번 더 (ch4) + 마지막 핀 밭
-  comps.push(portal(80, 5600, 4));
-  comps.push(portal(520, 5600, 4));
-  lineDots(comps, 200, 5550, 400, 5600, 44, 6);
-  pegRow(comps, 6000);
-  pegRow(comps, 6070, 27);
-  comps.push({ type: 'spinner', x: 300, y: 6400, props: { length: 200, speed: 5 } });
-  pegRow(comps, 6700, 27);
+  // 5구간: 마지막 핀 밭 + 스피너
+  pegRow(comps, 3850);
+  pegRow(comps, 3920, 27);
+  comps.push({ type: 'spinner', x: 300, y: 4200, props: { length: 200, speed: 5 } });
+  pegRow(comps, 4450, 27);
 
-  return [...comps, ...funnel(7200)];
+  return [...comps, ...funnel(4800)];
 }
 
 // 🎢 트램펄린 산맥: 경사로를 타고 내려와 점프 패드로 벽을 넘는다 — 위아래로 출렁이는 낙하
@@ -542,8 +537,8 @@ function trampolineComponents() {
   });
 
   // 각 구간: 경사로 → 골짜기의 점프 패드 → 낮은 장벽을 넘어 다음 구간 (좌우 교대)
-  for (let k = 0; k < 4; k++) {
-    const y0 = 350 + k * 1550;
+  for (let k = 0; k < 3; k++) {
+    const y0 = 320 + k * 1300;
     if (k % 2 === 0) {
       // 왼쪽에서 오른쪽 아래로 흐르는 경사
       wallPath(comps, [[25, y0], [400, y0 + 320]]);
@@ -558,21 +553,23 @@ function trampolineComponents() {
       lineDots(comps, 300, y0 + 60, 480, y0 + 120, 45, 6);
       comps.push({ type: 'bumper', x: 500, y: y0 + 500, props: { size: 16 } });
     }
-    // 구간 사이 회전체
-    comps.push({
-      type: k % 2 === 0 ? 'cross' : 'spinner',
-      x: 300,
-      y: y0 + 900,
-      props: { length: 140, speed: k % 2 === 0 ? 4 : -5 },
-    });
+    // 구간 사이 회전체 (마지막 구간 뒤는 트램펄린 밭이 있으므로 생략)
+    if (k < 2) {
+      comps.push({
+        type: k % 2 === 0 ? 'cross' : 'spinner',
+        x: 300,
+        y: y0 + 850,
+        props: { length: 140, speed: k % 2 === 0 ? 4 : -5 },
+      });
+    }
   }
 
   // 마지막 구간: 트램펄린 두 대 — 가운데 틈 쪽으로 기울어져 통통 튀다 빠져나간다
-  comps.push(jumper(150, 6700, { width: 110, power: 11, angle: 15 }));
-  comps.push(jumper(450, 6700, { width: 110, power: 11, angle: -15 }));
-  pegRow(comps, 6400, 27);
+  pegRow(comps, 4150, 27);
+  comps.push(jumper(150, 4400, { width: 110, power: 11, angle: 15 }));
+  comps.push(jumper(450, 4400, { width: 110, power: 11, angle: -15 }));
 
-  return [...comps, ...funnel(7200)];
+  return [...comps, ...funnel(4800)];
 }
 
 const BUILTIN_MAPS = [
@@ -598,7 +595,7 @@ const BUILTIN_MAPS = [
     name: '🌼 활짝 핀 꽃',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: flowerComponents(),
   },
   {
@@ -606,7 +603,7 @@ const BUILTIN_MAPS = [
     name: '👾 픽셀 인베이더',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: invaderComponents(),
   },
   {
@@ -614,7 +611,7 @@ const BUILTIN_MAPS = [
     name: '🍄 대왕 버섯',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: mushroomComponents(),
   },
   {
@@ -622,7 +619,7 @@ const BUILTIN_MAPS = [
     name: '💀 해적 해골',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: skullComponents(),
   },
   {
@@ -630,7 +627,7 @@ const BUILTIN_MAPS = [
     name: '🚀 로켓 발사',
     author: '기본 맵',
     builtin: true,
-    height: 9000,
+    height: 6000,
     components: rocketComponents(),
   },
   {
@@ -638,7 +635,7 @@ const BUILTIN_MAPS = [
     name: '❤️ 하트 폭포',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: heartsComponents(),
   },
   {
@@ -646,7 +643,7 @@ const BUILTIN_MAPS = [
     name: '💣 지뢰밭',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: minefieldComponents(),
   },
   {
@@ -654,7 +651,7 @@ const BUILTIN_MAPS = [
     name: '🌀 웜홀 정거장',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: wormholeComponents(),
   },
   {
@@ -662,7 +659,7 @@ const BUILTIN_MAPS = [
     name: '🎢 트램펄린 산맥',
     author: '기본 맵',
     builtin: true,
-    height: 7200,
+    height: 4800,
     components: trampolineComponents(),
   },
   // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
@@ -671,7 +668,7 @@ const BUILTIN_MAPS = [
     name: '🐍 지그재그 협곡',
     author: '기본 맵',
     builtin: true,
-    height: 9600,
+    height: 6400,
     components: canyonComponents(),
   },
   {
@@ -679,7 +676,7 @@ const BUILTIN_MAPS = [
     name: '🌪 깔때기 폭포',
     author: '기본 맵',
     builtin: true,
-    height: 8700,
+    height: 5800,
     components: cascadeComponents(),
   },
 ];
