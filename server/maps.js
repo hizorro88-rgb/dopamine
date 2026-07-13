@@ -234,6 +234,41 @@ function cascadeComponents() {
   return [...comps, ...funnel(2900)];
 }
 
+// 💣 지뢰밭: 아무것도 없는 맵에 재생성 폭탄만 —
+// 골인 길목의 문지기 폭탄이 선두를 날려버리고, 그 틈에 뒤따라온 공이 우승한다
+function minefieldComponents() {
+  const comps = [];
+  const bomb = (x, y, props = {}) => ({
+    type: 'bomb',
+    x,
+    y,
+    props: { radius: 140, power: 14, respawn: 4, ...props },
+  });
+  // 지뢰 격자 (지그재그 배치 — 일직선으로는 절대 못 내려간다)
+  const rows = [
+    [260, [150, 450]],
+    [480, [300]],
+    [700, [100, 500]],
+    [920, [220, 380]],
+    [1140, [300]], // 중앙 대형
+    [1360, [130, 470]],
+    [1580, [300]],
+    [1800, [180, 420]],
+    [2020, [80, 520]],
+  ];
+  for (const [y, xs] of rows) {
+    for (const x of xs) comps.push(bomb(x, y));
+  }
+  // 중앙 대형 지뢰는 더 넓고 강하게
+  comps[8].props = { radius: 220, power: 18, respawn: 5 };
+  // 🚨 문지기 폭탄 3중 배치: 골인 직전 깔때기 목을 막고 선두를 되받아친다.
+  // 터진 뒤 재생성되기 전(게임 시간 6초)에 도착하는 공만 무사히 통과!
+  comps.push(bomb(272, 2270, { radius: 170, power: 19, respawn: 6 }));
+  comps.push(bomb(328, 2270, { radius: 170, power: 19, respawn: 6 }));
+  comps.push(bomb(300, 2320, { radius: 150, power: 17, respawn: 6 }));
+  return [...comps, ...funnel(2400)];
+}
+
 // 🌼 활짝 핀 꽃: 꽃잎 링 + 회전 십자 꽃술 + 긴 줄기 + 잎 + 잔디
 function flowerComponents() {
   const comps = [];
@@ -491,6 +526,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 2400,
     components: heartsComponents(),
+  },
+  {
+    id: 'minefield',
+    name: '💣 지뢰밭',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: minefieldComponents(),
   },
   // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
   {
