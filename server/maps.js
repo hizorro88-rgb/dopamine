@@ -244,23 +244,26 @@ function minefieldComponents() {
     y,
     props: { radius: 140, power: 14, respawn: 4, ...props },
   });
-  // 지뢰 격자 (지그재그 배치 — 일직선으로는 절대 못 내려간다)
-  const rows = [
-    [260, [150, 450]],
-    [480, [300]],
-    [700, [100, 500]],
-    [920, [220, 380]],
-    [1140, [300]], // 중앙 대형
-    [1360, [130, 470]],
-    [1580, [300]],
-    [1800, [180, 420]],
-    [2020, [80, 520]],
-  ];
-  for (const [y, xs] of rows) {
-    for (const x of xs) comps.push(bomb(x, y));
+  // 빽빽한 지뢰 격자: 140px 간격 14줄, 줄마다 4~5개 지그재그 —
+  // 어디로 떨어져도 두세 발은 밟는다. 재생성 시간을 3~6초로 엇갈리게 해
+  // 폭발 리듬이 겹치지 않고 끊임없이 터진다.
+  let i = 0;
+  for (let y = 240; y <= 2080; y += 140) {
+    const xs = (y / 140) % 2 === 0 ? [60, 180, 300, 420, 540] : [120, 240, 360, 480];
+    for (const x of xs) {
+      const jx = Math.round(Math.sin(i * 2.7) * 22); // 결정적 지터 (재시작해도 같은 맵)
+      comps.push(
+        bomb(Math.min(555, Math.max(45, x + jx)), y, {
+          radius: 105 + (i % 3) * 20,
+          power: 11 + (i % 3) * 2,
+          respawn: 3 + (i % 4),
+        })
+      );
+      i++;
+    }
   }
-  // 중앙 대형 지뢰는 더 넓고 강하게
-  comps[8].props = { radius: 220, power: 18, respawn: 5 };
+  // 중앙 대형 지뢰 (한가운데 왕지뢰)
+  comps.push(bomb(300, 1150, { radius: 230, power: 19, respawn: 6 }));
   // 🚨 문지기 폭탄 3중 배치: 골인 직전 깔때기 목을 막고 선두를 되받아친다.
   // 터진 뒤 재생성되기 전(게임 시간 6초)에 도착하는 공만 무사히 통과!
   comps.push(bomb(272, 2270, { radius: 170, power: 19, respawn: 6 }));
