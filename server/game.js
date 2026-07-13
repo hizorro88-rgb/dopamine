@@ -101,6 +101,39 @@ const HIT_ACTIONS = {
     Matter.Composite.remove(game.engine.world, inst.body);
     game.explodeAt(inst.x, inst.y, inst.hit.radius, inst.hit.power);
   },
+
+  // 🌀 순간이동: 같은 채널의 다른 포탈로 (공마다 0.9초 쿨다운 — 왕복 무한루프 방지)
+  teleport(game, inst, ball) {
+    const now = game.now();
+    if (ball.plugin.portalCdUntil && now < ball.plugin.portalCdUntil) return;
+    let dest = null;
+    for (const other of game.reactive.values()) {
+      if (other !== inst && other.hit.action === 'teleport' && other.hit.channel === inst.hit.channel) {
+        dest = other;
+        break;
+      }
+    }
+    if (!dest) return; // 짝이 없는 포탈은 장식
+    ball.plugin.portalCdUntil = now + 900;
+    const from = { x: ball.position.x, y: ball.position.y };
+    const exit = { x: dest.x, y: dest.y + 36 };
+    Matter.Body.setPosition(ball, exit);
+    Matter.Body.setVelocity(ball, { x: ball.velocity.x * 0.3, y: Math.max(ball.velocity.y * 0.4, 2) });
+    if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...exit };
+    if (game.portalEffect) game.portalEffect(from, { x: dest.x, y: dest.y });
+  },
+
+  // 🦘 발사대: 공을 위로(각도만큼 옆으로) 쏘아 올린다
+  launch(game, inst, ball) {
+    const now = game.now();
+    if (ball.plugin.padCdUntil && now < ball.plugin.padCdUntil) return;
+    ball.plugin.padCdUntil = now + 300;
+    Matter.Body.setVelocity(ball, {
+      x: ball.velocity.x * 0.4 + (inst.hit.kickX || 0),
+      y: -inst.hit.power,
+    });
+    if (game.portalEffect) game.portalEffect(null, { x: inst.x, y: inst.y - 12 });
+  },
 };
 
 class Game {
@@ -202,6 +235,11 @@ class Game {
       });
     }
     this.io.to(this.room.code).emit('game:explosion', { x, y, radius });
+  }
+
+  /** 🌀 포탈/점프 이펙트를 방 전체에 알림 */
+  portalEffect(from, to) {
+    this.io.to(this.room.code).emit('game:portal', { from, to });
   }
 
   /** 게임 시간(ms) — 낙하 후에는 실제 시간보다 TIME_SCALE 배 빠르게 흐른다.

@@ -194,7 +194,7 @@
         const t = (nowMs - ex.start) / 600;
         if (t >= 1) continue;
         mctx.globalAlpha = 1 - t;
-        mctx.fillStyle = '#ffb03a';
+        mctx.fillStyle = ex.color || '#ffb03a';
         mctx.beginPath();
         mctx.arc(ex.x, ex.y, ex.radius * 0.6, 0, Math.PI * 2);
         mctx.fill();
@@ -657,6 +657,9 @@
       if (Math.abs(ev.y - (game.camY + VIEW.height / 2)) < VIEW.height) {
         game.shakeUntil = performance.now() + 250;
       }
+    } else if (ev.type === 'portal') {
+      if (ev.from) game.explosions.push({ x: ev.from.x, y: ev.from.y, radius: 55, start: performance.now(), color: '#35e0ff' });
+      if (ev.to) game.explosions.push({ x: ev.to.x, y: ev.to.y, radius: 55, start: performance.now(), color: '#35e0ff' });
     }
   }
 
@@ -1028,6 +1031,13 @@
     if (Math.abs(y - (game.camY + VIEW.height / 2)) < VIEW.height) {
       game.shakeUntil = performance.now() + 250;
     }
+  });
+
+  // 🌀 포탈 순간이동 / 🦘 점프 패드 발동 — 시안 링 이펙트 (흔들림 없음)
+  socket.on('game:portal', ({ from, to }) => {
+    if (!game) return;
+    if (from) game.explosions.push({ x: from.x, y: from.y, radius: 55, start: performance.now(), color: '#35e0ff' });
+    if (to) game.explosions.push({ x: to.x, y: to.y, radius: 55, start: performance.now(), color: '#35e0ff' });
   });
 
   // 🎡 인생은 돌고돌아 발동: 골인 직전의 공이 원점으로
@@ -1541,23 +1551,29 @@
       const ease = 1 - Math.pow(1 - t, 3);
       const r = ex.radius * (0.25 + 0.75 * ease);
       ctx.save();
-      ctx.globalAlpha = (1 - t) * 0.35;
-      ctx.fillStyle = '#ff7a3a';
-      ctx.beginPath();
-      ctx.arc(ex.x, ex.y, r * 0.65, 0, Math.PI * 2);
-      ctx.fill();
+      if (!ex.color) {
+        ctx.globalAlpha = (1 - t) * 0.35;
+        ctx.fillStyle = '#ff7a3a';
+        ctx.beginPath();
+        ctx.arc(ex.x, ex.y, r * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.globalAlpha = 1 - t;
-      ctx.strokeStyle = '#ffb03a';
+      ctx.strokeStyle = ex.color || '#ffb03a';
+      ctx.shadowColor = ex.color || '#ffb03a';
+      ctx.shadowBlur = ex.color ? 12 : 0;
       ctx.lineWidth = 5 * (1 - t) + 1;
       ctx.beginPath();
       ctx.arc(ex.x, ex.y, r, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = '#ffd76a';
-      for (let i = 0; i < 8; i++) {
-        const a = (Math.PI * 2 * i) / 8 + 0.4;
-        ctx.beginPath();
-        ctx.arc(ex.x + Math.cos(a) * r, ex.y + Math.sin(a) * r, 3.5 * (1 - t) + 1, 0, Math.PI * 2);
-        ctx.fill();
+      if (!ex.color) {
+        ctx.fillStyle = '#ffd76a';
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI * 2 * i) / 8 + 0.4;
+          ctx.beginPath();
+          ctx.arc(ex.x + Math.cos(a) * r, ex.y + Math.sin(a) * r, 3.5 * (1 - t) + 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
     }

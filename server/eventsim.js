@@ -54,7 +54,11 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     height,
     goalY,
     activeEffects,
+    reactive: built.reactive,
     now: () => simNow,
+    portalEffect(from, to) {
+      events.push({ t: Math.round(simNow / TIME_SCALE), type: 'portal', from, to });
+    },
     explodeAt(x, y, radius, power, excludePlayerId) {
       for (const [pid, ball] of balls) {
         if (ball.plugin.done || pid === excludePlayerId) continue;

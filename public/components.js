@@ -143,6 +143,58 @@
       },
     },
 
+    // 🌀 포탈: 같은 채널의 다른 포탈로 순간이동 — 경로가 비선형이 된다
+    portal: {
+      id: 'portal',
+      name: '포탈',
+      emoji: '🌀',
+      desc: '닿으면 같은 채널의 다른 포탈로 순간이동! 두 개씩 짝지어 배치하세요',
+      props: [
+        { key: 'channel', label: '채널 (같은 번호끼리 연결)', min: 1, max: 4, step: 1, default: 1 },
+      ],
+      build(p) {
+        const colors = ['#35e0ff', '#c86bff', '#ffd12e', '#9bec00'];
+        const c = colors[(Math.round(p.channel) - 1 + 400) % 4];
+        return {
+          shapes: [
+            { kind: 'circle', x: 0, y: 0, r: 24, fill: c },
+            { kind: 'circle', x: 0, y: 0, r: 16, fill: '#0a0a10', glow: c },
+          ],
+          spin: 0,
+          restitution: 0,
+          hit: { action: 'teleport', channel: Math.round(p.channel) },
+        };
+      },
+    },
+
+    // 🦘 점프 패드: 밟으면 공을 위로 쏘아 올린다 — 낙하가 역류한다
+    jumper: {
+      id: 'jumper',
+      name: '점프 패드',
+      emoji: '🦘',
+      desc: '공이 닿으면 위로 강하게 쏘아 올립니다 (각도로 방향 조절)',
+      props: [
+        { key: 'width', label: '폭', min: 50, max: 160, step: 10, default: 90 },
+        { key: 'power', label: '점프력', min: 8, max: 24, step: 1, default: 15 },
+        { key: 'angle', label: '발사 각도(°)', min: -45, max: 45, step: 5, default: 0 },
+      ],
+      build(p) {
+        return {
+          shapes: [
+            { kind: 'rect', x: 0, y: 0, w: p.width, h: 12, angle: (p.angle / 2) * DEG, fill: '#ff9d2e' },
+            { kind: 'rect', x: 0, y: -8, w: p.width * 0.5, h: 5, angle: (p.angle / 2) * DEG, fill: '#ffd94a' },
+          ],
+          spin: 0,
+          restitution: 0.2,
+          hit: {
+            action: 'launch',
+            power: p.power,
+            kickX: Math.round(Math.sin(p.angle * DEG) * p.power * 10) / 10,
+          },
+        };
+      },
+    },
+
     // 회전 십자: 십자 모양 회전 방해물
     cross: {
       id: 'cross',
