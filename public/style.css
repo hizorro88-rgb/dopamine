@@ -51,7 +51,8 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Song Myung', 'Gothic A1', 'Apple SD Gothic Neo', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', 'Apple SD Gothic Neo', serif;
+  font-weight: 800;
   letter-spacing: 1px;
 }
 h1 {
@@ -71,7 +72,7 @@ h2 {
 
 /* ── 브랜드 타이틀 ── */
 .brand {
-  font-family: 'Cinzel', 'Song Myung', serif;
+  font-family: 'Cinzel', 'Nanum Myeongjo', serif;
   font-size: 40px;
   font-weight: 700;
   letter-spacing: 7px;
@@ -84,7 +85,8 @@ h2 {
   text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
 }
 .brand-tag {
-  font-family: 'Song Myung', 'Gothic A1', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-weight: 700;
   font-size: 14px;
   letter-spacing: 4px;
   color: var(--accent2);
@@ -519,7 +521,7 @@ input[type='text']:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: 'Song Myung', 'Gothic A1', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
   font-weight: 700;
   font-size: 13px;
   color: var(--accent);
@@ -571,7 +573,7 @@ input[type='text']:focus {
 
 /* ── 맵 후기 (커뮤니티) ── */
 #review-summary {
-  font-family: 'Song Myung', 'Gothic A1', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--accent2);
@@ -898,7 +900,7 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-family: 'Song Myung', 'Gothic A1', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -1061,7 +1063,7 @@ input[type='text']:focus {
   z-index: 1;
 }
 #winner-banner {
-  font-family: 'Song Myung', 'Gothic A1', serif;
+  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
   font-size: 21px;
   font-weight: 900;
   letter-spacing: 1px;
