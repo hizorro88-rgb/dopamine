@@ -512,6 +512,24 @@ input[type='text']:focus {
   flex-shrink: 0;
 }
 
+/* ── 후원 QR 모달 ── */
+#donate-qr-box {
+  display: inline-block;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 12px;
+  margin: 12px auto;
+  line-height: 0;
+}
+#donate-qr-box svg {
+  display: block;
+}
+#donate-qr-url {
+  font-size: 11px;
+  word-break: break-all;
+  margin-top: 4px;
+}
+
 /* ── 방문자 카운터 ── */
 #visit-counter {
   margin-top: 16px;

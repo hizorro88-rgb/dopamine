@@ -51,6 +51,21 @@
   })();
 
   // ── 후원 링크 (서버 환경변수 DONATION_URL 설정 시에만 표시) ──
+  // 카카오페이 송금 링크는 모바일 전용(PC 웹은 404) — PC에서는 QR 모달로 안내한다.
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  function showDonateQr(url) {
+    const box = $('donate-qr-box');
+    box.innerHTML = '';
+    /* global qrcode */
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 3 });
+    $('donate-qr-url').textContent = url;
+    $('donate-qr-modal').classList.remove('hidden');
+  }
+
   fetch('/api/config')
     .then((r) => r.json())
     .then((cfg) => {
@@ -59,10 +74,19 @@
         a.href = cfg.donationUrl;
         a.textContent = cfg.donationLabel;
         a.classList.remove('hidden');
+        a.addEventListener('click', (e) => {
+          if (isMobile) return; // 모바일: 링크 그대로 열림 (카카오페이 정상 동작)
+          e.preventDefault(); // PC: 404 대신 QR 스캔 안내
+          showDonateQr(cfg.donationUrl);
+        });
       });
       document.querySelectorAll('.donate-hint').forEach((el) => el.classList.remove('hidden'));
     })
     .catch(() => {});
+
+  $('btn-donate-qr-close').addEventListener('click', () =>
+    $('donate-qr-modal').classList.add('hidden')
+  );
 
   // ── 화면 전환 ─────────────────────────────────────────
   function showScreen(name) {

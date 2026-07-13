@@ -91,6 +91,18 @@
     </div>
   </div>
 
+  <!-- 후원 QR (PC에서는 카카오페이 링크가 안 열리므로 QR 스캔 안내) -->
+  <div id="donate-qr-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>💛 서버비 후원하기</h2>
+      <p class="hint" style="margin-top:0">카카오페이 송금 링크는 <b>휴대폰에서만</b> 열립니다.<br>
+        휴대폰 카메라나 카카오톡으로 아래 QR을 스캔해주세요!</p>
+      <div id="donate-qr-box"></div>
+      <p class="hint" id="donate-qr-url"></p>
+      <button id="btn-donate-qr-close" class="btn small">닫기</button>
+    </div>
+  </div>
+
   <!-- 후원자 명예의 전당 -->
   <div id="hall-modal" class="modal hidden">
     <div class="modal-card">
@@ -257,6 +269,7 @@
   </section>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="qrcode.js"></script>
   <script src="components.js"></script>
   <script src="client.js"></script>
 </body>
