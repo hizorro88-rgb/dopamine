@@ -718,12 +718,6 @@
     $('lobby-ball-count').value = String(room.ballsPerPlayer || 1);
     $('lobby-ball-count').disabled = !isHost;
 
-    // 낙하 방식 (방장만 변경 가능)
-    $('dm-shuffle').classList.toggle('selected', room.dropMode !== 'ropes');
-    $('dm-ropes').classList.toggle('selected', room.dropMode === 'ropes');
-    $('dm-shuffle').disabled = !isHost;
-    $('dm-ropes').disabled = !isHost;
-
     refreshMaps();
   }
 
@@ -734,12 +728,6 @@
   for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
     $(id).addEventListener('click', (e) => {
       socket.emit('room:setWinMode', { winMode: e.currentTarget.dataset.mode });
-    });
-  }
-
-  for (const id of ['dm-shuffle', 'dm-ropes']) {
-    $(id).addEventListener('click', (e) => {
-      socket.emit('room:setDropMode', { dropMode: e.currentTarget.dataset.mode });
     });
   }
 
@@ -940,15 +928,11 @@
 
   // ── 게임 시작 ─────────────────────────────────────────
   // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
-  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished, dropMode, ropes }) {
+  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished }) {
     game = {
       board,
       autoPilot: !!autoPilot,
       spectator: !!spectator,
-      dropMode: dropMode || 'shuffle',
-      ropes: ropes ? ropes.map((r) => ({ ...r, cutAt: r.cut ? -1 : null })) : null,
-      ropePhase: dropMode === 'ropes' && (!ropes || ropes.some((r) => !r.cut)),
-      ropeTurn: null,
       winMode: winMode || 'first',
       ballsPer: ballsPerPlayer || 1,
       shuffling: !!shuffle,
@@ -1009,50 +993,6 @@
   $('btn-drop').addEventListener('click', () => {
     socket.emit('game:drop');
     $('btn-drop').classList.add('hidden');
-  });
-
-  // ── ✂️ 줄 자르기 ──────────────────────────────────────
-  socket.on('game:ropeTurn', ({ playerId, name, msLeft }) => {
-    if (!game) return;
-    game.ropeTurn = { playerId, name, until: performance.now() + msLeft };
-  });
-
-  socket.on('game:ropeCut', ({ ropeIdx, by, target, auto }) => {
-    if (!game || !game.ropes) return;
-    const rope = game.ropes[ropeIdx];
-    if (rope && rope.cutAt === null) rope.cutAt = performance.now();
-    toast(`✂️ ${by}${auto ? ' (시간 초과 자동)' : ''} → ${target} 낙하!`);
-  });
-
-  socket.on('game:ropesDone', () => {
-    if (!game) return;
-    game.ropePhase = false;
-    game.ropeTurn = null;
-    toast('✂️ 모든 줄 절단! ⚡ 가속 낙하!');
-  });
-
-  // 내 차례에 줄 손잡이(위쪽 번호) 클릭으로 절단
-  $('canvas').addEventListener('click', (e) => {
-    if (!game || !game.ropePhase || !game.ropes) return;
-    if (!game.ropeTurn || game.ropeTurn.playerId !== myId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (VIEW.width / rect.width);
-    const y = (e.clientY - rect.top) * (VIEW.height / rect.height) + game.camY;
-    if (y > 130) return; // 손잡이는 맨 위에만 있다
-    let best = -1;
-    let bestD = 30;
-    game.ropes.forEach((rope, i) => {
-      if (rope.cutAt !== null) return;
-      const d = Math.abs(x - rope.a);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    });
-    if (best < 0) return;
-    socket.emit('game:cutRope', { ropeIdx: best }, (res) => {
-      if (res && !res.ok && res.error) toast('⚠️ ' + res.error);
-    });
   });
 
   socket.on('game:explosion', ({ x, y, radius }) => {
@@ -1485,52 +1425,6 @@
       drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
     }
 
-    // ✂️ 매달린 줄 (줄 자르기 모드) — 잘리면 아래로 떨어지며 사라진다
-    if (game.ropes) {
-      const nowR = performance.now();
-      const myTurn = game.ropePhase && game.ropeTurn && game.ropeTurn.playerId === myId;
-      game.ropes.forEach((rope, i) => {
-        const fade =
-          rope.cutAt === null ? 0 : rope.cutAt < 0 ? 1 : Math.min(1, (nowR - rope.cutAt) / 500);
-        if (fade < 1) {
-          ctx.save();
-          ctx.globalAlpha = 1 - fade;
-          ctx.translate(0, fade * 90);
-          ctx.strokeStyle = 'rgba(212,175,55,0.85)';
-          ctx.lineWidth = 2;
-          ctx.shadowColor = '#d4af37';
-          ctx.shadowBlur = 6;
-          const p = rope.path;
-          ctx.beginPath();
-          ctx.moveTo(p[0].x, p[0].y);
-          for (let k = 1; k < p.length - 1; k++) {
-            ctx.quadraticCurveTo(p[k].x, p[k].y, (p[k].x + p[k + 1].x) / 2, (p[k].y + p[k + 1].y) / 2);
-          }
-          ctx.lineTo(p[p.length - 1].x, p[p.length - 1].y);
-          ctx.stroke();
-          ctx.restore();
-        }
-        // 손잡이: 위쪽 번호칩 — 내 차례면 금색으로 빛난다
-        if (rope.cutAt === null && game.ropePhase) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(rope.a, 14, 11, 0, Math.PI * 2);
-          if (myTurn) {
-            ctx.shadowColor = '#d4af37';
-            ctx.shadowBlur = 12;
-          }
-          ctx.fillStyle = myTurn ? 'rgba(226,196,106,0.95)' : 'rgba(38,38,46,0.92)';
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = myTurn ? '#1c1304' : '#e8e4da';
-          ctx.font = "bold 11px 'Gothic A1', sans-serif";
-          ctx.textAlign = 'center';
-          ctx.fillText(String(i + 1), rope.a, 18);
-          ctx.restore();
-        }
-      });
-    }
-
     // 공 (인원이 많으면 그림자/이름표 생략 — 선두와 내 공만 이름표)
     const r = board.ballRadius;
     const many = game.players.size > 30;
@@ -1660,14 +1554,7 @@
 
     // 상태 표시 + 방장 낙하 버튼 (리플레이는 위에서 자체 표시)
     if (!game.replay) {
-      if (game.ropePhase && game.ropeTurn) {
-        const secs = Math.max(0, Math.ceil((game.ropeTurn.until - performance.now()) / 1000));
-        $('countdown').textContent =
-          game.ropeTurn.playerId === myId
-            ? `✂️ 내 차례! 위쪽 번호를 눌러 줄을 자르세요 (${secs}초)`
-            : `✂️ ${game.ropeTurn.name}님이 자를 줄 고르는 중... (${secs}초)`;
-        $('btn-drop').classList.add('hidden');
-      } else if (game.shuffling) {
+      if (game.shuffling) {
         const isHost = !game.autoPilot && room && room.hostId === myId;
         $('countdown').textContent = game.autoPilot
           ? '🎲 운명이 배치를 정하는 중...'

@@ -27,7 +27,6 @@ const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률�
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
-const ROPE_TURN_MS = 12000; // ✂️ 줄 자르기 한 턴 제한 (실제 시간, 넘기면 자동 절단)
 const { SHUFFLE_AUTO_DROP_MS } = require('./config'); // 방장이 안 누르면 자동 낙하 (기본 5초)
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
@@ -35,7 +34,7 @@ const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
 // 낙하 후 시간 가속 배율(공의 속도): server/config.js 에서 조절.
 // 틱당 물리 서브스텝 횟수 방식이라 한 스텝당 이동량은 그대로 → 터널링 없이 전체 게임이 N배 빨라진다.
-// (셔플·줄 자르기 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
+// (셔플 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
 const { TIME_SCALE } = require('./config');
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
@@ -117,8 +116,6 @@ class Game {
     this.onGameOver = onGameOver;
     // 올랜덤(오토파일럿): 시스템이 낙하 타이밍과 아이템을 결정, 전원 관전
     this.autoPilot = !!opts.autoPilot;
-    // 낙하 방식: 'shuffle' = 셔플 후 일괄 낙하 / 'ropes' = 꼬인 줄을 순서대로 잘라 하나씩 낙하
-    this.dropMode = opts.dropMode === 'ropes' && !this.autoPilot ? 'ropes' : 'shuffle';
     // 우승 조건: 'first' = 먼저 골인한 순서 / 'last' = 늦게 골인한 순서
     this.winMode = room.winMode === 'last' ? 'last' : 'first';
     // 인당 공 개수
@@ -153,11 +150,6 @@ class Game {
     // 올랜덤: 시스템이 4~9초 사이 무작위 시점에 낙하
     this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_AUTO_DROP_MS;
     this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
-    // ✂️ 줄 자르기 상태
-    this.ropePhase = false;
-    this.ropes = []; // { anchorX, path:[{x,y}], ballKey, cut }
-    this.ropeTurnPlayer = null;
-    this.ropeDeadline = Infinity; // 실제 시각 — 넘기면 자동 절단
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
@@ -246,21 +238,10 @@ class Game {
       this.playerItems.get(lucky.id).push('karma');
     }
 
-    if (this.dropMode === 'ropes') {
-      // ✂️ 줄 자르기: 공을 매달고 꼬인 줄을 생성, 첫 턴 시작
-      this.shuffling = false;
-      this.ropePhase = true;
-      this.dropAt = Date.now(); // 완주 기록 기준 (첫 절단 가능 시점)
-      this.dropSimMs = this.simMs;
-      this.buildRopes();
-      this.ropeTurnPlayer = players[0].id;
-      this.ropeDeadline = Date.now() + ROPE_TURN_MS;
-    } else {
-      // 첫 배치 패턴을 즉시 적용
-      this.assignShuffleTargets();
-      for (const [key, ball] of this.balls) {
-        Matter.Body.setPosition(ball, this.shuffleTargets.get(key));
-      }
+    // 첫 배치 패턴을 즉시 적용
+    this.assignShuffleTargets();
+    for (const [key, ball] of this.balls) {
+      Matter.Body.setPosition(ball, this.shuffleTargets.get(key));
     }
 
     this.startedAt = Date.now();
@@ -274,10 +255,8 @@ class Game {
         board: this.board,
         winMode: this.winMode,
         ballsPerPlayer: this.ballsPerPlayer,
-        shuffle: this.shuffling,
+        shuffle: true,
         autoPilot: this.autoPilot,
-        dropMode: this.dropMode,
-        ropes: this.ropesPayload(),
         players: players.map((p) => ({
           id: p.id,
           name: p.name,
@@ -295,117 +274,7 @@ class Game {
       }
     }
 
-    if (this.ropePhase) this.emitRopeTurn();
-
     this.interval = setInterval(() => this.tick(), TICK_MS);
-  }
-
-  // ── ✂️ 줄 자르기 ──────────────────────────────────────
-
-  /** 공을 천장에 매달고, 어느 줄이 어느 공인지 알기 어렵게 꼬인 경로를 만든다 */
-  buildRopes() {
-    const keys = [...this.balls.keys()];
-    const n = keys.length;
-    // 공 걸이 위치 (아래쪽): 좌→우 균등
-    const holdXs = keys.map((_, i) => (n === 1 ? 300 : 45 + (510 / (n - 1)) * i));
-    // 닻(손잡이) 위치 (위쪽): 좌→우 균등 — 어느 공과 이어질지는 셔플
-    const order = keys.map((_, i) => i);
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-    const holdY = 96;
-    this.ropes = order.map((ballIdx, anchorIdx) => {
-      const anchorX = n === 1 ? 300 : 45 + (510 / (n - 1)) * anchorIdx;
-      const holdX = holdXs[ballIdx];
-      // 좌우로 크게 굽이치는 경로 — 다른 줄들과 여러 번 교차한다
-      const segs = 5;
-      const amp = 90 + Math.random() * 120;
-      const waves = 1.5 + Math.random() * 2;
-      const phase = Math.random() * Math.PI * 2;
-      const path = [];
-      for (let s = 0; s <= segs; s++) {
-        const t = s / segs;
-        const bx = anchorX + (holdX - anchorX) * t;
-        const wob = Math.sin(phase + t * waves * Math.PI) * amp * Math.sin(Math.PI * t);
-        path.push({
-          x: Math.round(Math.min(585, Math.max(15, bx + wob))),
-          y: Math.round(12 + (holdY - 22) * t),
-        });
-      }
-      const key = keys[ballIdx];
-      const ball = this.balls.get(key);
-      Matter.Body.setPosition(ball, { x: holdX, y: holdY });
-      ball.plugin.held = true;
-      ball.plugin.heldPos = { x: holdX, y: holdY };
-      return { anchorX, path, ballKey: key, cut: false };
-    });
-  }
-
-  /** 클라이언트에 보낼 줄 정보 (어느 공에 연결됐는지는 경로를 눈으로 따라가야 안다) */
-  ropesPayload() {
-    if (this.dropMode !== 'ropes') return undefined;
-    return this.ropes.map((r) => ({ a: r.anchorX, path: r.path, cut: r.cut }));
-  }
-
-  emitRopeTurn() {
-    const player = this.room.players.get(this.ropeTurnPlayer);
-    this.io.to(this.room.code).emit('game:ropeTurn', {
-      playerId: this.ropeTurnPlayer,
-      name: player ? player.name : '?',
-      msLeft: Math.max(0, this.ropeDeadline - Date.now()),
-    });
-  }
-
-  /** 다음 차례 (접속 중인 플레이어를 순환) */
-  advanceRopeTurn() {
-    const ids = [...this.room.players.keys()];
-    if (ids.length === 0) return;
-    const cur = ids.indexOf(this.ropeTurnPlayer);
-    this.ropeTurnPlayer = ids[(cur + 1) % ids.length];
-    this.ropeDeadline = Date.now() + ROPE_TURN_MS;
-    this.emitRopeTurn();
-  }
-
-  /**
-   * 줄 자르기 — 자기 차례에만 가능, 어떤 공이 떨어질지는 잘라봐야 안다
-   * @returns {string|null} 오류 메시지 (성공 시 null)
-   */
-  cutRope(playerId, ropeIdx, { auto = false } = {}) {
-    if (!this.ropePhase || this.over) return '지금은 줄을 자를 수 없습니다.';
-    if (playerId !== this.ropeTurnPlayer) return '내 차례가 아닙니다.';
-    const rope = this.ropes[ropeIdx];
-    if (!rope) return '없는 줄입니다.';
-    if (rope.cut) return '이미 잘린 줄입니다.';
-
-    rope.cut = true;
-    const ball = this.balls.get(rope.ballKey);
-    let targetName = '—';
-    if (ball && !ball.plugin.done) {
-      ball.plugin.held = false;
-      ball.plugin.heldPos = null;
-      const owner = this.room.players.get(ball.plugin.playerId);
-      const name = owner ? owner.name : '?';
-      targetName = this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name;
-    }
-    const by = this.room.players.get(playerId);
-    this.io.to(this.room.code).emit('game:ropeCut', {
-      ropeIdx,
-      by: by ? by.name : '?',
-      target: targetName,
-      auto,
-    });
-
-    if (this.ropes.some((r) => !r.cut)) {
-      this.advanceRopeTurn();
-    } else {
-      // 마지막 줄 — 이제부터 배속 낙하, 제한시간도 여기부터
-      this.ropePhase = false;
-      this.ropeDeadline = Infinity;
-      this.dropSimMs = this.simMs;
-      this.io.to(this.room.code).emit('game:ropesDone');
-    }
-    return null;
   }
 
   /** 관전자용 시작 정보 — 중간 합류 시 현재까지의 도착 기록도 포함 */
@@ -427,8 +296,6 @@ class Game {
       ballsPerPlayer: this.ballsPerPlayer,
       shuffle: this.shuffling,
       autoPilot: this.autoPilot,
-      dropMode: this.dropMode,
-      ropes: this.ropesPayload(),
       spectator: true,
       players: [...this.room.players.values()].map((p) => ({
         id: p.id,
@@ -509,23 +376,6 @@ class Game {
       Matter.Engine.update(this.engine, TICK_MS);
       // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
       if (wall - this.startedAt > this.shuffleLimitMs) this.drop();
-    } else if (this.ropePhase) {
-      // ✂️ 줄 자르기 단계: 실시간(1배속) — 잘린 공은 떨어지는 중, 나머지는 매달림
-      this.substep();
-      if (this.over) return;
-      // 차례 시간 초과 → 남은 줄 중 하나를 자동 절단
-      if (Date.now() > this.ropeDeadline) {
-        const remaining = this.ropes
-          .map((r, i) => (r.cut ? -1 : i))
-          .filter((i) => i >= 0);
-        if (remaining.length) {
-          this.cutRope(
-            this.ropeTurnPlayer,
-            remaining[Math.floor(Math.random() * remaining.length)],
-            { auto: true }
-          );
-        }
-      }
     } else {
       // 낙하 단계: TIME_SCALE 배속 — 틱당 서브스텝 반복
       for (let i = 0; i < TIME_SCALE && !this.over; i++) this.substep();
@@ -590,22 +440,18 @@ class Game {
       }
     }
 
-    // 얼린 공·매달린 공 고정
+    // 얼린 공 고정
     for (const ball of this.balls.values()) {
-      if (ball.plugin.done) continue;
-      if (ball.plugin.frozen && ball.plugin.frozenPos) {
+      if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
         Matter.Body.setVelocity(ball, { x: 0, y: 0 });
         Matter.Body.setPosition(ball, ball.plugin.frozenPos);
-      } else if (ball.plugin.held && ball.plugin.heldPos) {
-        Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-        Matter.Body.setPosition(ball, ball.plugin.heldPos);
       }
     }
 
     // 갇힘 구출: 게임 시간 5초 동안 하강 진전이 없으면 위쪽 랜덤 방향으로 살짝 튕겨준다
     // (아트 맵의 오목한 그림·범퍼 사이 무한 바운스 대비 — 참고한 마블 룰렛의 STUCK_DELAY와 같은 발상)
     for (const ball of this.balls.values()) {
-      if (ball.plugin.done || ball.plugin.frozen || ball.plugin.held) continue;
+      if (ball.plugin.done || ball.plugin.frozen) continue;
       if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6) {
         ball.plugin.progressY = ball.position.y;
         ball.plugin.stuckSince = sim;
@@ -658,9 +504,8 @@ class Game {
     }
 
     // 종료 판정: 전 공 도착 or 낙하 후 제한시간(게임 시간) 초과
-    // (줄 자르기 단계에서는 아직 매달린 공이 있으므로 제한시간을 세지 않는다)
     const allDone = [...this.balls.values()].every((b) => b.plugin.done);
-    if (allDone || (!this.ropePhase && sim - this.dropSimMs > GAME_TIMEOUT_MS)) {
+    if (allDone || sim - this.dropSimMs > GAME_TIMEOUT_MS) {
       this.finish();
     }
   }
@@ -678,7 +523,6 @@ class Game {
         g: ball.plugin.ghost ? 1 : 0,
         f: ball.plugin.frozen ? 1 : 0,
         b: ball.plugin.balloon ? 1 : 0,
-        h: ball.plugin.held ? 1 : 0,
       });
     }
     // 현재 터져 있는(숨겨진) 반응형 구성요소 인덱스
@@ -749,10 +593,6 @@ class Game {
       this.shuffleTargets.delete(key);
     }
     this.playerItems.delete(playerId);
-    // 줄 자르기: 나간 플레이어의 공에 걸린 줄은 헛줄이 되고, 차례였다면 다음으로
-    if (this.ropePhase && this.ropeTurnPlayer === playerId && this.room.players.size > 0) {
-      this.advanceRopeTurn();
-    }
     if (!this.over && this.balls.size === 0) this.finish();
   }
 

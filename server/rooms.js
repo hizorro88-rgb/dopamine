@@ -76,7 +76,6 @@ class RoomManager {
         mapId: 'classic',
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
-        dropMode: 'shuffle', // 낙하 방식: 'shuffle' | 'ropes' (✂️ 줄 자르기)
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
@@ -243,23 +242,6 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
-    // 방장이 대기실에서 낙하 방식 변경 (셔플 / ✂️ 줄 자르기)
-    socket.on('room:setDropMode', ({ dropMode } = {}) => {
-      const room = this.roomOf(socket);
-      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
-      if (dropMode !== 'shuffle' && dropMode !== 'ropes') return;
-      room.dropMode = dropMode;
-      this.broadcastRoom(room);
-    });
-
-    // ✂️ 줄 자르기: 자기 차례에 줄 선택
-    socket.on('game:cutRope', ({ ropeIdx } = {}, cb) => {
-      const room = this.roomOf(socket);
-      if (!room || !room.game) return;
-      const error = room.game.cutRope(socket.id, Number(ropeIdx));
-      if (typeof cb === 'function') cb({ ok: !error, error });
-    });
-
     // 방장이 대기실에서 인당 공 개수 변경
     socket.on('room:setBalls', ({ ballsPerPlayer } = {}) => {
       const room = this.roomOf(socket);
@@ -344,7 +326,7 @@ class RoomManager {
         room.game = null;
         this.broadcastRoom(room);
       },
-      { autoPilot, dropMode: autoPilot ? 'shuffle' : room.dropMode }
+      { autoPilot }
     );
     room.game.start();
     this.broadcastRoom(room);
@@ -362,7 +344,6 @@ class RoomManager {
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
-      dropMode: room.dropMode || 'shuffle',
     });
   }
 }
