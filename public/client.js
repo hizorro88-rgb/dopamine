@@ -29,6 +29,27 @@
     }
   });
 
+  // ── 방문자 카운터 (방문자 id 기준 하루 1회 집계) ──
+  (() => {
+    let vid = localStorage.getItem('pinball-vid');
+    if (!vid) {
+      vid = 'v' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+      localStorage.setItem('pinball-vid', vid);
+    }
+    fetch('/api/visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vid }),
+    })
+      .then((r) => r.json())
+      .then(({ today, total }) => {
+        $('visit-today').textContent = today.toLocaleString();
+        $('visit-total').textContent = total.toLocaleString();
+        $('visit-counter').classList.remove('hidden');
+      })
+      .catch(() => {});
+  })();
+
   // ── 후원 링크 (서버 환경변수 DONATION_URL 설정 시에만 표시) ──
   fetch('/api/config')
     .then((r) => r.json())

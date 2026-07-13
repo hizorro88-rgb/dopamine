@@ -10,6 +10,13 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
 
 const donors = new DonorStore();
+const { VisitStore } = require('./visits');
+const visits = new VisitStore();
+
+// 방문 집계 (방문자 id 기준 하루 1회) + 현재 카운트 반환
+app.post('/api/visit', (req, res) => {
+  res.json(visits.visit((req.body || {}).vid));
+});
 
 // 클라이언트 설정: 후원 링크 (환경변수로 덮어쓰기 가능, 'off' 면 버튼 숨김)
 const DEFAULT_DONATION_URL = 'https://qr.kakaopay.com/Ej8euQo2R'; // 운영자 카카오페이

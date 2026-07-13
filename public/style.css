@@ -24,7 +24,7 @@ body {
 body {
   background: radial-gradient(ellipse at 50% -20%, #221d16 0%, #0d0c12 45%, var(--bg) 80%);
   color: var(--text);
-  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   overflow: hidden;
 }
 
@@ -51,9 +51,9 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Nanum Myeongjo', 'Gothic A1', 'Apple SD Gothic Neo', serif;
-  font-weight: 800;
-  letter-spacing: 1px;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 h1 {
   font-size: 30px;
@@ -72,7 +72,7 @@ h2 {
 
 /* ── 브랜드 타이틀 ── */
 .brand {
-  font-family: 'Cinzel', 'Nanum Myeongjo', serif;
+  font-family: 'Cinzel', serif;
   font-size: 40px;
   font-weight: 700;
   letter-spacing: 7px;
@@ -85,7 +85,7 @@ h2 {
   text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
 }
 .brand-tag {
-  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 4px;
@@ -512,6 +512,34 @@ input[type='text']:focus {
   flex-shrink: 0;
 }
 
+/* ── 방문자 카운터 ── */
+#visit-counter {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #262219;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 2px;
+}
+#visit-counter.hidden {
+  display: none;
+}
+#visit-counter .vc-label {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+}
+#visit-counter b {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  color: var(--accent2);
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.35);
+  margin: 0 2px;
+}
+#visit-counter .vc-dot {
+  margin: 0 8px;
+  color: #3a362c;
+}
+
 /* ── 공개 방 목록 (홈) ── */
 #rooms-box {
   margin-top: 18px;
@@ -521,7 +549,7 @@ input[type='text']:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-weight: 700;
   font-size: 13px;
   color: var(--accent);
@@ -573,7 +601,7 @@ input[type='text']:focus {
 
 /* ── 맵 후기 (커뮤니티) ── */
 #review-summary {
-  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--accent2);
@@ -900,7 +928,7 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -1063,7 +1091,7 @@ input[type='text']:focus {
   z-index: 1;
 }
 #winner-banner {
-  font-family: 'Nanum Myeongjo', 'Gothic A1', serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-size: 21px;
   font-weight: 900;
   letter-spacing: 1px;
