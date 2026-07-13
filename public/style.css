@@ -51,7 +51,8 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Gothic A1', 'Apple SD Gothic Neo', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', 'Apple SD Gothic Neo', serif;
+  letter-spacing: 1px;
 }
 h1 {
   font-size: 30px;
@@ -70,9 +71,9 @@ h2 {
 
 /* ── 브랜드 타이틀 ── */
 .brand {
-  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
-  font-size: 46px;
-  font-weight: 400;
+  font-family: 'Cinzel', 'Song Myung', serif;
+  font-size: 40px;
+  font-weight: 700;
   letter-spacing: 7px;
   margin-right: -7px; /* letter-spacing이 마지막 글자 뒤에도 붙어 중심이 밀리는 것 보정 */
   margin-bottom: 2px;
@@ -83,7 +84,7 @@ h2 {
   text-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
 }
 .brand-tag {
-  font-family: 'Gothic A1', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', serif;
   font-size: 14px;
   letter-spacing: 4px;
   color: var(--accent2);
@@ -187,9 +188,9 @@ input[type='text']:focus {
   margin-bottom: 18px;
 }
 .invite-code {
-  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
-  font-size: 34px;
-  font-weight: 400;
+  font-family: 'Cinzel', serif;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: 8px;
   color: var(--accent2);
   margin-bottom: 10px;
@@ -372,8 +373,8 @@ input[type='text']:focus {
   border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--muted);
-  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
-  font-size: 15px;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
   letter-spacing: 1px;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
@@ -451,9 +452,43 @@ input[type='text']:focus {
 #maps-list li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 10px;
+  gap: 12px;
+  padding: 12px 10px;
   border-bottom: 1px solid #262219;
+}
+#maps-list .map-thumb {
+  width: 56px;
+  height: 112px;
+  border-radius: 8px;
+  border: 1px solid #2c2c34;
+  background: #07070b;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+#maps-list .map-mid {
+  min-width: 0;
+}
+#maps-list .map-stars {
+  font-size: 16px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.45);
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+#maps-list .map-stars b {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  margin-left: 2px;
+}
+#maps-list .map-stars span {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+#maps-list .map-stars.empty {
+  color: #4a463c;
+  text-shadow: none;
 }
 #maps-list .map-title {
   font-weight: 700;
@@ -484,7 +519,7 @@ input[type='text']:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: 'Gothic A1', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', serif;
   font-weight: 700;
   font-size: 13px;
   color: var(--accent);
@@ -536,7 +571,7 @@ input[type='text']:focus {
 
 /* ── 맵 후기 (커뮤니티) ── */
 #review-summary {
-  font-family: 'Gothic A1', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--accent2);
@@ -863,7 +898,7 @@ input[type='text']:focus {
 }
 
 #countdown {
-  font-family: 'Gothic A1', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', serif;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -1026,7 +1061,7 @@ input[type='text']:focus {
   z-index: 1;
 }
 #winner-banner {
-  font-family: 'Gothic A1', sans-serif;
+  font-family: 'Song Myung', 'Gothic A1', serif;
   font-size: 21px;
   font-weight: 900;
   letter-spacing: 1px;

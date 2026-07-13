@@ -133,7 +133,7 @@
     ctx.shadowColor = '#35e0ff';
     ctx.shadowBlur = 10;
     ctx.fillStyle = 'rgba(235,250,255,0.92)';
-    ctx.font = "15px 'Bebas Neue', 'Gothic A1', sans-serif";
+    ctx.font = "13px 'Cinzel', serif";
     ctx.textAlign = 'center';
     ctx.fillText('F I N I S H', goal.x, goal.y - 10);
     ctx.restore();
@@ -855,6 +855,67 @@
   });
 
   // ── 🗺 맵 갤러리 ──────────────────────────────────────
+  const mapThumbCache = new Map(); // mapId -> 맵 정의 (썸네일용)
+
+  /** 맵 전체를 세로로 압축한 미니 스냅샷 — 구성요소를 색점·색선으로 그린다 */
+  function drawMapThumb(canvas, map) {
+    const W = 56;
+    const H = 112;
+    const dpr = 2;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const c2 = canvas.getContext('2d');
+    const sx = (W * dpr) / WORLD.width;
+    const sy = (H * dpr) / map.height;
+    c2.fillStyle = '#07070b';
+    c2.fillRect(0, 0, W * dpr, H * dpr);
+    for (const comp of map.components) {
+      const built = buildShapes(comp.type, comp.props);
+      if (!built) continue;
+      for (const sh of built.shapes) {
+        const color = sh.glow || sh.fill || '#35e0ff';
+        const px = (comp.x + (sh.x || 0)) * sx;
+        const py = (comp.y + (sh.y || 0)) * sy;
+        c2.fillStyle = color;
+        if (sh.kind === 'circle') {
+          const r = Math.max(1.3, sh.r * sx * 0.55);
+          c2.beginPath();
+          c2.arc(px, py, r, 0, Math.PI * 2);
+          c2.fill();
+        } else {
+          const len = Math.max(2.5, (sh.w || 0) * sx);
+          c2.save();
+          c2.translate(px, py);
+          c2.rotate(sh.angle || 0);
+          c2.fillRect(-len / 2, -0.9, len, 1.8);
+          c2.restore();
+        }
+      }
+    }
+    // 골인선
+    c2.fillStyle = 'rgba(53,224,255,0.9)';
+    c2.fillRect(0, H * dpr - 3, W * dpr, 2);
+  }
+
+  /** 맵 정의를 (캐시해서) 가져와 썸네일을 그린다 */
+  function loadMapThumb(canvas, mapId) {
+    const cached = mapThumbCache.get(mapId);
+    if (cached) return drawMapThumb(canvas, cached);
+    socket.emit('maps:get', { mapId }, (res) => {
+      if (!res || !res.ok) return;
+      mapThumbCache.set(mapId, res.map);
+      drawMapThumb(canvas, res.map);
+    });
+  }
+
+  /** 큰 별점 표기: ★★★★☆ 4.2 (12) — 카드 상단에 눈에 띄게 */
+  function starsHtml(m) {
+    if (!m.reviews) return `<div class="map-stars empty">☆☆☆☆☆ <span>아직 평가 없음</span></div>`;
+    const filled = Math.max(0, Math.min(5, Math.round(m.rating)));
+    return `<div class="map-stars">${'★'.repeat(filled)}${'☆'.repeat(5 - filled)}
+      <b>${m.rating}</b> <span>(${m.reviews})</span></div>`;
+  }
+
   function renderMapsGallery() {
     socket.emit('maps:list', null, (res) => {
       if (!res || !res.ok) return;
@@ -862,19 +923,18 @@
       list.innerHTML = '';
       for (const m of res.maps) {
         const li = document.createElement('li');
-        const rating =
-          m.reviews > 0
-            ? `<span class="map-rating">★${m.rating}</span> · 후기 ${m.reviews}개 · `
-            : '';
-        li.innerHTML = `<div>
+        li.innerHTML = `<canvas class="map-thumb" title="맵 미리보기"></canvas>
+          <div class="map-mid">
+            ${starsHtml(m)}
             <div class="map-title">${m.builtin ? '⭐' : '🛠'} ${escapeHtml(m.name)}</div>
-            <div class="map-meta">${rating}${escapeHtml(m.author)} · 길이 ${m.height} · 구성요소 ${m.count}개</div>
+            <div class="map-meta">${escapeHtml(m.author)} · 길이 ${m.height} · 구성요소 ${m.count}개</div>
           </div>
           <div class="map-actions">
             <button class="btn small" data-view="${m.id}">👁 구경</button>
             <button class="btn small" data-review="${m.id}" data-name="${escapeHtml(m.name)}">💬</button>
           </div>`;
         list.appendChild(li);
+        loadMapThumb(li.querySelector('.map-thumb'), m.id);
       }
       list.querySelectorAll('[data-view]').forEach((btn) =>
         btn.addEventListener('click', () => viewMap(btn.dataset.view))
