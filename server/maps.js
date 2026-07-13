@@ -138,6 +138,102 @@ function pixelGrid(comps, art, { y0, cell = 34, x0 = null, pegSize = 7 } = {}) {
   });
 }
 
+/** 꺾은선 경로 → 이어진 벽 조각들 (조각당 최대 280) — 협곡·코스형 맵용 */
+function wallPath(comps, points) {
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[i + 1];
+    const total = Math.hypot(x2 - x1, y2 - y1);
+    const n = Math.max(1, Math.ceil(total / 280));
+    for (let s = 0; s < n; s++) {
+      const ax = x1 + ((x2 - x1) * s) / n;
+      const ay = y1 + ((y2 - y1) * s) / n;
+      const bx = x1 + ((x2 - x1) * (s + 1)) / n;
+      const by = y1 + ((y2 - y1) * (s + 1)) / n;
+      let ang = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
+      if (ang > 90) ang -= 180;
+      if (ang < -90) ang += 180;
+      comps.push({
+        type: 'wall',
+        x: Math.round((ax + bx) / 2),
+        y: Math.round((ay + by) / 2),
+        props: {
+          length: Math.round(Math.hypot(bx - ax, by - ay)) + 6, // 이음새가 벌어지지 않게 살짝 겹침
+          angle: Math.round(ang * 10) / 10,
+        },
+      });
+    }
+  }
+}
+
+// 🐍 지그재그 협곡: 좌우로 꺾이는 벽 코스 — 공이 직선으로 못 떨어진다
+function canyonComponents() {
+  const comps = [];
+  // 1굽이: 왼쪽 벽 → 오른쪽 통로만 열림
+  wallPath(comps, [[25, 320], [430, 560]]);
+  // 통로 안 핀 3개
+  lineDots(comps, 480, 430, 520, 530, 45, 6);
+  // 2굽이: 오른쪽 벽 → 왼쪽으로
+  wallPath(comps, [[575, 700], [170, 950]]);
+  comps.push({ type: 'bumper', x: 100, y: 860, props: { size: 15 } });
+  // 3굽이: 왼쪽 벽 → 오른쪽으로
+  wallPath(comps, [[25, 1090], [430, 1340]]);
+  comps.push({ type: 'bomb', x: 520, y: 1220, props: { radius: 130, power: 13, respawn: 7 } });
+  // 삼각 섬: 꼭짓점이 위라 물길이 양쪽으로 갈라진다 (첨부 그림의 삼각형)
+  wallPath(comps, [[300, 1500], [215, 1665], [385, 1665], [300, 1500]]);
+  comps.push({ type: 'cross', x: 300, y: 1810, props: { length: 100, speed: 2 } });
+  // 4굽이: 오른쪽 벽 → 왼쪽으로
+  wallPath(comps, [[575, 1900], [170, 2150]]);
+  // 빗금 밭: 짧은 사선 벽 격자 (첨부 그림의 빗금 구간)
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 7; c++) {
+      comps.push({
+        type: 'wall',
+        x: 90 + c * 70 + (r % 2) * 35,
+        y: 2300 + r * 85,
+        props: { length: 46, angle: 42 },
+      });
+    }
+  }
+  // 지그재그 바: /\/\ — 골짜기마다 30px 배수 틈을 둬서 공이 고이지 않는다
+  for (let i = 0; i < 3; i++) {
+    const x0 = 55 + i * 185;
+    wallPath(comps, [[x0, 2720], [x0 + 70, 2630]]);
+    wallPath(comps, [[x0 + 85, 2630], [x0 + 155, 2720]]);
+  }
+  // 마지막 스피너 관문
+  comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 2.5 } });
+  return [...comps, ...funnel(3200)];
+}
+
+// 🌪 깔때기 폭포: 구멍 위치가 번갈아 바뀌는 깔때기 연속 — 병목에서 순위가 뒤집힌다
+function cascadeComponents() {
+  const comps = [];
+  const funnels = [
+    { y: 420, hole: 300 }, // 가운데
+    { y: 850, hole: 120 }, // 왼쪽
+    { y: 1280, hole: 480 }, // 오른쪽
+    { y: 1710, hole: 220 }, // 중간 왼쪽
+    { y: 2140, hole: 380 }, // 중간 오른쪽
+  ];
+  for (const [i, f] of funnels.entries()) {
+    const half = 42; // 구멍 반폭
+    if (f.hole - half > 45) wallPath(comps, [[25, f.y - 130], [f.hole - half, f.y]]);
+    if (f.hole + half < 555) wallPath(comps, [[575, f.y - 130], [f.hole + half, f.y]]);
+    // 깔때기 사이 심심하지 않게: 핀 몇 개 + 번갈아 회전체
+    lineDots(comps, 150, f.y + 120, 450, f.y + 120, 75, 6);
+    if (i % 2 === 0) {
+      comps.push({ type: 'cross', x: f.hole, y: f.y + 210, props: { length: 90, speed: i % 4 === 0 ? 2 : -2 } });
+    } else {
+      comps.push({ type: 'bumper', x: f.hole, y: f.y + 210, props: { size: 16 } });
+    }
+  }
+  // 마지막 구간: 폭탄 지뢰밭
+  comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
+  comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
+  return [...comps, ...funnel(2900)];
+}
+
 // 🌼 활짝 핀 꽃: 꽃잎 링 + 회전 십자 꽃술 + 긴 줄기 + 잎 + 잔디
 function flowerComponents() {
   const comps = [];
@@ -395,6 +491,23 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 2400,
     components: heartsComponents(),
+  },
+  // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
+  {
+    id: 'canyon',
+    name: '🐍 지그재그 협곡',
+    author: '기본 맵',
+    builtin: true,
+    height: 3200,
+    components: canyonComponents(),
+  },
+  {
+    id: 'cascade',
+    name: '🌪 깔때기 폭포',
+    author: '기본 맵',
+    builtin: true,
+    height: 2900,
+    components: cascadeComponents(),
   },
 ];
 
