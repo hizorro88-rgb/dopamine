@@ -98,7 +98,7 @@
       desc: '뱅글뱅글 돌아가며 공을 쳐내는 막대',
       props: [
         { key: 'length', label: '길이', min: 60, max: 260, step: 10, default: 150 },
-        { key: 'speed', label: '회전 속도', min: -4, max: 4, step: 0.5, default: 2 },
+        { key: 'speed', label: '회전 속도', min: -9, max: 9, step: 0.5, default: 4 },
       ],
       build(p) {
         return {
@@ -151,7 +151,7 @@
       desc: '십자 모양으로 돌아가는 방해물',
       props: [
         { key: 'length', label: '길이', min: 60, max: 220, step: 10, default: 130 },
-        { key: 'speed', label: '회전 속도', min: -4, max: 4, step: 0.5, default: -1.5 },
+        { key: 'speed', label: '회전 속도', min: -9, max: 9, step: 0.5, default: -3.5 },
       ],
       build(p) {
         return {

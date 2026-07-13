@@ -58,9 +58,9 @@ function spinnerParkComponents() {
   comps.push({ type: 'bumper', x: 490, y: 385, props: { size: 18 } });
 
   // 2구간: 회전 막대 쌍 + 중앙 십자 + 구석 폭탄
-  comps.push({ type: 'spinner', x: 170, y: 530, props: { length: 160, speed: 2 } });
-  comps.push({ type: 'spinner', x: 430, y: 530, props: { length: 160, speed: -2 } });
-  comps.push({ type: 'cross', x: 300, y: 690, props: { length: 150, speed: 1.5 } });
+  comps.push({ type: 'spinner', x: 170, y: 530, props: { length: 160, speed: 4 } });
+  comps.push({ type: 'spinner', x: 430, y: 530, props: { length: 160, speed: -4 } });
+  comps.push({ type: 'cross', x: 300, y: 690, props: { length: 150, speed: 3 } });
   comps.push({ type: 'bomb', x: 60, y: 690, props: { radius: 150, power: 14, respawn: 6 } });
   comps.push({ type: 'bomb', x: 540, y: 690, props: { radius: 150, power: 14, respawn: 6 } });
 
@@ -72,13 +72,13 @@ function spinnerParkComponents() {
   comps.push({ type: 'bumper', x: 300, y: 1020, props: { size: 20 } });
 
   // 4구간: 대형 중앙 회전 막대 + 사이드 범퍼
-  comps.push({ type: 'spinner', x: 300, y: 1170, props: { length: 220, speed: 2.5 } });
+  comps.push({ type: 'spinner', x: 300, y: 1170, props: { length: 220, speed: 5 } });
   comps.push({ type: 'bumper', x: 85, y: 1170, props: { size: 16 } });
   comps.push({ type: 'bumper', x: 515, y: 1170, props: { size: 16 } });
 
   // 5구간: 회전 십자 쌍
-  comps.push({ type: 'cross', x: 170, y: 1350, props: { length: 130, speed: -2 } });
-  comps.push({ type: 'cross', x: 430, y: 1350, props: { length: 130, speed: 2 } });
+  comps.push({ type: 'cross', x: 170, y: 1350, props: { length: 130, speed: -4 } });
+  comps.push({ type: 'cross', x: 430, y: 1350, props: { length: 130, speed: 4 } });
 
   // 6구간: 핀 + 지그재그 벽
   pegRow(comps, 1490);
@@ -87,8 +87,8 @@ function spinnerParkComponents() {
   comps.push({ type: 'wall', x: 420, y: 1820, props: { length: 280, angle: -20 } });
 
   // 7구간: 마지막 관문 — 빠른 회전 막대 + 중앙 폭탄
-  comps.push({ type: 'spinner', x: 150, y: 1975, props: { length: 150, speed: -3 } });
-  comps.push({ type: 'spinner', x: 450, y: 1975, props: { length: 150, speed: 3 } });
+  comps.push({ type: 'spinner', x: 150, y: 1975, props: { length: 150, speed: -6 } });
+  comps.push({ type: 'spinner', x: 450, y: 1975, props: { length: 150, speed: 6 } });
   comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
   pegRow(comps, 2170);
 
@@ -181,7 +181,7 @@ function canyonComponents() {
   comps.push({ type: 'bomb', x: 520, y: 1220, props: { radius: 130, power: 13, respawn: 7 } });
   // 삼각 섬: 꼭짓점이 위라 물길이 양쪽으로 갈라진다 (첨부 그림의 삼각형)
   wallPath(comps, [[300, 1500], [215, 1665], [385, 1665], [300, 1500]]);
-  comps.push({ type: 'cross', x: 300, y: 1810, props: { length: 100, speed: 2 } });
+  comps.push({ type: 'cross', x: 300, y: 1810, props: { length: 100, speed: 4 } });
   // 4굽이: 오른쪽 벽 → 왼쪽으로
   wallPath(comps, [[575, 1900], [170, 2150]]);
   // 빗금 밭: 짧은 사선 벽 격자 (첨부 그림의 빗금 구간)
@@ -202,7 +202,7 @@ function canyonComponents() {
     wallPath(comps, [[x0 + 85, 2630], [x0 + 155, 2720]]);
   }
   // 마지막 스피너 관문
-  comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 2.5 } });
+  comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
   return [...comps, ...funnel(3200)];
 }
 
@@ -223,7 +223,7 @@ function cascadeComponents() {
     // 깔때기 사이 심심하지 않게: 핀 몇 개 + 번갈아 회전체
     lineDots(comps, 150, f.y + 120, 450, f.y + 120, 75, 6);
     if (i % 2 === 0) {
-      comps.push({ type: 'cross', x: f.hole, y: f.y + 210, props: { length: 90, speed: i % 4 === 0 ? 2 : -2 } });
+      comps.push({ type: 'cross', x: f.hole, y: f.y + 210, props: { length: 90, speed: i % 4 === 0 ? 4 : -4 } });
     } else {
       comps.push({ type: 'bumper', x: f.hole, y: f.y + 210, props: { size: 16 } });
     }
@@ -250,7 +250,7 @@ function flowerComponents() {
       props: { size: 16 },
     });
   }
-  comps.push({ type: 'cross', x: cx, y: cy, props: { length: 90, speed: 1.5 } });
+  comps.push({ type: 'cross', x: cx, y: cy, props: { length: 90, speed: 3 } });
   // 줄기
   lineDots(comps, 300, 680, 300, 1560, 38);
   // 잎 두 장
@@ -288,7 +288,7 @@ function invaderComponents() {
   pixelGrid(comps, INVADER_ART, { y0: 1450, cell: 30, pegSize: 6 });
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
-  comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 3 } });
+  comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
   return [...comps, ...funnel(2400)];
 }
 
@@ -308,7 +308,7 @@ function mushroomComponents() {
   comps.push({ type: 'bomb', x: 268, y: 780, props: { radius: 120, power: 12, respawn: 8 } });
   comps.push({ type: 'bomb', x: 332, y: 780, props: { radius: 120, power: 12, respawn: 8 } });
   // 바람개비
-  comps.push({ type: 'cross', x: 300, y: 1400, props: { length: 120, speed: 2 } });
+  comps.push({ type: 'cross', x: 300, y: 1400, props: { length: 120, speed: 4 } });
   // 아기 버섯 세 그루
   for (const [x, y] of [[140, 1780], [300, 1930], [465, 1780]]) {
     arcDots(comps, x, y, 70, -170, -10, 7, 6);
@@ -355,8 +355,8 @@ function skullComponents() {
   for (const [x, y] of [[120, 1620], [250, 1700], [480, 1650], [370, 1800], [150, 1900], [520, 1950]]) {
     comps.push(peg(x, y, 6));
   }
-  comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -2 } });
-  comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 2 } });
+  comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -4 } });
+  comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 4 } });
   return [...comps, ...funnel(2400)];
 }
 
@@ -379,9 +379,9 @@ function rocketComponents() {
   comps.push({ type: 'wall', x: 432, y: 1180, props: { length: 170, angle: -60 } });
   lineDots(comps, 235, 1160, 365, 1160, 42, 6);
   // 불꽃: 회전체 + 폭탄 (진짜로 폭발하는 배기가스)
-  comps.push({ type: 'cross', x: 300, y: 1310, props: { length: 110, speed: 3.5 } });
-  comps.push({ type: 'spinner', x: 245, y: 1480, props: { length: 90, speed: -3 } });
-  comps.push({ type: 'spinner', x: 355, y: 1480, props: { length: 90, speed: 3 } });
+  comps.push({ type: 'cross', x: 300, y: 1310, props: { length: 110, speed: 7 } });
+  comps.push({ type: 'spinner', x: 245, y: 1480, props: { length: 90, speed: -6 } });
+  comps.push({ type: 'spinner', x: 355, y: 1480, props: { length: 90, speed: 6 } });
   comps.push({ type: 'bumper', x: 262, y: 1600, props: { size: 13 } });
   comps.push({ type: 'bumper', x: 338, y: 1600, props: { size: 13 } });
   comps.push({ type: 'bomb', x: 300, y: 1700, props: { radius: 150, power: 15, respawn: 7 } });
@@ -422,7 +422,7 @@ function heartsComponents() {
     comps.push(peg(x, y, 6));
   }
   // 두근두근 바람개비
-  comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 2.5 } });
+  comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
   return [...comps, ...funnel(2400)];
 }
 
