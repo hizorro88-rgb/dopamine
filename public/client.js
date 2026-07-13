@@ -66,7 +66,8 @@
         ctx.shadowColor = s.glow || color;
         ctx.shadowBlur = 13;
       }
-      ctx.fillStyle = color;
+      // 미니맵(flat)에서는 어두운 도형 대신 글로우 색으로 — 폭탄이 빨간 점으로 보임
+      ctx.fillStyle = flat ? s.glow || color : color;
       if (s.kind === 'circle') {
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);

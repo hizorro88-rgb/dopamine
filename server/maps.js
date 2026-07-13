@@ -23,8 +23,7 @@ function peg(x, y, size = 8) {
 }
 
 // 맵 하단 공통: 골인 지점으로 좁아지는 깔때기
-function funnel() {
-  const H = WORLD.height;
+function funnel(H = WORLD.height) {
   return [
     { type: 'wall', x: 115, y: H - 155, props: { length: 290, angle: 27.5 } },
     { type: 'wall', x: 485, y: H - 155, props: { length: 290, angle: -27.5 } },
@@ -96,6 +95,241 @@ function spinnerParkComponents() {
   return [...comps, ...funnel()];
 }
 
+// ── 픽셀 아트 헬퍼: 미니맵에서 그림이 보이는 맵을 만들기 위한 도구 ──
+// 전부 "점선"으로 그린다 — 점 사이 틈으로 공이 새어 나가므로 그림이 공을 가두지 않는다.
+
+/** 원(호) 위에 핀을 점점이 배치. a0~a1은 도(°) 단위, 시계 12시가 -90 */
+function arcDots(comps, cx, cy, r, a0, a1, n, size = 7) {
+  for (let i = 0; i < n; i++) {
+    const a = ((a0 + ((a1 - a0) * i) / Math.max(n - 1, 1)) * Math.PI) / 180;
+    comps.push(peg(cx + Math.cos(a) * r, cy + Math.sin(a) * r, size));
+  }
+}
+function ringDots(comps, cx, cy, r, n, size = 7) {
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n - Math.PI / 2;
+    comps.push(peg(cx + Math.cos(a) * r, cy + Math.sin(a) * r, size));
+  }
+}
+/** 두 점 사이를 핀 점선으로 연결 */
+function lineDots(comps, x1, y1, x2, y2, step = 34, size = 7) {
+  const n = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / step));
+  for (let i = 0; i <= n; i++) {
+    comps.push(peg(x1 + ((x2 - x1) * i) / n, y1 + ((y2 - y1) * i) / n, size));
+  }
+}
+/**
+ * 문자 그리드 → 구성요소 (도트 그림용)
+ *   o 핀 / O 큰 핀 / * 범퍼(노랑) / @ 폭탄(붉은 글로우) / . 빈칸
+ */
+function pixelGrid(comps, art, { y0, cell = 34, x0 = null, pegSize = 7 } = {}) {
+  const cols = Math.max(...art.map((r) => r.length));
+  const startX = x0 !== null ? x0 : (WORLD.width - (cols - 1) * cell) / 2;
+  art.forEach((row, r) => {
+    [...row].forEach((ch, c) => {
+      const x = startX + c * cell;
+      const y = y0 + r * cell;
+      if (ch === 'o') comps.push(peg(x, y, pegSize));
+      else if (ch === 'O') comps.push(peg(x, y, 11));
+      else if (ch === '*') comps.push({ type: 'bumper', x, y, props: { size: 15 } });
+      else if (ch === '@')
+        comps.push({ type: 'bomb', x, y, props: { radius: 130, power: 13, respawn: 8 } });
+    });
+  });
+}
+
+// 🌼 활짝 핀 꽃: 꽃잎 링 + 회전 십자 꽃술 + 긴 줄기 + 잎 + 잔디
+function flowerComponents() {
+  const comps = [];
+  const cx = 300;
+  const cy = 430;
+  ringDots(comps, cx, cy, 90, 12, 8);
+  ringDots(comps, cx, cy, 150, 18, 8);
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+    comps.push({
+      type: 'bumper',
+      x: cx + Math.cos(a) * 208,
+      y: cy + Math.sin(a) * 208,
+      props: { size: 16 },
+    });
+  }
+  comps.push({ type: 'cross', x: cx, y: cy, props: { length: 90, speed: 1.5 } });
+  // 줄기
+  lineDots(comps, 300, 680, 300, 1560, 38);
+  // 잎 두 장
+  ringDots(comps, 185, 880, 55, 8);
+  lineDots(comps, 300, 950, 245, 905, 34);
+  ringDots(comps, 415, 1120, 55, 8);
+  lineDots(comps, 300, 1190, 355, 1145, 34);
+  // 무당벌레 (폭탄)
+  comps.push({ type: 'bomb', x: 150, y: 1350, props: { radius: 130, power: 13, respawn: 8 } });
+  comps.push({ type: 'bomb', x: 460, y: 1600, props: { radius: 130, power: 13, respawn: 8 } });
+  // 잔디
+  for (let i = 0; i < 5; i++) {
+    lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
+  }
+  return [...comps, ...funnel(2400)];
+}
+
+// 👾 픽셀 인베이더: 8비트 외계인 편대 (눈은 폭탄!) + UFO 회전 막대
+const INVADER_ART = [
+  '..o.....o..',
+  '...o...o...',
+  '..ooooooo..',
+  '.oo@ooo@oo.',
+  'ooooooooooo',
+  'o.ooooooo.o',
+  'o.o.....o.o',
+  '...oo.oo...',
+];
+const INVADER_ART_SMALL = INVADER_ART.map((r) => r.replace(/@/g, 'o'));
+function invaderComponents() {
+  const comps = [];
+  pixelGrid(comps, INVADER_ART, { y0: 250, cell: 40, pegSize: 8 });
+  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 22, x0: 85, pegSize: 5 });
+  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 22, x0: 295, pegSize: 5 });
+  pixelGrid(comps, INVADER_ART, { y0: 1450, cell: 30, pegSize: 6 });
+  // UFO: 돔 범퍼 + 회전 막대
+  comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
+  comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 3 } });
+  return [...comps, ...funnel(2400)];
+}
+
+// 🍄 대왕 버섯: 갓(호) + 노란 점무늬 + 줄기 얼굴(폭탄 눈) + 아기 버섯들
+function mushroomComponents() {
+  const comps = [];
+  arcDots(comps, 300, 560, 210, -172, -8, 17, 8);
+  arcDots(comps, 300, 560, 150, -160, -20, 12, 7);
+  lineDots(comps, 110, 560, 490, 560, 40);
+  // 갓 점무늬
+  for (const [x, y] of [[230, 440], [370, 440], [300, 350], [175, 505], [425, 505]]) {
+    comps.push({ type: 'bumper', x, y, props: { size: 15 } });
+  }
+  // 줄기 + 눈 (폭탄)
+  lineDots(comps, 235, 600, 235, 1120, 38);
+  lineDots(comps, 365, 600, 365, 1120, 38);
+  comps.push({ type: 'bomb', x: 268, y: 780, props: { radius: 120, power: 12, respawn: 8 } });
+  comps.push({ type: 'bomb', x: 332, y: 780, props: { radius: 120, power: 12, respawn: 8 } });
+  // 바람개비
+  comps.push({ type: 'cross', x: 300, y: 1400, props: { length: 120, speed: 2 } });
+  // 아기 버섯 세 그루
+  for (const [x, y] of [[140, 1780], [300, 1930], [465, 1780]]) {
+    arcDots(comps, x, y, 70, -170, -10, 7, 6);
+    lineDots(comps, x - 18, y + 15, x - 18, y + 85, 35, 5);
+    lineDots(comps, x + 18, y + 15, x + 18, y + 85, 35, 5);
+  }
+  return [...comps, ...funnel(2400)];
+}
+
+// 💀 해적 해골: 두개골 + 폭탄 눈 + 이빨 + 엇갈린 뼈다귀(벽) + 유골 별자리
+function skullComponents() {
+  const comps = [];
+  arcDots(comps, 300, 470, 190, -215, 35, 22, 8);
+  // 눈: 붉게 빛나는 폭탄
+  comps.push({ type: 'bomb', x: 232, y: 435, props: { radius: 130, power: 13, respawn: 7 } });
+  comps.push({ type: 'bomb', x: 368, y: 435, props: { radius: 130, power: 13, respawn: 7 } });
+  // 코
+  comps.push(peg(300, 545, 7));
+  comps.push(peg(286, 572, 7));
+  comps.push(peg(314, 572, 7));
+  // 턱 라인 + 이빨
+  lineDots(comps, 152, 580, 195, 665, 36);
+  lineDots(comps, 448, 580, 405, 665, 36);
+  for (let x = 218; x <= 382; x += 41) {
+    comps.push(peg(x, 660, 6));
+    comps.push(peg(x, 692, 6));
+  }
+  // 엇갈린 뼈다귀: 가운데가 뚫린 X — 교차점 V홈에 공이 끼지 않도록 4토막
+  for (const ang of [40, -40]) {
+    const rad = (ang * Math.PI) / 180;
+    for (const dir of [-1, 1]) {
+      comps.push({
+        type: 'wall',
+        x: 300 + Math.cos(rad) * 105 * dir,
+        y: 1250 + Math.sin(rad) * 105 * dir,
+        props: { length: 120, angle: ang },
+      });
+    }
+  }
+  for (const [x, y] of [[182, 1152], [418, 1152], [182, 1348], [418, 1348]]) {
+    comps.push({ type: 'bumper', x, y, props: { size: 14 } });
+  }
+  // 유골 별자리 + 유령 바람개비
+  for (const [x, y] of [[120, 1620], [250, 1700], [480, 1650], [370, 1800], [150, 1900], [520, 1950]]) {
+    comps.push(peg(x, y, 6));
+  }
+  comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -2 } });
+  comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 2 } });
+  return [...comps, ...funnel(2400)];
+}
+
+// 🚀 로켓 발사: 기체 + 창문 + 날개 + 회전 불꽃 + 별밤
+function rocketComponents() {
+  const comps = [];
+  // 기수(원뿔)
+  lineDots(comps, 300, 200, 215, 400, 36);
+  lineDots(comps, 300, 200, 385, 400, 36);
+  // 동체
+  lineDots(comps, 215, 400, 215, 1120, 38);
+  lineDots(comps, 385, 400, 385, 1120, 38);
+  // 창문
+  ringDots(comps, 300, 580, 55, 10);
+  comps.push({ type: 'bumper', x: 300, y: 580, props: { size: 16 } });
+  // 무늬 띠
+  lineDots(comps, 245, 790, 355, 790, 38, 6);
+  // 날개
+  comps.push({ type: 'wall', x: 168, y: 1180, props: { length: 170, angle: 60 } });
+  comps.push({ type: 'wall', x: 432, y: 1180, props: { length: 170, angle: -60 } });
+  lineDots(comps, 235, 1160, 365, 1160, 42, 6);
+  // 불꽃: 회전체 + 폭탄 (진짜로 폭발하는 배기가스)
+  comps.push({ type: 'cross', x: 300, y: 1310, props: { length: 110, speed: 3.5 } });
+  comps.push({ type: 'spinner', x: 245, y: 1480, props: { length: 90, speed: -3 } });
+  comps.push({ type: 'spinner', x: 355, y: 1480, props: { length: 90, speed: 3 } });
+  comps.push({ type: 'bumper', x: 262, y: 1600, props: { size: 13 } });
+  comps.push({ type: 'bumper', x: 338, y: 1600, props: { size: 13 } });
+  comps.push({ type: 'bomb', x: 300, y: 1700, props: { radius: 150, power: 15, respawn: 7 } });
+  // 별밤 + 초승달
+  for (const [x, y] of [[95, 1950], [210, 2060], [480, 1990], [370, 2160], [130, 2300], [520, 2280], [300, 2380], [450, 2480], [180, 2540]]) {
+    comps.push(peg(x, y, 6));
+  }
+  comps.push({ type: 'bumper', x: 90, y: 2150, props: { size: 14 } });
+  comps.push({ type: 'bumper', x: 540, y: 2420, props: { size: 14 } });
+  arcDots(comps, 470, 2100, 75, -140, 60, 9, 6);
+  return [...comps, ...funnel(3000)];
+}
+
+// ❤️ 하트 폭포: 점점 작아지는 하트 셋 — 마지막 심장은 터진다
+function heartDots(comps, cx, cy, s, n, size = 7, open = 0.45) {
+  for (let i = 0; i < n; i++) {
+    const t = (Math.PI * 2 * i) / n;
+    // 위 골짜기(t≈0)와 아래 꼭짓점(t≈π)은 점이 밀집해 공이 갇히므로 뚫어둔다
+    if (Math.abs(Math.sin(t)) < open) continue;
+    const x = 16 * Math.pow(Math.sin(t), 3);
+    const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    comps.push(peg(cx + x * s, cy - y * s, size));
+  }
+}
+function heartsComponents() {
+  const comps = [];
+  heartDots(comps, 300, 500, 13, 30, 8, 0.45);
+  comps.push({ type: 'bumper', x: 300, y: 480, props: { size: 18 } });
+  // 큐피드 화살
+  comps.push({ type: 'wall', x: 300, y: 520, props: { length: 300, angle: -20 } });
+  comps.push({ type: 'bumper', x: 445, y: 468, props: { size: 13 } });
+  heartDots(comps, 195, 1220, 8, 22, 7, 0.35);
+  comps.push({ type: 'bumper', x: 195, y: 1208, props: { size: 15 } });
+  heartDots(comps, 405, 1650, 6.5, 18, 6, 0.3);
+  comps.push({ type: 'bomb', x: 405, y: 1642, props: { radius: 140, power: 14, respawn: 8 } });
+  // 반짝이 별가루
+  for (const [x, y] of [[490, 950], [110, 1500], [520, 1350], [90, 1800], [300, 1500]]) {
+    comps.push(peg(x, y, 6));
+  }
+  // 두근두근 바람개비
+  comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 2.5 } });
+  return [...comps, ...funnel(2400)];
+}
+
 const BUILTIN_MAPS = [
   {
     id: 'classic',
@@ -112,6 +346,55 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: WORLD.height,
     components: spinnerParkComponents(),
+  },
+  // ── 미니맵 아트 맵: 미니맵으로 보면 그림, 게임에선 핀·범퍼·회전체·폭탄 ──
+  {
+    id: 'flower',
+    name: '🌼 활짝 핀 꽃',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: flowerComponents(),
+  },
+  {
+    id: 'invader',
+    name: '👾 픽셀 인베이더',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: invaderComponents(),
+  },
+  {
+    id: 'mushroom',
+    name: '🍄 대왕 버섯',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: mushroomComponents(),
+  },
+  {
+    id: 'skull',
+    name: '💀 해적 해골',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: skullComponents(),
+  },
+  {
+    id: 'rocket',
+    name: '🚀 로켓 발사',
+    author: '기본 맵',
+    builtin: true,
+    height: 3000,
+    components: rocketComponents(),
+  },
+  {
+    id: 'hearts',
+    name: '❤️ 하트 폭포',
+    author: '기본 맵',
+    builtin: true,
+    height: 2400,
+    components: heartsComponents(),
   },
 ];
 

@@ -26,6 +26,7 @@ const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
 const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률로 단 한 명에게 부여
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
+const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
 const SHUFFLE_MAX_MS = 45000; // 방장이 안 누르면 자동 낙하
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
@@ -444,6 +445,22 @@ class Game {
       if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
         Matter.Body.setVelocity(ball, { x: 0, y: 0 });
         Matter.Body.setPosition(ball, ball.plugin.frozenPos);
+      }
+    }
+
+    // 갇힘 구출: 게임 시간 5초 동안 하강 진전이 없으면 위쪽 랜덤 방향으로 살짝 튕겨준다
+    // (아트 맵의 오목한 그림·범퍼 사이 무한 바운스 대비 — 참고한 마블 룰렛의 STUCK_DELAY와 같은 발상)
+    for (const ball of this.balls.values()) {
+      if (ball.plugin.done || ball.plugin.frozen) continue;
+      if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6) {
+        ball.plugin.progressY = ball.position.y;
+        ball.plugin.stuckSince = sim;
+      } else if (sim - ball.plugin.stuckSince > STUCK_MS) {
+        Matter.Body.setVelocity(ball, {
+          x: (Math.random() - 0.5) * 16,
+          y: -6 - Math.random() * 4,
+        });
+        ball.plugin.stuckSince = sim;
       }
     }
 

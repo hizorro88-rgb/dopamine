@@ -298,7 +298,7 @@
         c.shadowColor = s.glow || color;
         c.shadowBlur = 13;
       }
-      c.fillStyle = color;
+      c.fillStyle = flat ? s.glow || color : color;
       if (s.kind === 'circle') {
         c.beginPath();
         c.arc(s.x, s.y, s.r, 0, Math.PI * 2);

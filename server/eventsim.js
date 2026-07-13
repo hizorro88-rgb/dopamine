@@ -199,6 +199,21 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
+      // 갇힘 구출 (라이브 게임과 동일: 5초간 하강 진전 없으면 튕겨줌)
+      for (const ball of balls.values()) {
+        if (ball.plugin.done || ball.plugin.frozen) continue;
+        if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6) {
+          ball.plugin.progressY = ball.position.y;
+          ball.plugin.stuckSince = simNow;
+        } else if (simNow - ball.plugin.stuckSince > 5000) {
+          Matter.Body.setVelocity(ball, {
+            x: (Math.random() - 0.5) * 16,
+            y: -6 - Math.random() * 4,
+          });
+          ball.plugin.stuckSince = simNow;
+        }
+      }
+
       Matter.Engine.update(engine, TICK_MS);
 
       // 도착 판정
