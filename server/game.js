@@ -27,7 +27,7 @@ const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률�
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
-const { SHUFFLE_AUTO_DROP_MS } = require('./config'); // 방장이 안 누르면 자동 낙하 (기본 5초)
+const { SHUFFLE_AUTO_DROP_MS, ITEM_INTRO_MS } = require('./config'); // 자동 낙하 5초 / 아이템 소개 6초
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
@@ -184,6 +184,9 @@ class Game {
     this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_AUTO_DROP_MS;
     this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
     this.speedMult = 1; // ⏩ 방장이 게임 중 올릴 수 있는 추가 배속 (1~3)
+    // 🎁 아이템 소개 단계: 이 시각까지는 셔플·낙하가 잠긴다 (올랜덤은 아이템이 없으므로 생략)
+    this.introUntil = 0;
+    this.introDone = false;
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
@@ -284,6 +287,9 @@ class Game {
     }
 
     this.startedAt = Date.now();
+    if (!this.autoPilot && ITEM_INTRO_MS > 0) {
+      this.introUntil = this.startedAt + ITEM_INTRO_MS;
+    }
 
     // 각자에게 자기 아이템 포함 시작 정보 전송
     for (const player of players) {
@@ -296,6 +302,7 @@ class Game {
         ballsPerPlayer: this.ballsPerPlayer,
         shuffle: true,
         autoPilot: this.autoPilot,
+        introMs: this.introUntil ? Math.max(0, this.introUntil - Date.now()) : 0,
         players: players.map((p) => ({
           id: p.id,
           name: p.name,
@@ -335,6 +342,7 @@ class Game {
       ballsPerPlayer: this.ballsPerPlayer,
       shuffle: this.shuffling,
       autoPilot: this.autoPilot,
+      introMs: this.introUntil ? Math.max(0, this.introUntil - Date.now()) : 0,
       spectator: true,
       players: [...this.room.players.values()].map((p) => ({
         id: p.id,
@@ -369,6 +377,7 @@ class Game {
   /** 방장이 낙하 버튼을 누른 순간 — 지금 위치 그대로 낙하 시작 */
   drop() {
     if (!this.shuffling || this.over) return;
+    if (Date.now() < this.introUntil) return; // 🎁 아이템 소개 중에는 낙하 금지
     this.shuffling = false;
     this.dropAt = Date.now();
     this.dropSimMs = this.simMs;
@@ -412,7 +421,13 @@ class Game {
       this.simMs += TICK_MS;
       this.rotateSpinners();
       const wall = Date.now();
-      if (wall >= this.nextShuffleAt) this.assignShuffleTargets();
+      // 🎁 아이템 소개 중: 공은 제자리에 대기, 셔플·자동낙하 타이머 정지
+      const inIntro = wall < this.introUntil;
+      if (!inIntro && this.introUntil && !this.introDone) {
+        this.introDone = true;
+        this.startedAt = wall; // 소개가 끝난 시점부터 셔플 5초를 센다
+      }
+      if (!inIntro && wall >= this.nextShuffleAt) this.assignShuffleTargets();
       for (const [key, ball] of this.balls) {
         const target = this.shuffleTargets.get(key);
         Matter.Body.setVelocity(ball, { x: 0, y: 0 });
@@ -423,7 +438,7 @@ class Game {
       }
       Matter.Engine.update(this.engine, TICK_MS);
       // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
-      if (wall - this.startedAt > this.shuffleLimitMs) this.drop();
+      if (!inIntro && wall - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
       // 낙하 단계: TIME_SCALE × 방장 배속 — 틱당 서브스텝 반복
       const steps = TIME_SCALE * this.speedMult;

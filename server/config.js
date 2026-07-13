@@ -23,4 +23,13 @@ module.exports = {
     Number(process.env.SHUFFLE_AUTO_DROP_MS) > 0
       ? Number(process.env.SHUFFLE_AUTO_DROP_MS)
       : 5000,
+
+  /**
+   * 아이템전 시작 시 아이템 소개 시간 (ms) — 각자 받은 아이템 카드를
+   * 확인하는 단계. 이 시간이 끝나야 셔플이 시작됩니다. 0이면 생략.
+   */
+  ITEM_INTRO_MS:
+    process.env.ITEM_INTRO_MS !== undefined
+      ? Number(process.env.ITEM_INTRO_MS) || 0
+      : 6000,
 };

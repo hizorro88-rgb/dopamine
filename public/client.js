@@ -1137,7 +1137,7 @@
 
   // ── 게임 시작 ─────────────────────────────────────────
   // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
-  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished }) {
+  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished, introMs }) {
     game = {
       board,
       autoPilot: !!autoPilot,
@@ -1176,7 +1176,10 @@
       (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승');
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
+    // 아이템전 시작 시 잠깐 아이템 소개 시간을 가진다 (서버가 그동안 셔플·낙하를 멈춘다)
+    game.introEndsAt = introMs > 0 ? performance.now() + introMs : 0;
     renderItems();
+    showIntro();
     showScreen('game'); // 화면 표시 후에 캔버스 크기 계산 (숨김 상태에선 부모 크기가 0)
     setupCanvas();
     // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
@@ -1455,6 +1458,35 @@
       }
       slots.appendChild(div);
     });
+  }
+
+  // ── 🎁 아이템 소개 (아이템전 시작 직후) ──────────────────
+  function showIntro() {
+    const modal = $('intro-modal');
+    if (!game.introEndsAt) return modal.classList.add('hidden');
+    const cards = $('intro-cards');
+    cards.innerHTML = '';
+    const items = (game.items || []).filter(Boolean);
+    if (game.spectator || items.length === 0) {
+      $('intro-sub').textContent = '플레이어들이 자기 아이템을 확인하는 중입니다...';
+    } else {
+      $('intro-sub').textContent = '이번 판에 쓸 수 있는 아이템입니다. 타이밍을 노려 사용하세요!';
+      items.forEach((item, i) => {
+        const div = document.createElement('div');
+        const grade = item.grade === 'legend' ? ' legend' : item.grade === 'epic' ? ' epic' : '';
+        div.className = 'intro-card' + grade;
+        div.style.animationDelay = `${0.2 + i * 0.4}s`; // 한 장씩 차례로 공개
+        const badge =
+          item.grade === 'legend' ? '👑 레전드' : item.grade === 'epic' ? '⭐ 에픽' : '일반';
+        div.innerHTML =
+          `<div class="intro-emoji">${item.emoji}</div>` +
+          `<div class="intro-name">${item.name}</div>` +
+          `<div class="intro-grade${grade}">${badge}</div>` +
+          `<div class="intro-desc">${item.desc}</div>`;
+        cards.appendChild(div);
+      });
+    }
+    modal.classList.remove('hidden');
   }
 
   function onItemClick(slotIndex) {
@@ -1807,13 +1839,27 @@
     // 상태 표시 + 방장 낙하 버튼 (리플레이는 위에서 자체 표시)
     if (!game.replay) {
       if (game.shuffling) {
-        const isHost = !game.autoPilot && room && room.hostId === myId;
-        $('countdown').textContent = game.autoPilot
-          ? '🎲 운명이 배치를 정하는 중...'
-          : isHost
-            ? '🎲 타이밍을 노리세요!'
-            : '🎲 위치 섞는 중...';
-        $('btn-drop').classList.toggle('hidden', !isHost);
+        const introLeft = game.introEndsAt ? game.introEndsAt - performance.now() : 0;
+        if (introLeft > 0) {
+          // 아이템 소개 중 — 서버도 셔플·낙하를 멈춰 두고 있다
+          const sec = Math.ceil(introLeft / 1000);
+          $('countdown').textContent = `🎁 아이템 확인 시간! (${sec}초)`;
+          $('intro-count').textContent = `${sec}초 후 자리 섞기 시작!`;
+          $('btn-drop').classList.add('hidden');
+        } else {
+          if (game.introEndsAt) {
+            game.introEndsAt = 0;
+            $('intro-modal').classList.add('hidden');
+            toast('🎲 자리 섞기 시작!');
+          }
+          const isHost = !game.autoPilot && room && room.hostId === myId;
+          $('countdown').textContent = game.autoPilot
+            ? '🎲 운명이 배치를 정하는 중...'
+            : isHost
+              ? '🎲 타이밍을 노리세요!'
+              : '🎲 위치 섞는 중...';
+          $('btn-drop').classList.toggle('hidden', !isHost);
+        }
       } else {
         $('countdown').textContent = game.snapshots.length ? '' : '준비...';
         $('btn-drop').classList.add('hidden');
