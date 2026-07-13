@@ -1,14 +1,14 @@
 /* global Matter, PinballComponents */
 /**
  * 브라우저 데모 — 서버 없이 이 페이지 안에서만 도는 낙하 레이스.
- * 실제 게임과 같은 물리 상수(중력 1.05, 공 r=7, 10배속 서브스텝)와
+ * 실제 게임과 같은 물리 상수(중력 1.05, 공 r=7, 배속 서브스텝)와
  * 같은 기본 맵(클래식/스피너 파크)을 사용한다.
  */
 (() => {
   const { WORLD, buildShapes } = PinballComponents;
   const VIEW = { width: 600, height: 760 };
   const TICK_MS = 1000 / 60;
-  const TIME_SCALE = 10; // 실제 게임과 동일한 낙하 배속
+  const TIME_SCALE = 5; // 실제 게임 기본값과 동일한 낙하 배속 (server/config.js)
   const GOAL_MARGIN = 55;
   const $ = (id) => document.getElementById(id);
 

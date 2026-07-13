@@ -10,6 +10,8 @@ rem 후원 링크 — 기본값은 운영자 카카오페이. 바꾸려면 값 �
 set DONATION_URL=https://qr.kakaopay.com/Ej8euQo2R
 rem 후원자 등록용 관리자 키. 반드시 나만 아는 값으로 바꾸세요!
 set ADMIN_KEY=
+rem 낙하 배속(공의 속도). 비워두면 server\config.js 의 기본값(5) 사용
+set TIME_SCALE=
 rem ══════════════════════════════════════════════════════
 
 echo.

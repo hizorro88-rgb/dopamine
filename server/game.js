@@ -28,15 +28,15 @@ const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
 const ROPE_TURN_MS = 12000; // ✂️ 줄 자르기 한 턴 제한 (실제 시간, 넘기면 자동 절단)
-const SHUFFLE_MAX_MS = 45000; // 방장이 안 누르면 자동 낙하
+const { SHUFFLE_AUTO_DROP_MS } = require('./config'); // 방장이 안 누르면 자동 낙하 (기본 5초)
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
-// 낙하 후 시간 가속 배율: 틱당 물리 서브스텝 횟수.
-// 한 스텝당 이동량은 그대로라 터널링 없이 전체 게임이 N배 빨라진다.
-// (셔플 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
-const TIME_SCALE = 10;
+// 낙하 후 시간 가속 배율(공의 속도): server/config.js 에서 조절.
+// 틱당 물리 서브스텝 횟수 방식이라 한 스텝당 이동량은 그대로 → 터널링 없이 전체 게임이 N배 빨라진다.
+// (셔플·줄 자르기 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
+const { TIME_SCALE } = require('./config');
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -151,7 +151,7 @@ class Game {
     this.shuffleTargets = new Map(); // ballKey -> {x, y}
     this.nextShuffleAt = 0;
     // 올랜덤: 시스템이 4~9초 사이 무작위 시점에 낙하
-    this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_MAX_MS;
+    this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_AUTO_DROP_MS;
     this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
     // ✂️ 줄 자르기 상태
     this.ropePhase = false;
