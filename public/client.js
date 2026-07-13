@@ -451,6 +451,13 @@
   $('btn-join').addEventListener('click', joinRoom);
   inputCode.addEventListener('keydown', (e) => e.key === 'Enter' && joinRoom());
 
+  // 초대 코드가 입력되면 입장 버튼이 금빛으로 고동친다
+  function updateJoinReady() {
+    $('btn-join').classList.toggle('ready', inputCode.value.trim().length > 0);
+  }
+  inputCode.addEventListener('input', updateJoinReady);
+  updateJoinReady(); // 초대 링크(?room=)로 들어와 미리 채워진 경우
+
   function joinRoom(codeArg) {
     // 클릭 핸들러로도 직접 연결되므로 문자열일 때만 인자 사용
     const code = (typeof codeArg === 'string' ? codeArg : inputCode.value).trim().toUpperCase();
@@ -619,12 +626,41 @@
     }
   });
 
+  /**
+   * 클립보드 복사 — HTTPS 가 아닌 환경(공유기 주소, LAN IP)에서는
+   * navigator.clipboard 를 쓸 수 없으므로 임시 textarea + execCommand 로 폴백한다.
+   */
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        /* 아래 폴백 시도 */
+      }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length); // iOS 대응
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
   $('btn-event-copy').addEventListener('click', async () => {
     const url = `${location.origin}${location.pathname}?event=${eventRoom.code}`;
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copyText(url)) {
       $('btn-event-copy').textContent = '✅ 복사 완료!';
-    } catch {
+    } else {
       prompt('아래 링크를 복사해서 공유해주세요:', url);
     }
     setTimeout(() => ($('btn-event-copy').textContent = '🔗 초대 링크 복사'), 1500);
@@ -1016,10 +1052,9 @@
 
   $('btn-copy').addEventListener('click', async () => {
     const url = `${location.origin}${location.pathname}?room=${room.code}`;
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copyText(url)) {
       $('btn-copy').textContent = '✅ 복사 완료!';
-    } catch {
+    } else {
       prompt('아래 링크를 복사해서 친구에게 보내주세요:', url);
     }
     setTimeout(() => ($('btn-copy').textContent = '🔗 초대 링크 복사'), 1500);
