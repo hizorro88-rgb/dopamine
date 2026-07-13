@@ -92,7 +92,7 @@ function spinnerParkComponents() {
   comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
   pegRow(comps, 2170);
 
-  return [...comps, ...funnel()];
+  return [...tileY(comps, 3, 2250), ...funnel()];
 }
 
 // ── 픽셀 아트 헬퍼: 미니맵에서 그림이 보이는 맵을 만들기 위한 도구 ──
@@ -203,7 +203,7 @@ function canyonComponents() {
   }
   // 마지막 스피너 관문
   comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
-  return [...comps, ...funnel(3200)];
+  return [...tileY(comps, 3, 3000), ...funnel(9600)];
 }
 
 // 🌪 깔때기 폭포: 구멍 위치가 번갈아 바뀌는 깔때기 연속 — 병목에서 순위가 뒤집힌다
@@ -231,7 +231,7 @@ function cascadeComponents() {
   // 마지막 구간: 폭탄 지뢰밭
   comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
   comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
-  return [...comps, ...funnel(2900)];
+  return [...tileY(comps, 3, 2650), ...funnel(8700)];
 }
 
 // 💣 지뢰밭: 아무것도 없는 맵에 재생성 폭탄만 —
@@ -247,8 +247,9 @@ function minefieldComponents() {
   // 빽빽한 지뢰 격자: 140px 간격 14줄, 줄마다 4~5개 지그재그 —
   // 어디로 떨어져도 두세 발은 밟는다. 재생성 시간을 3~6초로 엇갈리게 해
   // 폭발 리듬이 겹치지 않고 끊임없이 터진다.
+  const H = 7200;
   let i = 0;
-  for (let y = 240; y <= 2080; y += 140) {
+  for (let y = 240; y <= H - 320; y += 140) {
     const xs = (y / 140) % 2 === 0 ? [60, 180, 300, 420, 540] : [120, 240, 360, 480];
     for (const x of xs) {
       const jx = Math.round(Math.sin(i * 2.7) * 22); // 결정적 지터 (재시작해도 같은 맵)
@@ -262,14 +263,25 @@ function minefieldComponents() {
       i++;
     }
   }
-  // 중앙 대형 지뢰 (한가운데 왕지뢰)
+  // 대형 왕지뢰 (구간마다 하나씩)
   comps.push(bomb(300, 1150, { radius: 230, power: 19, respawn: 6 }));
+  comps.push(bomb(300, 3550, { radius: 230, power: 19, respawn: 6 }));
+  comps.push(bomb(300, 5950, { radius: 230, power: 19, respawn: 6 }));
   // 🚨 문지기 폭탄 3중 배치: 골인 직전 깔때기 목을 막고 선두를 되받아친다.
   // 터진 뒤 재생성되기 전(게임 시간 6초)에 도착하는 공만 무사히 통과!
-  comps.push(bomb(272, 2270, { radius: 170, power: 19, respawn: 6 }));
-  comps.push(bomb(328, 2270, { radius: 170, power: 19, respawn: 6 }));
-  comps.push(bomb(300, 2320, { radius: 150, power: 17, respawn: 6 }));
-  return [...comps, ...funnel(2400)];
+  comps.push(bomb(272, H - 130, { radius: 170, power: 19, respawn: 6 }));
+  comps.push(bomb(328, H - 130, { radius: 170, power: 19, respawn: 6 }));
+  comps.push(bomb(300, H - 80, { radius: 150, power: 17, respawn: 6 }));
+  return [...comps, ...funnel(H)];
+}
+
+/** 구성요소 목록을 세로로 n번 반복 — 긴 맵을 콘텐츠로 꽉 채운다 */
+function tileY(comps, n, stride) {
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    for (const c of comps) out.push({ ...c, y: c.y + k * stride, props: { ...c.props } });
+  }
+  return out;
 }
 
 // 🌼 활짝 핀 꽃: 꽃잎 링 + 회전 십자 꽃술 + 긴 줄기 + 잎 + 잔디
@@ -303,7 +315,7 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
-  return [...comps, ...funnel(2400)];
+  return [...tileY(comps, 3, 2250), ...funnel(7200)];
 }
 
 // 👾 픽셀 인베이더: 8비트 외계인 편대 (눈은 폭탄!) + UFO 회전 막대
@@ -321,13 +333,13 @@ const INVADER_ART_SMALL = INVADER_ART.map((r) => r.replace(/@/g, 'o'));
 function invaderComponents() {
   const comps = [];
   pixelGrid(comps, INVADER_ART, { y0: 250, cell: 40, pegSize: 8 });
-  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 22, x0: 85, pegSize: 5 });
-  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 22, x0: 295, pegSize: 5 });
+  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 25, x0: 55, pegSize: 5 });
+  pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 25, x0: 320, pegSize: 5 });
   pixelGrid(comps, INVADER_ART, { y0: 1450, cell: 30, pegSize: 6 });
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
-  return [...comps, ...funnel(2400)];
+  return [...tileY(comps, 3, 2250), ...funnel(7200)];
 }
 
 // 🍄 대왕 버섯: 갓(호) + 노란 점무늬 + 줄기 얼굴(폭탄 눈) + 아기 버섯들
@@ -353,7 +365,7 @@ function mushroomComponents() {
     lineDots(comps, x - 18, y + 15, x - 18, y + 85, 35, 5);
     lineDots(comps, x + 18, y + 15, x + 18, y + 85, 35, 5);
   }
-  return [...comps, ...funnel(2400)];
+  return [...tileY(comps, 3, 2250), ...funnel(7200)];
 }
 
 // 💀 해적 해골: 두개골 + 폭탄 눈 + 이빨 + 엇갈린 뼈다귀(벽) + 유골 별자리
@@ -395,7 +407,7 @@ function skullComponents() {
   }
   comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -4 } });
   comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 4 } });
-  return [...comps, ...funnel(2400)];
+  return [...tileY(comps, 3, 2250), ...funnel(7200)];
 }
 
 // 🚀 로켓 발사: 기체 + 창문 + 날개 + 회전 불꽃 + 별밤
@@ -430,7 +442,7 @@ function rocketComponents() {
   comps.push({ type: 'bumper', x: 90, y: 2150, props: { size: 14 } });
   comps.push({ type: 'bumper', x: 540, y: 2420, props: { size: 14 } });
   arcDots(comps, 470, 2100, 75, -140, 60, 9, 6);
-  return [...comps, ...funnel(3000)];
+  return [...tileY(comps, 3, 2800), ...funnel(9000)];
 }
 
 // ❤️ 하트 폭포: 점점 작아지는 하트 셋 — 마지막 심장은 터진다
@@ -461,7 +473,7 @@ function heartsComponents() {
   }
   // 두근두근 바람개비
   comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
-  return [...comps, ...funnel(2400)];
+  return [...tileY(comps, 3, 2250), ...funnel(7200)];
 }
 
 const BUILTIN_MAPS = [
@@ -487,7 +499,7 @@ const BUILTIN_MAPS = [
     name: '🌼 활짝 핀 꽃',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: flowerComponents(),
   },
   {
@@ -495,7 +507,7 @@ const BUILTIN_MAPS = [
     name: '👾 픽셀 인베이더',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: invaderComponents(),
   },
   {
@@ -503,7 +515,7 @@ const BUILTIN_MAPS = [
     name: '🍄 대왕 버섯',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: mushroomComponents(),
   },
   {
@@ -511,7 +523,7 @@ const BUILTIN_MAPS = [
     name: '💀 해적 해골',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: skullComponents(),
   },
   {
@@ -519,7 +531,7 @@ const BUILTIN_MAPS = [
     name: '🚀 로켓 발사',
     author: '기본 맵',
     builtin: true,
-    height: 3000,
+    height: 9000,
     components: rocketComponents(),
   },
   {
@@ -527,7 +539,7 @@ const BUILTIN_MAPS = [
     name: '❤️ 하트 폭포',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: heartsComponents(),
   },
   {
@@ -535,7 +547,7 @@ const BUILTIN_MAPS = [
     name: '💣 지뢰밭',
     author: '기본 맵',
     builtin: true,
-    height: 2400,
+    height: 7200,
     components: minefieldComponents(),
   },
   // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
@@ -544,7 +556,7 @@ const BUILTIN_MAPS = [
     name: '🐍 지그재그 협곡',
     author: '기본 맵',
     builtin: true,
-    height: 3200,
+    height: 9600,
     components: canyonComponents(),
   },
   {
@@ -552,7 +564,7 @@ const BUILTIN_MAPS = [
     name: '🌪 깔때기 폭포',
     author: '기본 맵',
     builtin: true,
-    height: 2900,
+    height: 8700,
     components: cascadeComponents(),
   },
 ];

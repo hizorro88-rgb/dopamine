@@ -1451,13 +1451,9 @@
     const balls = interpolatedBalls(renderT);
     const elapsed = gameElapsedSec(renderT);
 
-    // 카메라: 내 선두 공을 따라감. 내 공이 다 도착하면 선두(가장 아래) 공을 따라감.
-    // 리플레이(이벤트 추첨)에서는 항상 선두 공을 따라감.
+    // 카메라: 항상 선두(골인에 가장 가까운) 공을 따라간다 — 경주의 최전선을 비춘다
     const mapH = board.world.height;
-    const mine = game.replay
-      ? null
-      : balls.filter((b) => b.p === myId).reduce((a, b) => (!a || b.y > a.y ? b : a), null);
-    const focus = mine || balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
+    const focus = balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
     if (focus) {
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
       game.camY += (target - game.camY) * 0.08;

@@ -31,7 +31,7 @@
 
   // 월드(보드) 크기 — 서버 물리와 클라이언트 렌더링/에디터가 공유
   // height 는 기본값이며, 맵마다 minHeight~maxHeight 범위에서 길이를 정할 수 있다
-  const WORLD = { width: 600, height: 2400, minHeight: 900, maxHeight: 6000 };
+  const WORLD = { width: 600, height: 7200, minHeight: 900, maxHeight: 12000 };
 
   const COMPONENTS = {
     // 기본 핀

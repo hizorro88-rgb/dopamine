@@ -66,7 +66,11 @@
     comps.push({ type: 'spinner', x: 450, y: 1975, props: { length: 150, speed: 6 } });
     comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
     pegRow(comps, 2170);
-    return [...comps, ...funnel()];
+    const tiled = [];
+    for (let k = 0; k < 3; k++) {
+      for (const c of comps) tiled.push({ ...c, y: c.y + k * 2250, props: { ...c.props } });
+    }
+    return [...tiled, ...funnel()];
   }
   const MAPS = {
     classic: { name: '클래식', components: classicComponents() },
