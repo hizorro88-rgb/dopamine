@@ -150,6 +150,7 @@ class Game {
     // 올랜덤: 시스템이 4~9초 사이 무작위 시점에 낙하
     this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_AUTO_DROP_MS;
     this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
+    this.speedMult = 1; // ⏩ 방장이 게임 중 올릴 수 있는 추가 배속 (1~3)
     this.tickCount = 0;
     this.interval = null;
     this.over = false;
@@ -318,6 +319,15 @@ class Game {
     this.nextShuffleAt = Date.now() + SHUFFLE_INTERVAL_MS;
   }
 
+  /** ⏩ 방장이 게임 중 배속 변경 (1~3배) */
+  setSpeed(mult) {
+    const m = Math.round(Number(mult));
+    if (![1, 2, 3].includes(m) || this.over) return;
+    if (m === this.speedMult) return;
+    this.speedMult = m;
+    this.io.to(this.room.code).emit('game:speed', { mult: m });
+  }
+
   /** 방장이 낙하 버튼을 누른 순간 — 지금 위치 그대로 낙하 시작 */
   drop() {
     if (!this.shuffling || this.over) return;
@@ -377,8 +387,9 @@ class Game {
       // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
       if (wall - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
-      // 낙하 단계: TIME_SCALE 배속 — 틱당 서브스텝 반복
-      for (let i = 0; i < TIME_SCALE && !this.over; i++) this.substep();
+      // 낙하 단계: TIME_SCALE × 방장 배속 — 틱당 서브스텝 반복
+      const steps = TIME_SCALE * this.speedMult;
+      for (let i = 0; i < steps && !this.over; i++) this.substep();
       if (this.over) return;
     }
 

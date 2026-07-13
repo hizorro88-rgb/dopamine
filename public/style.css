@@ -353,6 +353,37 @@ input[type='text']:focus {
   outline: none;
 }
 
+/* ── ⏩ 배속 버튼 (방장 전용) ── */
+#speed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#speed-row.hidden {
+  display: none;
+}
+.speed-btn {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1px solid #37332a;
+  background: var(--panel2);
+  color: var(--muted);
+  font-family: 'Bebas Neue', 'Gothic A1', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.speed-btn.selected {
+  border-color: var(--accent);
+  background: #2e2716;
+  color: var(--accent2);
+}
+
 /* ── 낙하 버튼 ── */
 #btn-drop {
   width: 100%;

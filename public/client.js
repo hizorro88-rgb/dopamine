@@ -948,6 +948,8 @@
       hiddenComps: new Set(), // 터져서 잠시 사라진 구성요소 인덱스
       shakeUntil: 0,
     };
+    game.speedMult = 1;
+    renderSpeedRow();
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
     // 올랜덤·관전자는 아이템 바 숨김
@@ -993,6 +995,30 @@
   $('btn-drop').addEventListener('click', () => {
     socket.emit('game:drop');
     $('btn-drop').classList.add('hidden');
+  });
+
+  // ── ⏩ 배속 (방장 전용 조작, 전원에게 반영) ──────────────
+  function renderSpeedRow() {
+    if (!game) return $('speed-row').classList.add('hidden');
+    const isHost = room && room.hostId === myId;
+    $('speed-row').classList.toggle(
+      'hidden',
+      !isHost || !!game.replay || game.autoPilot || game.spectator
+    );
+    document.querySelectorAll('.speed-btn').forEach((b) => {
+      b.classList.toggle('selected', Number(b.dataset.mult) === (game.speedMult || 1));
+    });
+  }
+
+  document.querySelectorAll('.speed-btn').forEach((b) =>
+    b.addEventListener('click', () => socket.emit('game:setSpeed', { mult: Number(b.dataset.mult) }))
+  );
+
+  socket.on('game:speed', ({ mult }) => {
+    if (!game) return;
+    game.speedMult = mult;
+    renderSpeedRow();
+    toast(`⏩ ${mult}배속!`);
   });
 
   socket.on('game:explosion', ({ x, y, radius }) => {

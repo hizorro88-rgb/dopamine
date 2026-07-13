@@ -250,6 +250,13 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
+    // ⏩ 방장이 게임 중 배속 변경
+    socket.on('game:setSpeed', ({ mult } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || !room.game || room.hostId !== socket.id) return;
+      room.game.setSpeed(mult);
+    });
+
     // 셔플 단계에서 방장이 낙하 시작
     socket.on('game:drop', () => {
       const room = this.roomOf(socket);
