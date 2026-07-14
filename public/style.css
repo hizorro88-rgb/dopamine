@@ -184,20 +184,34 @@ input[type='text']:focus {
   flex-shrink: 0;
   align-self: stretch; /* 입력칸 높이에 정확히 맞춤 */
   width: 52px;
-  border: 1px solid var(--accent2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(212, 175, 55, 0.55);
   border-radius: 10px;
-  background: var(--panel2);
-  color: var(--accent2);
-  font-size: 20px;
-  line-height: 1;
+  background: linear-gradient(160deg, #29241b, #16130d);
   cursor: pointer;
-  transition: transform 0.25s, filter 0.15s, background 0.15s;
+  transition: box-shadow 0.2s, filter 0.2s, border-color 0.2s;
+}
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  filter: drop-shadow(0 0 3px rgba(212, 175, 55, 0.35));
 }
 .icon-btn:hover {
-  filter: brightness(1.2);
+  filter: brightness(1.12);
+  border-color: var(--accent2);
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.4), inset 0 0 9px rgba(212, 175, 55, 0.12);
 }
-.icon-btn:active {
-  transform: rotate(180deg); /* 새로고침 아이콘답게 빙 돈다 */
+/* 클릭할 때 아이콘이 한 바퀴 매끄럽게 회전 */
+.icon-btn.spinning svg {
+  animation: icon-spin 0.55s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 /* 초대 코드를 입력하면 입장 버튼이 금빛으로 고동친다 */
 #btn-join.ready {

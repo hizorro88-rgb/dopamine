@@ -399,8 +399,12 @@
   $('btn-random-name').addEventListener('click', () => {
     inputName.value = randomName();
     localStorage.setItem('pinball-name', inputName.value);
-    inputName.focus();
     updateJoinReady();
+    // 아이콘 회전 연출 (재클릭해도 다시 재생되도록 리셋)
+    const b = $('btn-random-name');
+    b.classList.remove('spinning');
+    void b.offsetWidth;
+    b.classList.add('spinning');
   });
 
   function myName() {
