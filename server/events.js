@@ -147,6 +147,9 @@ class EventManager {
       }
     });
 
+    // 이벤트에서 나가기 (홈으로) — 접속만 해제, 이미 등록한 추첨 엔트리는 유지
+    socket.on('event:leave', () => this.detach(socket));
+
     // 재추첨 (재생이 끝난 후, 호스트 전용)
     socket.on('event:again', () => {
       const ev = this.eventOf(socket);

@@ -1009,6 +1009,16 @@
     b.classList.add('spinning');
   });
 
+  $('btn-event-leave').addEventListener('click', () => {
+    socket.emit('event:leave');
+    eventRoom = null;
+    myParticipantId = null;
+    game = null; // 재생 중이었다면 렌더 루프 정지
+    spectating = false;
+    $('event-error').textContent = '';
+    showScreen('home');
+  });
+
   $('btn-event-register').addEventListener('click', () => {
     const name = $('input-event-name').value.trim();
     if (!name) return ($('event-error').textContent = '이름을 입력해주세요.');
