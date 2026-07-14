@@ -1168,8 +1168,10 @@ input[type='text']:focus {
   background: var(--panel2);
   border: 1px solid #3a3630;
   border-radius: 14px;
-  opacity: 0;
-  animation: intro-reveal 0.55s ease-out forwards; /* 한 장씩 차례로 공개 (delay는 JS) */
+  /* 기본은 '보임'. 애니메이션은 등장 연출일 뿐이며, 애니메이션이 눌려도(모바일 백그라운드 등)
+     카드가 사라지지 않도록 fill-mode: both 로 최종 상태(보임)를 유지한다 */
+  opacity: 1;
+  animation: intro-reveal 0.55s ease-out both; /* 한 장씩 차례로 공개 (delay는 JS) */
 }
 @keyframes intro-reveal {
   from {

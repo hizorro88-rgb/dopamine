@@ -1860,6 +1860,8 @@
           $('countdown').textContent = `🎁 아이템 확인 시간! (${sec}초)`;
           $('intro-count').textContent = `${sec}초 후 자리 섞기 시작!`;
           $('btn-drop').classList.add('hidden');
+          // 최초 showIntro 가 어떤 이유로든 놓쳐졌으면(모바일 탭 지연 등) 다시 띄운다
+          if ($('intro-modal').classList.contains('hidden')) showIntro();
         } else {
           if (game.introEndsAt) {
             game.introEndsAt = 0;
@@ -1875,6 +1877,11 @@
           $('btn-drop').classList.toggle('hidden', !isHost);
         }
       } else {
+        // 셔플이 끝났으면(낙하 시작) 남아있을 수 있는 소개 모달을 확실히 닫는다
+        if (game.introEndsAt) {
+          game.introEndsAt = 0;
+          $('intro-modal').classList.add('hidden');
+        }
         $('countdown').textContent = game.snapshots.length ? '' : '준비...';
         $('btn-drop').classList.add('hidden');
       }
