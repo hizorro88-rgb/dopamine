@@ -106,12 +106,17 @@ h2 {
 
 input[type='text'] {
   width: 100%;
+  box-sizing: border-box;
+  /* iOS Safari 기본 입력칸 스타일 제거 — 안 하면 실제 아이폰에서 입력칸이 더 크게 렌더되어
+     옆 버튼과 높이가 안 맞는다 (에뮬레이터에선 안 보이는 실기기 이슈) */
+  -webkit-appearance: none;
+  appearance: none;
   padding: 13px 15px;
   border-radius: 10px;
   border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px; /* 16px 미만이면 iOS 가 포커스 시 화면을 확대함 */
   margin-bottom: 12px;
   outline: none;
 }
@@ -194,6 +199,9 @@ input[type='text']:focus {
 .icon-btn {
   flex-shrink: 0;
   align-self: stretch; /* 입력칸 높이에 정확히 맞춤 */
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
   width: 52px;
   display: flex;
   align-items: center;
