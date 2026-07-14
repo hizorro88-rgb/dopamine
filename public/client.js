@@ -957,10 +957,14 @@
     const isHost = ev.hostId === myId;
     const startBtn = $('btn-event-start');
     if (ev.state === 'lobby') {
+      // 참가 행은 아직 등록 안 한 사람에게만 (방장도 원하면 참가 가능)
       $('event-register-row').style.display = myParticipantId == null ? '' : 'none';
-      startBtn.disabled = !isHost || (ev.participantCount || 0) < 2;
+      // 방장은 직접 참가하지 않아도 추첨을 시작할 수 있다. (참가자 수 부족은 서버가 안내)
+      startBtn.disabled = !isHost;
       startBtn.textContent = isHost
-        ? '🎲 추첨 시작'
+        ? (ev.participantCount || 0) < 2
+          ? '🎲 추첨 시작 (참가 2명 이상 필요)'
+          : '🎲 추첨 시작'
         : '⏳ 호스트가 추첨을 시작하기를 기다리는 중';
       $('event-progress').classList.add('hidden');
     } else if (ev.state === 'simulating') {
@@ -1100,6 +1104,10 @@
       overShown: false,
       camY: 0,
       explosions: [],
+      celebrations: [], // 🎉 우승 축포 (renderFrame 이 매 프레임 참조 — 없으면 크래시)
+      fxPops: [], // 아이템 발동 순간 팝
+      fxSeen: new Map(), // ballKey -> 직전 상태 플래그
+      screenFx: null,
       hiddenComps: new Set(),
       shakeUntil: 0,
       replay: {
