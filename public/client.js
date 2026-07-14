@@ -946,7 +946,8 @@
         : '⏳ 방장이 시작하기를 기다리는 중';
     $('btn-start-random').disabled = !isHost;
     $('btn-start-random').classList.toggle('hidden', spectating);
-    $('btn-leave-room').classList.toggle('hidden', !spectating);
+    // 나가기 버튼은 항상 표시 (방장이 나가면 서버가 다음 사람에게 승계)
+    $('btn-leave-room').classList.remove('hidden');
     const specNote = room.spectators > 0 ? ` · 👁 관전 ${room.spectators}명` : '';
     const itemsOn = room.itemsEnabled !== false;
     $('lobby-hint').textContent =
