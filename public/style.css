@@ -174,26 +174,30 @@ input[type='text']:focus {
   display: flex;
   gap: 8px;
   align-items: stretch;
+  margin-bottom: 12px; /* 여백을 입력칸이 아니라 행이 가져 버튼과 높이가 어긋나지 않게 */
 }
 .name-row input {
   flex: 1;
+  margin-bottom: 0;
 }
 .icon-btn {
   flex-shrink: 0;
-  width: 48px;
+  align-self: stretch; /* 입력칸 높이에 정확히 맞춤 */
+  width: 52px;
   border: 1px solid var(--accent2);
   border-radius: 10px;
   background: var(--panel2);
   color: var(--accent2);
   font-size: 20px;
+  line-height: 1;
   cursor: pointer;
-  transition: transform 0.1s, filter 0.15s, background 0.15s;
+  transition: transform 0.25s, filter 0.15s, background 0.15s;
 }
 .icon-btn:hover {
   filter: brightness(1.2);
 }
 .icon-btn:active {
-  transform: rotate(90deg) scale(0.92);
+  transform: rotate(180deg); /* 새로고침 아이콘답게 빙 돈다 */
 }
 /* 초대 코드를 입력하면 입장 버튼이 금빛으로 고동친다 */
 #btn-join.ready {

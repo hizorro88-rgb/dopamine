@@ -390,9 +390,7 @@
   function randomName() {
     const a = NAME_ADJ[(Math.random() * NAME_ADJ.length) | 0];
     const n = NAME_NOUN[(Math.random() * NAME_NOUN.length) | 0];
-    let name = `${a} ${n}`;
-    if (Math.random() < 0.3) name += ' ' + (Math.floor(Math.random() * 98) + 1); // 가끔 번호
-    return name.slice(0, 12); // maxlength 안전
+    return `${a} ${n}`.slice(0, 12); // maxlength 안전
   }
 
   // 저장된 닉네임이 없으면 랜덤으로 하나 채워준다
