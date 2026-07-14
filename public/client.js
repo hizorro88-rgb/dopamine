@@ -376,7 +376,34 @@
   const urlCode = new URLSearchParams(location.search).get('room');
   if (urlCode) inputCode.value = urlCode.toUpperCase();
 
-  inputName.value = localStorage.getItem('pinball-name') || '';
+  // ── 🎲 랜덤 닉네임 ──
+  const NAME_ADJ = [
+    '전설의', '황금', '불꽃', '광란의', '무적', '최후의', '폭주', '은하', '벼락', '진격의',
+    '강철', '초신성', '심연의', '질주하는', '광속', '백발백중', '운명의', '콰광', '대박', '미친',
+    '침착한', '수상한', '전직', '자칭', '떠오르는',
+  ];
+  const NAME_NOUN = [
+    '핀볼러', '도파민', '잭팟', '구슬왕', '승부사', '룰렛', '한탕', '갬블러', '폭탄', '유령',
+    '회오리', '스나이퍼', '폭격기', '불사조', '타짜', '큰손', '한방', '용', '늑대', '여우',
+    '요정', '기계', '전사', '점쟁이', '술래',
+  ];
+  function randomName() {
+    const a = NAME_ADJ[(Math.random() * NAME_ADJ.length) | 0];
+    const n = NAME_NOUN[(Math.random() * NAME_NOUN.length) | 0];
+    let name = `${a} ${n}`;
+    if (Math.random() < 0.3) name += ' ' + (Math.floor(Math.random() * 98) + 1); // 가끔 번호
+    return name.slice(0, 12); // maxlength 안전
+  }
+
+  // 저장된 닉네임이 없으면 랜덤으로 하나 채워준다
+  inputName.value = localStorage.getItem('pinball-name') || randomName();
+
+  $('btn-random-name').addEventListener('click', () => {
+    inputName.value = randomName();
+    localStorage.setItem('pinball-name', inputName.value);
+    inputName.focus();
+    updateJoinReady();
+  });
 
   function myName() {
     const name = inputName.value.trim() || '플레이어';

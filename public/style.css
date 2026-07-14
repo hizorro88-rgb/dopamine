@@ -169,6 +169,32 @@ input[type='text']:focus {
 .join-row input {
   flex: 1;
 }
+/* 닉네임 + 🎲 랜덤 버튼 한 줄 */
+.name-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.name-row input {
+  flex: 1;
+}
+.icon-btn {
+  flex-shrink: 0;
+  width: 48px;
+  border: 1px solid var(--accent2);
+  border-radius: 10px;
+  background: var(--panel2);
+  color: var(--accent2);
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.15s, background 0.15s;
+}
+.icon-btn:hover {
+  filter: brightness(1.2);
+}
+.icon-btn:active {
+  transform: rotate(90deg) scale(0.92);
+}
 /* 초대 코드를 입력하면 입장 버튼이 금빛으로 고동친다 */
 #btn-join.ready {
   background: var(--gold-grad);
