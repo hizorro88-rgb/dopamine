@@ -12,6 +12,9 @@ rem 후원자 등록용 관리자 키. 반드시 나만 아는 값으로 바꾸�
 set ADMIN_KEY=
 rem 낙하 배속(공의 속도). 비워두면 server\config.js 의 기본값(5) 사용
 set TIME_SCALE=
+rem 허용할 접속 도메인(교차 사이트 소켓 남용 차단). 쉼표로 여러 개, 비우면 전체 허용
+rem 내 도메인 + 내 PC 로컬 테스트용 localhost 를 넣어둡니다
+set ALLOWED_ORIGINS=https://dopamine.me.kr,http://localhost:3000
 rem ══════════════════════════════════════════════════════
 
 echo.
