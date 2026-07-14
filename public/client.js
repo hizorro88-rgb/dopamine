@@ -592,8 +592,9 @@
     showScreen('admin');
     $('admin-key').focus();
   }
-  // /dopaman/pinball 으로 접속하면 관리자 전용 페이지를 연다 (일반 사용자에게는 노출되지 않음)
-  if (ADMIN_MODE) openAdmin();
+  // /dopaman/pinball 진입 시 관리자 페이지 자동 오픈은 스크립트 맨 끝에서 호출한다.
+  // (openAdmin → showScreen 이 아래쪽에 const 로 선언된 editor 를 건드리므로,
+  //  여기서 바로 부르면 TDZ ReferenceError 로 이후 핸들러 등록이 전부 중단된다)
 
   $('btn-admin-open').addEventListener('click', () => {
     adminKey = $('admin-key').value;
@@ -622,6 +623,7 @@
         throw new Error(msg);
       })
       .then(({ settings }) => {
+        $('admin-msg').textContent = ''; // '확인 중…' 지우기
         $('admin-login').classList.add('hidden');
         $('admin-panel').classList.remove('hidden');
         for (const k of SETTING_KEYS) {
@@ -629,8 +631,30 @@
           if (el) el.value = settings[k] != null ? settings[k] : '';
         }
         loadAdminMaps();
+        loadAdminFeedback();
       })
       .catch((e) => ($('admin-msg').textContent = e.message || '불러오기 실패'));
+  }
+
+  function loadAdminFeedback() {
+    fetch('/api/admin/feedback', { headers: adminHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('불러오기 실패'))))
+      .then(({ feedback }) => {
+        $('admin-feedback-summary').textContent = feedback.length
+          ? `총 ${feedback.length}건 (최신순)`
+          : '아직 등록된 개선 요청이 없어요.';
+        const list = $('admin-feedback-list');
+        list.innerHTML = '';
+        for (const f of feedback) {
+          const li = document.createElement('li');
+          li.className = 'admin-fb-row';
+          const when = f.at ? new Date(f.at).toLocaleString() : '';
+          li.innerHTML = `<div class="admin-fb-head"><b>${escapeHtml(f.name || '익명')}</b> <span class="admin-fb-when">${when}</span></div>
+            <div class="admin-fb-msg">${escapeHtml(f.message || '')}</div>`;
+          list.appendChild(li);
+        }
+      })
+      .catch(() => {});
   }
 
   $('btn-admin-save-settings').addEventListener('click', () => {
@@ -740,6 +764,46 @@
       .catch(() => {});
   });
   $('btn-hall-close').addEventListener('click', () => $('hall-modal').classList.add('hidden'));
+
+  // ── ✍️ 개선 요청 / 개발자에게 한마디 ──
+  $('btn-feedback').addEventListener('click', () => {
+    $('feedback-msg').textContent = '';
+    $('input-feedback-msg').value = '';
+    $('input-feedback-name').value =
+      sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || '';
+    $('feedback-modal').classList.remove('hidden');
+    $('input-feedback-msg').focus();
+  });
+  $('btn-feedback-close').addEventListener('click', () => $('feedback-modal').classList.add('hidden'));
+  $('btn-feedback-submit').addEventListener('click', () => {
+    const message = $('input-feedback-msg').value.trim();
+    const name = $('input-feedback-name').value.trim();
+    const msg = $('feedback-msg');
+    if (!message) {
+      msg.style.color = 'var(--danger)';
+      return (msg.textContent = '내용을 입력해주세요.');
+    }
+    fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, name }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) {
+          msg.style.color = 'var(--danger)';
+          return (msg.textContent = res.error || '전송 실패');
+        }
+        msg.style.color = '#6fdfa0';
+        msg.textContent = '✅ 소중한 의견 감사합니다! 개발자가 확인할게요.';
+        $('input-feedback-msg').value = '';
+        setTimeout(() => $('feedback-modal').classList.add('hidden'), 1200);
+      })
+      .catch(() => {
+        msg.style.color = 'var(--danger)';
+        msg.textContent = '전송 실패';
+      });
+  });
 
   // ── 우승 조건 선택 (방 만들기) ──
   let homeWinMode = localStorage.getItem('pinball-winmode') || 'first';
@@ -3186,4 +3250,7 @@
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
   }
+
+  // 모든 선언·초기화가 끝난 뒤에 관리자 페이지 자동 오픈 (editor const 초기화 이후여야 함)
+  if (ADMIN_MODE) openAdmin();
 })();

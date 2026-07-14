@@ -112,7 +112,8 @@ h2 {
 }
 
 input[type='text'],
-input[type='password'] {
+input[type='password'],
+textarea {
   width: 100%;
   box-sizing: border-box;
   /* iOS Safari 기본 입력칸 스타일 제거 — 안 하면 실제 아이폰에서 입력칸이 더 크게 렌더되어
@@ -128,8 +129,15 @@ input[type='password'] {
   margin-bottom: 12px;
   outline: none;
 }
+textarea {
+  resize: vertical;
+  min-height: 84px;
+  font-family: inherit;
+  line-height: 1.5;
+}
 input[type='text']:focus,
-input[type='password']:focus {
+input[type='password']:focus,
+textarea:focus {
   border-color: var(--accent2);
 }
 #input-code {
@@ -657,6 +665,37 @@ input[type='password']:focus {
 }
 .danger-btn:hover {
   background: rgba(180, 50, 50, 0.15);
+}
+/* 관리자: 개선 요청 목록 */
+#admin-feedback-list {
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 8px 0 4px;
+}
+.admin-fb-row {
+  padding: 10px 6px;
+  border-bottom: 1px solid #262219;
+  text-align: left;
+}
+.admin-fb-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.admin-fb-when {
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.admin-fb-msg {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 #donor-box {
   margin-top: 10px;

@@ -73,6 +73,7 @@
       <div class="home-links">
         <button id="btn-board" class="link-btn">📊 전체 순위</button>
         <button id="btn-hall" class="link-btn">🏆 후원자 명예의 전당</button>
+        <button id="btn-feedback" class="link-btn">✍️ 개선 요청 · 개발자에게 한마디</button>
         <button id="btn-donor-toggle" class="link-btn">💖 후원자 코드 입력</button>
       </div>
       <div id="donor-box" class="hidden">
@@ -132,6 +133,9 @@
         <h3 class="admin-h" style="margin-top:18px">🗺 맵 관리</h3>
         <p class="hint" id="admin-summary"></p>
         <ol id="admin-map-list"></ol>
+        <h3 class="admin-h" style="margin-top:18px">✍️ 개선 요청 · 개발자에게 한마디</h3>
+        <p class="hint" id="admin-feedback-summary"></p>
+        <ol id="admin-feedback-list"></ol>
       </div>
       <p class="error" id="admin-msg"></p>
     </div>
@@ -175,6 +179,19 @@
       <p class="hint">관전은 비밀번호 없이 언제든 가능해요.</p>
       <p class="error" id="join-pw-msg"></p>
       <button id="btn-join-pw-close" class="btn small">취소</button>
+    </div>
+  </div>
+
+  <!-- ✍️ 개선 요청 / 개발자에게 한마디 (제출은 누구나, 열람은 관리자만) -->
+  <div id="feedback-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>✍️ 개선 요청 · 개발자에게 한마디</h2>
+      <p class="hint" style="margin-top:0">불편한 점, 아이디어, 응원 무엇이든 남겨주세요. 개발자가 직접 읽어봅니다 🙌</p>
+      <input id="input-feedback-name" type="text" maxlength="20" placeholder="닉네임 (선택)" autocomplete="off" />
+      <textarea id="input-feedback-msg" maxlength="1000" rows="4" placeholder="여기에 하고 싶은 말을 적어주세요"></textarea>
+      <button id="btn-feedback-submit" class="btn primary" style="width:100%">보내기</button>
+      <p id="feedback-msg" class="hint"></p>
+      <button id="btn-feedback-close" class="btn small">닫기</button>
     </div>
   </div>
 

@@ -97,6 +97,16 @@ app.get('/api/donors', (_req, res) => {
   res.json({ donors: donors.list() });
 });
 
+// 개선 요청 / 개발자에게 한마디 — 제출은 공개(레이트리밋), 열람은 관리자만
+const { FeedbackStore } = require('./feedback');
+const feedback = new FeedbackStore();
+const feedbackLimiter = new RateLimiter(60000, 6); // IP당 분당 6회
+app.post('/api/feedback', (req, res) => {
+  if (!feedbackLimiter.allow(req.ip))
+    return res.status(429).json({ ok: false, error: '너무 자주 보내고 있어요. 잠시 후 다시 시도해주세요.' });
+  res.json(feedback.add(req.body || {}));
+});
+
 // 상수 시간 문자열 비교 (타이밍 공격 방지)
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a || ''));
@@ -183,6 +193,12 @@ app.get('/api/admin/settings', (req, res) => {
 app.post('/api/admin/settings', (req, res) => {
   if (!requireAdmin(req, res)) return;
   res.json(settings.update(req.body || {}));
+});
+
+// ── 관리자: 개선 요청 열람 (일반 사용자는 볼 수 없음) ──
+app.get('/api/admin/feedback', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ ok: true, feedback: feedback.list() });
 });
 const events = new EventManager(io, rooms.maps);
 io.on('connection', (socket) => {
