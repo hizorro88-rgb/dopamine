@@ -166,10 +166,15 @@
         </select>
       </div>
       <div class="map-box">
-        <div class="map-row">
-          <select id="map-select" disabled></select>
+        <div class="map-pick-row">
+          <canvas class="map-thumb" id="lobby-map-thumb" title="맵 미리보기"></canvas>
+          <div class="map-pick-col">
+            <div class="map-row">
+              <select id="map-select" disabled></select>
+            </div>
+            <div id="map-info" class="hint"></div>
+          </div>
         </div>
-        <div id="map-info" class="hint"></div>
         <button id="btn-reviews" class="btn small" style="margin-top:8px">💬 이 맵의 후기 보기·쓰기</button>
       </div>
       <button id="btn-start" class="btn primary" disabled>🚀 게임 시작</button>

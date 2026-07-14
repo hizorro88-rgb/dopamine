@@ -1013,10 +1013,13 @@
   }
 
   function updateMapInfo() {
-    const meta = mapList.find((m) => m.id === $('map-select').value);
+    const mapId = $('map-select').value;
+    const meta = mapList.find((m) => m.id === mapId);
     if (!meta) return ($('map-info').textContent = '');
     const rating = meta.reviews > 0 ? `★${meta.rating} (후기 ${meta.reviews}개) · ` : '';
     $('map-info').textContent = `${rating}구성요소 ${meta.count}개 · 길이 ${meta.height} · ${room.hostId === myId ? '맵을 선택하세요' : '방장이 맵을 선택합니다'}`;
+    // 선택된 맵의 미리보기 썸네일
+    if (mapId) loadMapThumb($('lobby-map-thumb'), mapId);
   }
 
   $('map-select').addEventListener('change', (e) => {
