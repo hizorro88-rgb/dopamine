@@ -602,21 +602,37 @@ textarea:focus {
 /* ── 명예의 전당 / 후원자 코드 ── */
 .home-links {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 14px;
-  margin-top: 14px;
+  gap: 8px 16px;
+  margin-top: 16px;
 }
 .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 2px;
   white-space: nowrap;
+  transition: color 0.15s;
 }
 .link-btn:hover {
   color: var(--text);
+}
+/* 통일된 라인 아이콘 세트 (유틸 링크) — 텍스트 색을 따라가 은은하게 */
+.link-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ── 관리자 맵 관리 ── */
