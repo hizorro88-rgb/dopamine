@@ -265,6 +265,25 @@ GitHub Actions로 자동 배포합니다 (`.github/workflows/pages.yml`).
    (또는 `npm i -g pm2 pm2-windows-startup` → `pm2 start server/index.js --name pinball` → `pm2 save` → `pm2-startup install`)
 7. 설정 → 시스템 → 전원 → **절전 "안 함"** (PC가 자면 서버도 잡니다)
 
+### ♻️ 자동 배포 (git 푸시 → 자동 반영)
+
+`git pull` 하고 서버를 다시 켜는 과정을 없애고 싶다면 **자동 배포 모드**를 쓰세요.
+`scripts\start-auto.bat` 는 서버를 감독하면서, 저장소에 새 커밋이 올라오면 자동으로
+`git pull` → (필요 시 `npm install`) → 서버 재시작을 해줍니다. 서버가 죽어도 자동으로 되살립니다.
+
+1. **설정을 `.env` 로 옮기기** (한 번만): `.env.example` 을 `.env` 로 복사하고 값을 채웁니다.
+   ```
+   copy .env.example .env      (Windows)
+   ```
+   `.env` 는 git 에 올라가지 않으므로 비밀키를 넣어도 자동 pull 과 충돌하지 않습니다.
+   (`ADMIN_KEY`, `DONATION_URL`, `ALLOWED_ORIGINS`, `TIME_SCALE`, `MAP_DAILY_LIMIT` 등)
+2. **`scripts\start-auto.bat` 더블클릭** → 감시 시작. 이후로는 코드가 푸시되면 30초 안에 자동 반영됩니다.
+   (확인 주기는 `.env` 의 `DEPLOY_POLL_MS` 로 조절, 기본 30000ms)
+3. 터널은 그대로 `scripts\start-tunnel.bat` 로 켜 두면 됩니다 (재시작해도 터널은 유지).
+
+> 참고: 자동 pull 은 `--ff-only` 라 로컬에서 임의로 커밋해 브랜치가 갈라지면 건너뜁니다.
+> 설정은 `.env`(추적 안 됨), 데이터는 `data/`(추적 안 됨)에 있어 pull 이 항상 깔끔합니다.
+
 ### 1단계: 서버 실행
 
 1. [Node.js LTS](https://nodejs.org) 설치 (18 이상)

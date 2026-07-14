@@ -1,3 +1,4 @@
+require('./loadenv').loadEnv(); // .env → process.env (config 를 읽는 require 들보다 먼저)
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
