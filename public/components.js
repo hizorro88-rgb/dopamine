@@ -174,26 +174,6 @@
       },
     },
 
-    // 곡선 벽: 휘어진 벽 (곡률을 크게 준 벽) — 팔레트에서 바로 곡선을 고를 수 있게 별도 제공
-    curvewall: {
-      id: 'curvewall',
-      name: '곡선 벽',
-      emoji: '〰️',
-      desc: '휘어지는 곡선 벽. 곡률(휘어짐)과 각도를 조절할 수 있어요',
-      props: [
-        { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 160 },
-        { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 10, default: 90 },
-        { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 5, default: 0 },
-      ],
-      build(p) {
-        return {
-          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 14, '#e9edf4'),
-          spin: 0,
-          restitution: 0.2,
-        };
-      },
-    },
-
     // ★ 회전 막대: 뱅글뱅글 돌아가는 방해물
     spinner: {
       id: 'spinner',
