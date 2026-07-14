@@ -2237,8 +2237,9 @@
     g: { emoji: '👻', label: '유령!', color: '#e2e8ff' },
     m: { emoji: '🧲', label: '자석!', color: '#ff6b6b' },
     s: { emoji: '⚡', label: '번개!', color: '#ffe14a' },
+    o: { emoji: '🎭', label: '변신!', color: '#c8a6ff' },
   };
-  const EFFECT_BITS = [['f', 1], ['b', 2], ['g', 4], ['m', 8], ['s', 16]];
+  const EFFECT_BITS = [['f', 1], ['b', 2], ['g', 4], ['m', 8], ['s', 16], ['o', 32]];
 
   /** 아이템 효과가 새로 걸린 순간을 감지해 팝 이펙트를 띄운다 (사용/피격을 확실히 알림)
    *  mine=true(내 공)면 카메라와 무관하게 화면 전체 알림도 띄운다 (내 공이 화면 밖이어도 확실히) */
@@ -2281,6 +2282,30 @@
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /** 🎭 변신 도형 경로 (1=삼각 2=사각 3=오각 4=육각 5=별). beginPath 포함 */
+  function morphPath(ctx, x, y, r, shape, rot) {
+    ctx.beginPath();
+    if (shape === 5) {
+      // 5각 별
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? r : r * 0.46;
+        const a = rot + (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const px = x + Math.cos(a) * rr;
+        const py = y + Math.sin(a) * rr;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+    } else {
+      const sides = [3, 4, 5, 6][(shape - 1) % 4];
+      for (let i = 0; i < sides; i++) {
+        const a = rot + (i / sides) * Math.PI * 2 - Math.PI / 2;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+    }
+    ctx.closePath();
   }
 
   /** 본체 위 오버레이 — 얼음 결정 / 풍선 끈 / 상태 이모지 */
@@ -2361,6 +2386,7 @@
               g: fl & 1 ? 1 : 0,
               f: fl & 2 ? 1 : 0,
               b: fl & 4 ? 1 : 0,
+              o: fl & 8 ? ((p % 5) + 1) : 0, // 🎭 변신 — 도형은 참가번호로 유도(재생에도 다양하게)
             })),
           });
           if (game.snapshots.length > 12) game.snapshots.shift();
@@ -2474,26 +2500,39 @@
       // 지속형 아이템 아우라(본체 뒤) — 자석/번개
       drawBallAura(ctx, b, bx, by, radius, tNow);
 
-      // 본체 — 발광 구슬 (풍선이면 타원으로 말랑)
+      // 본체 — 발광 구슬 (풍선이면 타원으로 말랑 / 🎭 변신이면 각진 도형이 빙글 회전)
+      const morphed = b.o > 0;
+      const morphRot = tNow * 0.006 + ph;
       ctx.shadowColor = color;
-      ctx.shadowBlur = b.b ? 16 : 11;
-      ctx.beginPath();
-      ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
+      ctx.shadowBlur = b.b ? 16 : morphed ? 14 : 11;
       ctx.fillStyle = color;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      // 밝은 코어
-      ctx.beginPath();
-      ctx.arc(bx - radius * 0.2, by - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fill();
-
-      // 내 공은 금테로 표시
-      if (b.p === mineKey) {
+      if (morphed) {
+        morphPath(ctx, bx, by, radius * 1.28, b.o, morphRot);
+        ctx.fill();
+      } else {
         ctx.beginPath();
         ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      // 밝은 코어 (변신 중엔 생략해 각진 실루엣을 살림)
+      if (!morphed) {
+        ctx.beginPath();
+        ctx.arc(bx - radius * 0.2, by - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fill();
+      }
+
+      // 내 공은 금테로 표시 (도형이면 도형 외곽선)
+      if (b.p === mineKey) {
         ctx.strokeStyle = 'rgba(212,175,55,0.9)';
         ctx.lineWidth = 1.5;
+        if (morphed) {
+          morphPath(ctx, bx, by, radius * 1.28, b.o, morphRot);
+        } else {
+          ctx.beginPath();
+          ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
+        }
         ctx.stroke();
       }
       ctx.restore();

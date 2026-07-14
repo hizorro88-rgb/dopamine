@@ -276,7 +276,10 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
             pid,
             Math.round(ball.position.x * 10) / 10,
             Math.round(ball.position.y * 10) / 10,
-            (ball.plugin.ghost ? 1 : 0) | (ball.plugin.frozen ? 2 : 0) | (ball.plugin.balloon ? 4 : 0),
+            (ball.plugin.ghost ? 1 : 0) |
+              (ball.plugin.frozen ? 2 : 0) |
+              (ball.plugin.balloon ? 4 : 0) |
+              (ball.plugin.morph ? 8 : 0), // 🎭 변신 (도형 종류는 재생 시 참가번호로 유도)
           ]);
         }
         const off = [];

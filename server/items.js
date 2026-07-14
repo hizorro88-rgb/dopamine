@@ -235,6 +235,29 @@ const ITEMS = {
     },
   },
 
+  // 변신: 상대방 공을 4초간 각진 도형(삼각형·별 등)으로 바꿔 통통 튀게 만든다 (연출 + 가벼운 교란)
+  morph: {
+    id: 'morph',
+    name: '변신',
+    emoji: '🎭',
+    desc: '상대방의 공을 4초간 각진 도형으로 변신시켜 예측불가로 통통 튀게 만듭니다.',
+    target: 'opponent',
+    grade: 'normal',
+    duration: 4000,
+    apply(game, ball) {
+      ball.plugin.morph = 1 + Math.floor(Math.random() * 5); // 1~5 도형 종류
+      if (ball.plugin.morphRest == null) ball.plugin.morphRest = ball.restitution;
+      ball.restitution = 0.98; // 각져서 더 통통 튐
+    },
+    expire(game, ball) {
+      ball.plugin.morph = 0;
+      if (ball.plugin.morphRest != null) {
+        ball.restitution = ball.plugin.morphRest;
+        ball.plugin.morphRest = null;
+      }
+    },
+  },
+
   // 6번: 상대방 공을 3초간 풍선처럼 커지고 잘 튀게 만들기
   balloon: {
     id: 'balloon',
