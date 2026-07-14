@@ -219,6 +219,7 @@ class RoomManager {
           author: map.author,
           height: map.height,
           components: map.components,
+          ...(map.finish ? { finish: map.finish } : {}),
         },
       });
     });
@@ -241,7 +242,7 @@ class RoomManager {
       cb(this.reviews.add({ mapId, name: player ? player.name : name, rating, text }));
     });
 
-    socket.on('maps:save', ({ name, components, height } = {}, cb) => {
+    socket.on('maps:save', ({ name, components, height, finish } = {}, cb) => {
       if (!this.limiter.save.allow(socket.id)) {
         if (typeof cb === 'function')
           cb({ ok: false, error: '맵 저장이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
@@ -255,6 +256,7 @@ class RoomManager {
           author: player ? player.name : '익명',
           components,
           height,
+          finish,
         },
         socketIp(socket) // 하루 생성 제한 집계용 (IP)
       );

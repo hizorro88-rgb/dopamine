@@ -33,6 +33,91 @@
   // height 는 기본값이며, 맵마다 minHeight~maxHeight 범위에서 길이를 정할 수 있다
   const WORLD = { width: 600, height: 4800, minHeight: 900, maxHeight: 12000 };
 
+  /**
+   * 곡선(호) 벽을 작은 사각형 조각들로 근사한다.
+   * curve=0 이면 기존과 동일한 직선 사각형 1개를 반환(하위 호환·성능).
+   * @param {number} length 벽 전체 길이(호 길이)
+   * @param {number} angle  전체 기울기(°)
+   * @param {number} curve  휘어짐(°) — 양수/음수로 휘는 방향이 바뀜
+   * @param {number} thick  두께(px)
+   */
+  function curvedWallShapes(length, angle, curve, thick, fill) {
+    const a0 = angle * DEG;
+    // 직선: 조각 1개 (기존 동작 유지)
+    if (Math.abs(curve) < 1) {
+      return [{ kind: 'rect', x: 0, y: 0, w: length, h: thick, angle: a0, fill }];
+    }
+    const sweep = curve * DEG; // 전체 호가 도는 각
+    const R = length / Math.abs(sweep); // 호 길이 = R * |sweep|
+    const segCount = Math.min(14, Math.max(4, Math.round(length / 24)));
+    // 원점을 기준으로 호를 그리고(중앙이 원점에 오도록 보정), 마지막에 angle 만큼 회전
+    const pts = [];
+    for (let i = 0; i <= segCount; i++) {
+      const t = i / segCount - 0.5; // -0.5 ~ 0.5
+      const ang = sweep * t;
+      // 호를 x축 진행 + y축으로 휘게: (R*sin, R*(1-cos)*sign)
+      pts.push({ x: R * Math.sin(ang), y: R * (1 - Math.cos(ang)) * Math.sign(sweep) });
+    }
+    // 중앙(첫·끝 중점)이 원점에 오도록 평행이동
+    const cx = (pts[0].x + pts[segCount].x) / 2;
+    const cy = (pts[0].y + pts[segCount].y) / 2;
+    const cos = Math.cos(a0);
+    const sin = Math.sin(a0);
+    const shapes = [];
+    for (let i = 0; i < segCount; i++) {
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const mx = (p1.x + p2.x) / 2 - cx;
+      const my = (p1.y + p2.y) / 2 - cy;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const segLen = Math.hypot(dx, dy) + thick * 0.5; // 살짝 겹쳐 이음새 메움
+      const segAng = Math.atan2(dy, dx);
+      // angle(a0) 회전 적용
+      shapes.push({
+        kind: 'rect',
+        x: mx * cos - my * sin,
+        y: mx * sin + my * cos,
+        w: segLen,
+        h: thick,
+        angle: segAng + a0,
+        fill,
+      });
+    }
+    return shapes;
+  }
+
+  // ── 🏁 골인(FINISH) 지오메트리 — 위치·크기를 맵마다 지정 가능 ──
+  // 서버 물리(도착 판정)와 클라이언트 렌더/에디터가 공유한다.
+  const FINISH = {
+    minW: 70, maxW: WORLD.width, defW: 236,
+    minH: 24, maxH: 260, defH: 46,
+    margin: 55, // 기본 위치: 맵 바닥에서 이만큼 위
+    topY: 26, // 굴레: 바닥까지 떨어진 공이 다시 시작하는 최상단 y
+  };
+  function clampNum(v, min, max, dflt) {
+    v = Number(v);
+    return Number.isFinite(v) ? Math.min(Math.max(v, min), max) : dflt;
+  }
+  function defaultFinish(H) {
+    return { x: WORLD.width / 2, y: H - FINISH.margin, width: FINISH.defW, height: FINISH.defH };
+  }
+  /** 저장/전송된 finish 값을 맵 길이(H)에 맞게 안전 범위로 정제 */
+  function clampFinish(f, H) {
+    const d = defaultFinish(H);
+    if (!f || typeof f !== 'object') return d;
+    const width = clampNum(f.width, FINISH.minW, FINISH.maxW, d.width);
+    const height = clampNum(f.height, FINISH.minH, FINISH.maxH, d.height);
+    const x = clampNum(f.x, width / 2, WORLD.width - width / 2, d.x);
+    const y = clampNum(f.y, 220, H - 20, d.y);
+    return {
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
+    };
+  }
+
   const COMPONENTS = {
     // 기본 핀
     peg: {
@@ -69,21 +154,20 @@
       },
     },
 
-    // 고정 벽 (기울기 조절 가능)
+    // 고정 벽 (기울기 + 곡률 조절 가능)
     wall: {
       id: 'wall',
       name: '벽',
       emoji: '📏',
-      desc: '공의 길을 막는 벽. 각도를 조절할 수 있어요',
+      desc: '공의 길을 막는 벽. 각도와 곡률(휘어짐)을 조절할 수 있어요',
       props: [
         { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 120 },
         { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 5, default: 0 },
+        { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 10, default: 0 },
       ],
       build(p) {
         return {
-          shapes: [
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 14, angle: p.angle * DEG, fill: '#e9edf4' },
-          ],
+          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 14, '#e9edf4'),
           spin: 0,
           restitution: 0.2,
         };
@@ -238,5 +322,15 @@
     return def.build({ ...defaultProps(def), ...(props || {}) });
   }
 
-  return { WORLD, COMPONENTS, defaultProps, buildShapes, lookupComponent };
+  return {
+    WORLD,
+    COMPONENTS,
+    defaultProps,
+    buildShapes,
+    lookupComponent,
+    FINISH,
+    defaultFinish,
+    clampFinish,
+    curvedWallShapes,
+  };
 });

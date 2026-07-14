@@ -17,6 +17,8 @@ const { ITEMS, itemMeta, randomItems } = require('./items');
 const {
   buildBoard,
   createBall,
+  crossedFinish,
+  wrapIfFallen,
   CAT_WALL,
   DEFAULT_MASK,
   BALL_RESTITUTION,
@@ -195,6 +197,7 @@ class Game {
     this.reactive = built.reactive;
     this.height = built.height;
     this.goalY = built.goalY;
+    this.finishZone = built.finish; // 🏁 골인 존 {x,y,width,height} (finish() 메서드와 이름 충돌 주의)
 
     // 공 ↔ 반응형 구성요소 충돌 감지
     Matter.Events.on(this.engine, 'collisionStart', (ev) => {
@@ -529,11 +532,22 @@ class Game {
       }
     }
 
+    // 🏁 골인 통과 판정을 위해 업데이트 직전 y를 기록 (틱 사이 선 통과 감지)
+    for (const ball of this.balls.values()) {
+      if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
+    }
+
     Matter.Engine.update(this.engine, TICK_MS);
 
-    // 도착 판정
+    // 도착/굴레 판정
     for (const [key, ball] of this.balls) {
-      if (!ball.plugin.done && ball.position.y > this.goalY) {
+      if (ball.plugin.done) continue;
+      // 골인 못 하고 바닥까지 떨어졌으면 → 속도·가로위치 그대로 최상단에서 다시 시작 (무한 굴레)
+      if (!crossedFinish(ball, this.finishZone)) {
+        wrapIfFallen(ball, this.height);
+        continue;
+      }
+      {
         // 🎡 인생은 돌고돌아: 저주받은 공은 골인 대신 원점으로
         if (ball.plugin.karma) {
           ball.plugin.karma = false; // 1회성
@@ -544,6 +558,7 @@ class Game {
             y: 76,
           });
           Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+          ball.plugin.prevY = 76;
           if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...ball.position };
           this.io.to(this.room.code).emit('game:karma', {
             name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,

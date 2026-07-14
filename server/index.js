@@ -60,7 +60,16 @@ function serveIndex(_req, res) {
   res.set('Cache-Control', 'no-cache');
   res.type('html').send(html);
 }
-app.get('/', serveIndex);
+// 게임은 /pinball, 관리자는 /dopaman/pinball 로 서빙한다.
+// (dopamine.me.kr 하위에 여러 게임을 붙일 수 있도록 경로를 분리)
+app.get(['/pinball', '/dopaman/pinball'], serveIndex);
+// 편의 리다이렉트: 루트/구경로 → 새 경로 (쿼리스트링 유지 — ?room=CODE 초대링크 호환)
+const qs = (req) => {
+  const i = req.originalUrl.indexOf('?');
+  return i >= 0 ? req.originalUrl.slice(i) : '';
+};
+app.get('/', (req, res) => res.redirect(302, '/pinball' + qs(req)));
+app.get('/dopaman', (req, res) => res.redirect(302, '/dopaman/pinball' + qs(req)));
 
 const donors = new DonorStore();
 const { VisitStore } = require('./visits');
@@ -82,9 +91,6 @@ app.get('/api/config', (_req, res) => {
     donationLabel: settings.get('donationLabel'),
   });
 });
-
-// 관리자 숨은 경로: /dopaman 으로 접속하면 같은 SPA(버전 주입된 index.html)를 띄운다
-app.get('/dopaman', serveIndex);
 
 // 후원자 명예의 전당 (공개)
 app.get('/api/donors', (_req, res) => {
@@ -148,8 +154,8 @@ app.post('/api/admin/maps/delete', (req, res) => {
 });
 app.post('/api/admin/maps/update', (req, res) => {
   if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
-  const { id, name, components, height } = req.body || {};
-  res.json(rooms.maps.update(id, { name, components, height }));
+  const { id, name, components, height, finish } = req.body || {};
+  res.json(rooms.maps.update(id, { name, components, height, finish }));
 });
 
 // ── 관리자: 런타임 설정 (후원 링크·낙하 배속·아이템 소개·하루 맵 제한 등) ──

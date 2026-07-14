@@ -94,10 +94,10 @@
     </div>
   </div>
 
-  <!-- 관리자: 유저 맵 관리 -->
-  <div id="admin-modal" class="modal top-modal hidden">
-    <div class="modal-card">
-      <h2>🔧 관리자 — 맵 관리</h2>
+  <!-- 관리자 전용 페이지 (/dopaman/pinball) — 게임 UI와 완전히 분리 -->
+  <section id="screen-admin" class="screen">
+    <div class="card admin-card">
+      <h2>🔧 DOPAMINE 관리자</h2>
       <div id="admin-login">
         <input id="admin-key" type="password" placeholder="관리자 키 (ADMIN_KEY)" autocomplete="off" />
         <button id="btn-admin-open" class="btn primary" style="width:100%;margin-top:8px">열기</button>
@@ -132,9 +132,8 @@
         <ol id="admin-map-list"></ol>
       </div>
       <p class="error" id="admin-msg"></p>
-      <button id="btn-admin-close" class="btn small">닫기</button>
     </div>
-  </div>
+  </section>
 
   <!-- 맵 후기 (커뮤니티) -->
   <div id="review-modal" class="modal top-modal hidden">
@@ -287,7 +286,7 @@
       </div>
       <div id="editor-side">
         <h3 id="editor-title">🛠 맵 에디터</h3>
-        <p class="hint" id="editor-hint">구성요소를 고르고 보드를 클릭해 배치하세요.<br>배치된 요소는 드래그로 옮길 수 있어요.<br>휠 스크롤 또는 미니맵 클릭으로 이동하세요.</p>
+        <p class="hint" id="editor-hint">구성요소를 고르고 보드를 클릭해 배치하세요.<br>배치된 요소는 드래그로 옮길 수 있어요.<br>🏁 골인 존도 드래그로 옮기고 크기를 조절할 수 있어요.<br>벽은 곡률 슬라이더로 곡선으로 만들 수 있어요.<br>휠 스크롤 또는 미니맵 클릭으로 이동하세요.</p>
         <div class="prop-row" id="map-length-row">
           <span id="map-length-label">📐 맵 길이: 2400</span>
           <input id="input-map-length" type="range" min="900" max="6000" step="100" value="2400" />

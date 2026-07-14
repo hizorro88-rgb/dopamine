@@ -42,10 +42,17 @@ body {
 #screen-home.active,
 #screen-lobby.active,
 #screen-maps.active,
-#screen-event.active {
+#screen-event.active,
+#screen-admin.active {
   align-items: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* 관리자 전용 페이지 — 목록이 길 수 있어 넓게 */
+.admin-card {
+  width: min(560px, 94vw);
+  text-align: left;
 }
 
 .card {

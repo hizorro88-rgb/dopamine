@@ -1,7 +1,7 @@
 /* global io, PinballComponents */
 (() => {
   const socket = io();
-  const { WORLD, COMPONENTS, defaultProps, buildShapes } = PinballComponents;
+  const { WORLD, COMPONENTS, defaultProps, buildShapes, defaultFinish, clampFinish, FINISH } = PinballComponents;
 
   // 화면에 보이는 뷰포트 크기 (월드는 세로로 훨씬 길다 → 카메라가 따라감)
   const VIEW = { width: 600, height: 900 };
@@ -16,6 +16,7 @@
   let eventRoom = null; // event:update 페이로드
   let myParticipantId = null; // 이벤트 추첨에서 내 공 번호
   let autoJoinedEvent = false;
+  let autoJoinedRoom = false;
   let lastRanking = null; // 방금 끝난 판의 전체 순위 (결과 화면의 "이번 판 순위"용)
   let lastRankingEvent = false;
   let lastRankingWinMode = 'first';
@@ -23,12 +24,19 @@
 
   const urlEventCode = new URLSearchParams(location.search).get('event');
 
+  const urlRoomCode = new URLSearchParams(location.search).get('room');
+
   socket.on('connect', () => {
     myId = socket.id;
     // 이벤트 초대 링크(?event=CODE)로 들어온 경우 자동 입장
     if (urlEventCode && !autoJoinedEvent) {
       autoJoinedEvent = true;
       joinEvent(urlEventCode.toUpperCase());
+    }
+    // 방 초대 링크/QR(?room=CODE)로 들어온 경우 버튼 없이 바로 입장 (빠른 진행)
+    if (urlRoomCode && !autoJoinedRoom) {
+      autoJoinedRoom = true;
+      joinRoom(urlRoomCode.toUpperCase());
     }
   });
 
@@ -573,18 +581,20 @@
   const adminHeaders = () => ({ 'x-admin-key': adminKey, 'Content-Type': 'application/json' });
   const SETTING_KEYS = ['donationUrl', 'donationLabel', 'timeScale', 'itemIntroMs', 'shuffleAutoDropMs', 'mapDailyLimit'];
 
+  // /dopaman/pinball 접속 여부 — true면 관리자 전용 모드 (게임 UI를 아예 띄우지 않음)
+  const ADMIN_MODE = /\/dopaman(\/pinball)?\/?$/.test(location.pathname);
+
   function openAdmin() {
     $('admin-msg').textContent = '';
     $('admin-panel').classList.add('hidden');
     $('admin-login').classList.remove('hidden');
     $('admin-key').value = adminKey;
-    $('admin-modal').classList.remove('hidden');
+    showScreen('admin');
     $('admin-key').focus();
   }
-  // /dopaman 으로 접속하면 관리자 화면을 연다 (일반 사용자에게는 노출되지 않음)
-  if (/\/dopaman\/?$/.test(location.pathname)) openAdmin();
+  // /dopaman/pinball 으로 접속하면 관리자 전용 페이지를 연다 (일반 사용자에게는 노출되지 않음)
+  if (ADMIN_MODE) openAdmin();
 
-  $('btn-admin-close').addEventListener('click', () => $('admin-modal').classList.add('hidden'));
   $('btn-admin-open').addEventListener('click', () => {
     adminKey = $('admin-key').value;
     loadAdmin();
@@ -690,8 +700,7 @@
     // 맵을 에디터로 불러와 재편집 → 저장 시 관리자 API로 덮어쓰기
     socket.emit('maps:get', { mapId: id }, (res) => {
       if (!res || !res.ok) return ($('admin-msg').textContent = '맵을 불러올 수 없습니다.');
-      $('admin-modal').classList.add('hidden');
-      openEditor({ from: 'home', map: res.map, adminEditId: id, adminEditName: res.map.name });
+      openEditor({ from: 'admin', map: res.map, adminEditId: id, adminEditName: res.map.name });
     });
   }
 
@@ -1958,10 +1967,16 @@
     return b.balls.map((bb) => {
       const ab = a.balls.find((x) => keyOf(x) === keyOf(bb));
       if (!ab) return bb;
+      // 순간이동(굴레·원점·포탈)으로 위치가 크게 튀면 보간/트레일 없이 스냅 — 화면을 가로지르는 잔상 방지
+      const dx = bb.x - ab.x;
+      const dy = bb.y - ab.y;
+      if (dx * dx + dy * dy > 360 * 360) {
+        return { ...bb, px: bb.x, py: bb.y };
+      }
       return {
         ...bb,
-        x: ab.x + (bb.x - ab.x) * alpha,
-        y: ab.y + (bb.y - ab.y) * alpha,
+        x: ab.x + dx * alpha,
+        y: ab.y + dy * alpha,
         px: ab.x, // 모션 트레일용 직전 위치
         py: ab.y,
       };
@@ -2458,9 +2473,11 @@
     comps: [], // [{type, x, y, props, shapes, spin}]
     tool: 'peg', // 팔레트에서 선택된 구성요소 타입
     selected: -1, // 선택된 comps 인덱스
+    selFinish: false, // 🏁 골인 존을 선택 중인가
     dragging: false,
     camY: 0,
     height: WORLD.height, // 이 맵의 길이 (슬라이더로 조절)
+    finish: null, // 🏁 골인 존 {x,y,width,height}
   };
 
   const editMaxY = () => editor.height - 100;
@@ -2497,9 +2514,12 @@
     editor.adminEditId = opts.adminEditId || null; // 관리자 재편집 대상 맵 id
     editor.comps = [];
     editor.selected = -1;
+    editor.selFinish = false;
     editor.tool = 'peg';
     editor.camY = 0;
     editor.height = opts.map ? opts.map.height : WORLD.height;
+    // 🏁 골인 존: 불러온 맵에 있으면 그대로, 없으면 기본(바닥 중앙)
+    editor.finish = clampFinish(opts.map && opts.map.finish, editor.height);
 
     // 맵 불러오기 (구경 모드)
     if (opts.map) {
@@ -2521,7 +2541,7 @@
         ? '🔧 관리자 맵 편집'
         : '🛠 맵 에디터';
     $('btn-editor-back').textContent =
-      editor.from === 'maps' ? '← 갤러리로' : editor.from === 'home' ? '← 홈으로' : '← 대기실로';
+      editor.from === 'maps' ? '← 갤러리로' : editor.from === 'admin' ? '← 관리자로' : editor.from === 'home' ? '← 홈으로' : '← 대기실로';
 
     $('input-map-length').value = editor.height;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
@@ -2543,12 +2563,17 @@
     for (const comp of editor.comps) {
       if (comp.y > editMaxY()) comp.y = editMaxY();
     }
+    // 🏁 골인 존도 새 길이에 맞춰 안전 범위로 보정
+    if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height);
     editor.camY = clampCam(editor.camY, editor.height);
     setupMinimapCanvas(eMinimap, editor.height);
   });
 
   $('btn-editor-back').addEventListener('click', () => {
-    if (editor.from === 'maps') {
+    if (editor.from === 'admin') {
+      showScreen('admin');
+      loadAdmin();
+    } else if (editor.from === 'maps') {
       renderMapsGallery();
       showScreen('maps');
     } else if (room) {
@@ -2570,6 +2595,7 @@
       btn.addEventListener('click', () => {
         editor.tool = def.id;
         editor.selected = -1;
+        editor.selFinish = false;
         renderPalette();
         renderPropsPanel();
       });
@@ -2583,10 +2609,46 @@
     panel.innerHTML = '';
     $('btn-comp-delete').disabled = editor.selected < 0;
 
+    // 🏁 골인 존 선택 시: 폭/높이 슬라이더 (위치는 드래그로 이동)
+    if (editor.selFinish && editor.finish) {
+      const f = editor.finish;
+      const title = document.createElement('div');
+      title.className = 'prop-row';
+      title.innerHTML = '선택됨: 🏁 <b>골인(FINISH)</b><br><span class="hint" style="font-size:11px">드래그해서 위치 이동 · 아래 슬라이더로 크기 조절</span>';
+      panel.appendChild(title);
+      const addSlider = (label, key, min, max, step) => {
+        const row = document.createElement('div');
+        row.className = 'prop-row';
+        const lab = document.createElement('span');
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = min;
+        input.max = max;
+        input.step = step;
+        input.value = f[key];
+        const setLabel = () => (lab.textContent = `${label}: ${input.value}`);
+        setLabel();
+        input.addEventListener('input', () => {
+          f[key] = Number(input.value);
+          // 폭이 커지면 x가 벽을 넘지 않도록 보정
+          const half = f.width / 2;
+          f.x = Math.min(Math.max(f.x, half), WORLD.width - half);
+          setLabel();
+        });
+        row.appendChild(lab);
+        row.appendChild(input);
+        panel.appendChild(row);
+      };
+      addSlider('폭(가로)', 'width', FINISH.minW, FINISH.maxW, 2);
+      addSlider('높이(세로)', 'height', FINISH.minH, FINISH.maxH, 2);
+      return;
+    }
+
     const comp = editor.comps[editor.selected];
     if (!comp) {
       const def = COMPONENTS[editor.tool];
-      panel.innerHTML = `<div class="prop-row">배치할 요소: ${def.emoji} ${def.name}<br>${def.desc}</div>`;
+      panel.innerHTML = `<div class="prop-row">배치할 요소: ${def.emoji} ${def.name}<br>${def.desc}</div>
+        <div class="prop-row" style="margin-top:6px">🏁 <b>골인</b>은 화면 하단의 체커 존을 <b>드래그</b>해 옮기거나, 눌러서 크기를 조절하세요.</div>`;
       return;
     }
     const def = COMPONENTS[comp.type];
@@ -2642,6 +2704,28 @@
     };
   }
 
+  /** 🏁 골인 존을 클릭했는가 */
+  function finishHitTest(pos) {
+    const f = editor.finish;
+    if (!f) return false;
+    const half = f.width / 2;
+    return (
+      pos.x >= f.x - half &&
+      pos.x <= f.x + half &&
+      pos.y >= f.y - 12 &&
+      pos.y <= f.y + f.height + 12
+    );
+  }
+
+  /** 골인 존을 드래그 위치로 이동 (범위·격자 보정) */
+  function moveFinish(pos) {
+    const f = editor.finish;
+    const half = f.width / 2;
+    f.x = Math.round(Math.min(Math.max(pos.x, half), WORLD.width - half) / 5) * 5;
+    // 골인은 맵 하단까지 내려갈 수 있다 (바닥에서 조금 위까지)
+    f.y = Math.round(Math.min(Math.max(pos.y, EDIT_BOUNDS.minY + 40), editor.height - 30) / 5) * 5;
+  }
+
   /** 클릭 지점의 구성요소 인덱스 (겹치면 나중에 놓은 것 우선) */
   function hitTest(pos) {
     for (let i = editor.comps.length - 1; i >= 0; i--) {
@@ -2663,7 +2747,14 @@
     const hit = hitTest(pos);
     if (hit >= 0) {
       editor.selected = hit;
+      editor.selFinish = false;
       editor.dragging = true;
+    } else if (finishHitTest(pos)) {
+      // 🏁 골인 존 선택/이동
+      editor.selFinish = true;
+      editor.selected = -1;
+      editor.dragging = true;
+      moveFinish(pos);
     } else {
       // 새 구성요소 배치
       const def = COMPONENTS[editor.tool];
@@ -2675,6 +2766,7 @@
       rebuildComp(comp);
       editor.comps.push(comp);
       editor.selected = editor.comps.length - 1;
+      editor.selFinish = false;
       editor.dragging = true;
     }
     renderPropsPanel();
@@ -2682,7 +2774,12 @@
   });
 
   eCanvas.addEventListener('pointermove', (e) => {
-    if (!editor.dragging || editor.selected < 0) return;
+    if (!editor.dragging) return;
+    if (editor.selFinish) {
+      moveFinish(eventToWorld(e));
+      return;
+    }
+    if (editor.selected < 0) return;
     const comp = editor.comps[editor.selected];
     Object.assign(comp, clampToBounds(eventToWorld(e)));
   });
@@ -2734,6 +2831,7 @@
     if (!editor.viewOnly && (e.key === 'Delete' || e.key === 'Backspace')) deleteSelected();
     if (e.key === 'Escape') {
       editor.selected = -1;
+      editor.selFinish = false;
       renderPropsPanel();
     }
     if (e.key === 'ArrowDown') editor.camY = clampCam(editor.camY + 80, editor.height);
@@ -2748,28 +2846,28 @@
       return (msg.textContent = '구성요소를 1개 이상 배치해주세요.');
 
     const components = editor.comps.map(({ type, x, y, props }) => ({ type, x, y, props }));
+    const finish = editor.finish ? { ...editor.finish } : undefined;
 
     // 관리자 재편집: 기존 맵을 덮어쓰기 (HTTP admin API)
     if (editor.adminEditId) {
       fetch('/api/admin/maps/update', {
         method: 'POST',
         headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height }),
+        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height, finish }),
       })
         .then((r) => r.json())
         .then((res) => {
           if (!res.ok) return (msg.textContent = res.error || '저장 실패');
           mapThumbCache.delete(editor.adminEditId); // 썸네일 캐시 갱신
           editor.adminEditId = null;
-          showScreen('home');
-          $('admin-modal').classList.remove('hidden'); // 관리자 목록 다시 열기 (키 유지)
+          showScreen('admin'); // 관리자 전용 페이지로 복귀 (키 유지)
           loadAdmin();
         })
         .catch(() => (msg.textContent = '저장 실패'));
       return;
     }
 
-    socket.emit('maps:save', { name, components, height: editor.height }, (res) => {
+    socket.emit('maps:save', { name, components, height: editor.height, finish }, (res) => {
       if (!res.ok) return (msg.textContent = res.error || '저장 실패');
       // 방장이면 방금 만든 맵을 바로 선택
       if (room && room.hostId === myId) socket.emit('room:setMap', { mapId: res.id });
@@ -2803,8 +2901,6 @@
     eCtx.textAlign = 'center';
     eCtx.fillStyle = 'rgba(212,175,55,0.55)';
     eCtx.fillText('⬇ 공 시작 구역', WORLD.width / 2, 60);
-    eCtx.fillStyle = 'rgba(227,199,120,0.65)';
-    eCtx.fillText('GOAL', WORLD.width / 2, editor.height - 40);
 
     // 맵 바닥 경계선
     eCtx.strokeStyle = 'rgba(212,175,55,0.4)';
@@ -2813,6 +2909,29 @@
     eCtx.moveTo(0, editor.height);
     eCtx.lineTo(WORLD.width, editor.height);
     eCtx.stroke();
+
+    // 🏁 골인 존 (드래그로 이동·크기조절) — 실제 게임과 동일한 모양으로 미리보기
+    if (editor.finish) {
+      const f = editor.finish;
+      drawGoal(eCtx, f);
+      // 존 영역 반투명 박스 (높이 표시)
+      eCtx.fillStyle = editor.selFinish ? 'rgba(53,224,255,0.14)' : 'rgba(53,224,255,0.06)';
+      eCtx.fillRect(f.x - f.width / 2, f.y, f.width, f.height);
+      if (editor.selFinish) {
+        eCtx.strokeStyle = '#35e0ff';
+        eCtx.lineWidth = 2;
+        eCtx.setLineDash([7, 5]);
+        eCtx.strokeRect(f.x - f.width / 2, f.y, f.width, f.height);
+        eCtx.setLineDash([]);
+        // 모서리 핸들
+        eCtx.fillStyle = '#35e0ff';
+        for (const hx of [f.x - f.width / 2, f.x + f.width / 2]) {
+          for (const hy of [f.y, f.y + f.height]) {
+            eCtx.fillRect(hx - 3, hy - 3, 6, 6);
+          }
+        }
+      }
+    }
 
     // 구성요소 (회전체는 미리보기로 실제 속도로 회전)
     const t = performance.now() / 1000;

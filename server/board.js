@@ -3,7 +3,7 @@
  */
 
 const Matter = require('matter-js');
-const { WORLD, buildShapes } = require('../public/components.js');
+const { WORLD, buildShapes, clampFinish, FINISH } = require('../public/components.js');
 
 // 충돌 카테고리
 const CAT_WALL = 0x0001; // 외벽 (유령 상태에서도 충돌)
@@ -22,7 +22,9 @@ const GOAL_MARGIN = 55; // 맵 바닥에서 이만큼 위가 골인선
  */
 function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   const H = Number(mapDef.height) || WORLD.height;
-  const goalY = H - GOAL_MARGIN;
+  // 🏁 골인 지점: 맵마다 위치·크기를 지정할 수 있다(없으면 바닥 중앙 기본값)
+  const finish = clampFinish(mapDef.finish, H);
+  const goalY = finish.y; // 도착선(존의 윗변)
 
   const bodies = [];
   const frame = [];
@@ -114,7 +116,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       world: { width: WORLD.width, height: H },
       frame,
       components: renderComponents,
-      goal: { x: WORLD.width / 2, y: goalY, width: 236 },
+      goal: { x: finish.x, y: finish.y, width: finish.width, height: finish.height },
       ballRadius: BALL_RADIUS,
       mapName: mapDef.name,
     },
@@ -122,7 +124,34 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
     reactive,
     height: H,
     goalY,
+    finish,
   };
+}
+
+// ── 🏁 굴레 물리: 골인 통과 판정 + 바닥에 떨어지면 최상단에서 재시작 ──
+// game.js(라이브)와 eventsim.js(이벤트)가 동일 로직을 공유한다.
+
+/** 공이 이번 틱에 골인선을 (x 범위 안에서) 아래로 통과했는가 */
+function crossedFinish(ball, finish) {
+  const prevY = ball.plugin.prevY;
+  if (prevY === undefined) return false;
+  const half = finish.width / 2;
+  return (
+    prevY < finish.y &&
+    ball.position.y >= finish.y &&
+    ball.position.x >= finish.x - half &&
+    ball.position.x <= finish.x + half
+  );
+}
+
+/** 골인 못 하고 맵 바닥 밑으로 떨어진 공을 (x·속도 그대로) 최상단으로 되돌린다 */
+function wrapIfFallen(ball, H) {
+  if (ball.position.y <= H + 4) return false;
+  // 속도는 유지, 가로 위치도 유지 → 그대로 이어서 최상단에서 다시 낙하
+  Matter.Body.setPosition(ball, { x: ball.position.x, y: FINISH.topY });
+  ball.plugin.prevY = FINISH.topY;
+  if (ball.plugin.frozenPos) ball.plugin.frozenPos = { x: ball.position.x, y: FINISH.topY };
+  return true;
 }
 
 /** 공 하나 생성 (공통 물리 속성) */
@@ -139,6 +168,8 @@ function createBall(x, y) {
 module.exports = {
   buildBoard,
   createBall,
+  crossedFinish,
+  wrapIfFallen,
   CAT_WALL,
   CAT_PEG,
   CAT_BALL,

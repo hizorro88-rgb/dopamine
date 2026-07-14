@@ -9,7 +9,15 @@
 
 const Matter = require('matter-js');
 const { WORLD } = require('../public/components.js');
-const { buildBoard, createBall, CAT_WALL, DEFAULT_MASK, BALL_RESTITUTION } = require('./board');
+const {
+  buildBoard,
+  createBall,
+  crossedFinish,
+  wrapIfFallen,
+  CAT_WALL,
+  DEFAULT_MASK,
+  BALL_RESTITUTION,
+} = require('./board');
 const { ITEMS, itemMeta } = require('./items');
 const { HIT_ACTIONS } = require('./game');
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
@@ -35,7 +43,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
 
   // 공을 위로 쌓아 스폰하므로 천장 없이 생성
   const built = buildBoard(engine, mapDef, { ceiling: false });
-  const { goalY, height } = built;
+  const { goalY, height, finish } = built;
 
   let simNow = 0; // 시뮬레이션 게임시간(ms)
   const frames = [];
@@ -219,24 +227,33 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
+      // 🏁 골인 통과 판정을 위해 업데이트 직전 y 기록
+      for (const ball of balls.values()) {
+        if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
+      }
+
       Matter.Engine.update(engine, TICK_MS);
 
-      // 도착 판정
+      // 도착/굴레 판정
       for (const [pid, ball] of balls) {
-        if (!ball.plugin.done && ball.position.y > goalY) {
-          ball.plugin.done = true;
-          Matter.Composite.remove(engine.world, ball);
-          finished.push(pid);
-          finishTimes.set(pid, Math.round(simNow / TIME_SCALE));
-          events.push({
-            t: Math.round(simNow / TIME_SCALE),
-            type: 'finish',
-            p: pid,
-            name: nameOf(pid),
-            rank: finished.length,
-            timeMs: Math.round(simNow / TIME_SCALE),
-          });
+        if (ball.plugin.done) continue;
+        // 골인 못 하고 바닥까지 떨어지면 → 속도·가로위치 그대로 최상단에서 다시 시작 (무한 굴레)
+        if (!crossedFinish(ball, finish)) {
+          wrapIfFallen(ball, height);
+          continue;
         }
+        ball.plugin.done = true;
+        Matter.Composite.remove(engine.world, ball);
+        finished.push(pid);
+        finishTimes.set(pid, Math.round(simNow / TIME_SCALE));
+        events.push({
+          t: Math.round(simNow / TIME_SCALE),
+          type: 'finish',
+          p: pid,
+          name: nameOf(pid),
+          rank: finished.length,
+          timeMs: Math.round(simNow / TIME_SCALE),
+        });
       }
 
       // 프레임 녹화 (20Hz)
