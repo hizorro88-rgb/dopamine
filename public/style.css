@@ -177,6 +177,17 @@ textarea:focus {
   padding: 8px 14px;
   font-size: 13px;
 }
+/* 보조 CTA(맵 갤러리·이벤트 추첨 등) — 금빛 아웃라인. 밝은 금 Primary 한 개만 강조되도록 */
+.btn.accent {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  color: var(--accent2);
+}
+.btn.accent:hover:not(:disabled) {
+  filter: none;
+  background: #221d13;
+}
 /* 화면 하단 '나가기 / 돌아가기' 버튼 — 전 화면 통일된 보조(아웃라인) 스타일 */
 .back-btn {
   width: 100%;
@@ -457,27 +468,35 @@ textarea:focus {
   padding: 6px 4px;
 }
 
-/* ── 우승 조건 선택 ── */
+/* ── 우승 조건 / 아이템 선택 — 세그먼트 컨트롤(연결된 하나의 스위치) ── */
 .winmode-row {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   margin-bottom: 12px;
+  background: var(--panel2);
+  border: 1px solid #2a2721;
+  border-radius: 12px;
+  padding: 4px;
 }
 .winmode-btn {
   flex: 1;
   padding: 10px 6px;
-  border-radius: 10px;
-  border: 1px solid #37332a;
-  background: var(--panel2);
+  border-radius: 9px;
+  border: none;
+  background: transparent;
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .winmode-btn.selected {
-  border-color: var(--accent);
-  background: #2e2716;
+  /* 선택된 세그먼트만 은은한 금빛으로 채워 '지금 이거' 상태를 즉시 읽히게 (밝은 금 CTA와는 구분) */
+  background: rgba(212, 175, 55, 0.16);
+  color: var(--accent2);
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.55);
+}
+.winmode-btn:hover:not(.selected):not(:disabled) {
   color: var(--text);
 }
 .winmode-btn:disabled {
