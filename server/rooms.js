@@ -45,6 +45,13 @@ function sanitizeName(name) {
   return trimmed || '플레이어';
 }
 
+/** 소켓의 클라이언트 IP (nginx/Cloudflare 뒤에서는 X-Forwarded-For 우선) */
+function socketIp(socket) {
+  const xff = socket.handshake.headers['x-forwarded-for'];
+  if (xff) return String(xff).split(',')[0].trim();
+  return socket.handshake.address || 'unknown';
+}
+
 function sanitizeBallCount(v) {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), 5) : 1;
@@ -242,12 +249,15 @@ class RoomManager {
       }
       const room = this.roomOf(socket);
       const player = room ? room.players.get(socket.id) : null;
-      const result = this.maps.save({
-        name,
-        author: player ? player.name : '익명',
-        components,
-        height,
-      });
+      const result = this.maps.save(
+        {
+          name,
+          author: player ? player.name : '익명',
+          components,
+          height,
+        },
+        socketIp(socket) // 하루 생성 제한 집계용 (IP)
+      );
       if (typeof cb === 'function') cb(result);
     });
 

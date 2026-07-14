@@ -8,8 +8,10 @@ rem ═════════════════════════�
 set PORT=3000
 rem 후원 링크 — 기본값은 운영자 카카오페이. 바꾸려면 값 수정, 끄려면 off
 set DONATION_URL=https://qr.kakaopay.com/Ej8euQo2R
-rem 후원자 등록용 관리자 키. 반드시 나만 아는 값으로 바꾸세요!
+rem 관리자 키 — 후원자 등록 + 유저 맵 관리(홈의 🔧 관리자)에 사용. 반드시 나만 아는 값으로!
 set ADMIN_KEY=
+rem 한 사람(IP)이 하루에 만들 수 있는 맵 수 (대량 생성 방지). 비우면 기본 10, 0=무제한
+set MAP_DAILY_LIMIT=
 rem 낙하 배속(공의 속도). 비워두면 server\config.js 의 기본값(5) 사용
 set TIME_SCALE=
 rem 허용할 접속 도메인(교차 사이트 소켓 남용 차단). 쉼표로 여러 개, 비우면 전체 허용

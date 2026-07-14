@@ -67,12 +67,15 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-// 후원자 등록 (관리자 전용) → 후원자 코드 발급 — 키 미설정 시 항상 닫힘(fail-closed)
-app.post('/api/admin/donors', (req, res) => {
+// 관리자 인증: ADMIN_KEY 미설정 시 항상 닫힘(fail-closed) + 상수 시간 비교
+function adminOk(req) {
   const key = process.env.ADMIN_KEY;
-  if (!key || !safeEqual(req.get('x-admin-key'), key)) {
-    return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
-  }
+  return !!key && safeEqual(req.get('x-admin-key'), key);
+}
+
+// 후원자 등록 (관리자 전용) → 후원자 코드 발급
+app.post('/api/admin/donors', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
   res.json(donors.add(req.body || {}));
 });
 
@@ -101,6 +104,21 @@ const io = new Server(server, {
 const { EventManager } = require('./events');
 
 const rooms = new RoomManager(io, donors);
+
+// ── 관리자: 유저 맵 관리 (목록/삭제/재편집) — x-admin-key 필요 ──
+app.get('/api/admin/maps', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  res.json({ ok: true, maps: rooms.maps.adminList() });
+});
+app.post('/api/admin/maps/delete', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  res.json(rooms.maps.remove((req.body || {}).id));
+});
+app.post('/api/admin/maps/update', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  const { id, name, components, height } = req.body || {};
+  res.json(rooms.maps.update(id, { name, components, height }));
+});
 const events = new EventManager(io, rooms.maps);
 io.on('connection', (socket) => {
   rooms.handleConnection(socket);

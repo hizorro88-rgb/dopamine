@@ -515,6 +515,85 @@
   $('btn-board-result').addEventListener('click', openRoundRanking);
   $('btn-board-close').addEventListener('click', () => $('board-modal').classList.add('hidden'));
 
+  // ── 🔧 관리자: 유저 맵 관리 ──
+  let adminKey = ''; // 세션 메모리에만 보관
+  const adminHeaders = () => ({ 'x-admin-key': adminKey, 'Content-Type': 'application/json' });
+
+  $('btn-admin').addEventListener('click', () => {
+    $('admin-msg').textContent = '';
+    $('admin-panel').classList.add('hidden');
+    $('admin-login').classList.remove('hidden');
+    $('admin-key').value = adminKey;
+    $('admin-modal').classList.remove('hidden');
+  });
+  $('btn-admin-close').addEventListener('click', () => $('admin-modal').classList.add('hidden'));
+  $('btn-admin-open').addEventListener('click', () => {
+    adminKey = $('admin-key').value;
+    loadAdminMaps();
+  });
+  $('admin-key').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { adminKey = $('admin-key').value; loadAdminMaps(); }
+  });
+
+  function loadAdminMaps() {
+    $('admin-msg').textContent = '';
+    fetch('/api/admin/maps', { headers: adminHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('관리자 키가 올바르지 않습니다.'))))
+      .then(({ maps }) => {
+        $('admin-login').classList.add('hidden');
+        $('admin-panel').classList.remove('hidden');
+        $('admin-summary').textContent = `유저 제작 맵 ${maps.length}개 (기본 맵은 삭제 불가)`;
+        const list = $('admin-map-list');
+        list.innerHTML = '';
+        if (!maps.length) {
+          list.innerHTML = '<li class="board-empty">유저가 만든 맵이 아직 없어요.</li>';
+        }
+        for (const m of maps) {
+          const li = document.createElement('li');
+          li.className = 'admin-map-row';
+          const when = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '';
+          li.innerHTML = `<div class="admin-map-info">
+              <span class="admin-map-name">${escapeHtml(m.name)}</span>
+              <span class="admin-map-meta">${escapeHtml(m.author)} · ${m.count}개 · 길이 ${m.height} · ${when}</span>
+            </div>
+            <div class="admin-map-actions">
+              <button class="btn small" data-edit="${m.id}">✏️ 편집</button>
+              <button class="btn small danger-btn" data-del="${m.id}" data-name="${escapeHtml(m.name)}">🗑 삭제</button>
+            </div>`;
+          list.appendChild(li);
+        }
+        list.querySelectorAll('[data-del]').forEach((b) =>
+          b.addEventListener('click', () => adminDeleteMap(b.dataset.del, b.dataset.name))
+        );
+        list.querySelectorAll('[data-edit]').forEach((b) =>
+          b.addEventListener('click', () => adminEditMap(b.dataset.edit))
+        );
+      })
+      .catch((e) => {
+        $('admin-msg').textContent = e.message || '불러오기 실패';
+      });
+  }
+
+  function adminDeleteMap(id, name) {
+    if (!confirm(`「${name}」 맵을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    fetch('/api/admin/maps/delete', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ id }) })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) return ($('admin-msg').textContent = res.error || '삭제 실패');
+        loadAdminMaps();
+      })
+      .catch(() => ($('admin-msg').textContent = '삭제 실패'));
+  }
+
+  function adminEditMap(id) {
+    // 맵을 에디터로 불러와 재편집 → 저장 시 관리자 API로 덮어쓰기
+    socket.emit('maps:get', { mapId: id }, (res) => {
+      if (!res || !res.ok) return ($('admin-msg').textContent = '맵을 불러올 수 없습니다.');
+      $('admin-modal').classList.add('hidden');
+      openEditor({ from: 'home', map: res.map, adminEditId: id, adminEditName: res.map.name });
+    });
+  }
+
   // ── 명예의 전당 ──
   $('btn-hall').addEventListener('click', () => {
     fetch('/api/donors')
@@ -2289,6 +2368,7 @@
   function openEditor(opts = {}) {
     editor.viewOnly = !!opts.viewOnly;
     editor.from = opts.from || 'maps';
+    editor.adminEditId = opts.adminEditId || null; // 관리자 재편집 대상 맵 id
     editor.comps = [];
     editor.selected = -1;
     editor.tool = 'peg';
@@ -2311,13 +2391,16 @@
     }
     $('editor-title').textContent = editor.viewOnly
       ? `👁 「${opts.map ? opts.map.name : '맵'}」 구경`
-      : '🛠 맵 에디터';
+      : editor.adminEditId
+        ? '🔧 관리자 맵 편집'
+        : '🛠 맵 에디터';
     $('btn-editor-back').textContent =
-      editor.from === 'maps' ? '← 갤러리로' : '← 대기실로';
+      editor.from === 'maps' ? '← 갤러리로' : editor.from === 'home' ? '← 홈으로' : '← 대기실로';
 
     $('input-map-length').value = editor.height;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
-    $('input-map-name').value = '';
+    $('input-map-name').value = opts.adminEditName || '';
+    $('btn-map-save').textContent = editor.adminEditId ? '💾 관리자 저장(덮어쓰기)' : '💾 저장하고 공유하기';
     $('editor-msg').textContent = '';
     if (!editor.viewOnly) {
       renderPalette();
@@ -2539,6 +2622,26 @@
       return (msg.textContent = '구성요소를 1개 이상 배치해주세요.');
 
     const components = editor.comps.map(({ type, x, y, props }) => ({ type, x, y, props }));
+
+    // 관리자 재편집: 기존 맵을 덮어쓰기 (HTTP admin API)
+    if (editor.adminEditId) {
+      fetch('/api/admin/maps/update', {
+        method: 'POST',
+        headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (!res.ok) return (msg.textContent = res.error || '저장 실패');
+          mapThumbCache.delete(editor.adminEditId); // 썸네일 캐시 갱신
+          editor.adminEditId = null;
+          showScreen('home');
+          $('btn-admin').click(); // 관리자 목록 다시 열기
+        })
+        .catch(() => (msg.textContent = '저장 실패'));
+      return;
+    }
+
     socket.emit('maps:save', { name, components, height: editor.height }, (res) => {
       if (!res.ok) return (msg.textContent = res.error || '저장 실패');
       // 방장이면 방금 만든 맵을 바로 선택

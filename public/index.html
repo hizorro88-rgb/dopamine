@@ -71,6 +71,7 @@
         <button id="btn-board" class="link-btn">📊 전체 순위</button>
         <button id="btn-hall" class="link-btn">🏆 후원자 명예의 전당</button>
         <button id="btn-donor-toggle" class="link-btn">💖 후원자 코드 입력</button>
+        <button id="btn-admin" class="link-btn">🔧 관리자</button>
       </div>
       <div id="donor-box" class="hidden">
         <input id="input-donor-code" type="text" maxlength="9" placeholder="DN-XXXXXX" autocomplete="off" />
@@ -91,6 +92,24 @@
       <ol id="board-list"></ol>
       <p class="hint" id="board-hint">모든 게임의 결과가 닉네임 기준으로 누적됩니다.<br>점수 = 참가자 수 − 순위 + 1 (2인 이상 게임만 집계)</p>
       <button id="btn-board-close" class="btn small">닫기</button>
+    </div>
+  </div>
+
+  <!-- 관리자: 유저 맵 관리 -->
+  <div id="admin-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>🔧 관리자 — 맵 관리</h2>
+      <div id="admin-login">
+        <input id="admin-key" type="password" placeholder="관리자 키 (ADMIN_KEY)" autocomplete="off" />
+        <button id="btn-admin-open" class="btn primary" style="width:100%;margin-top:8px">열기</button>
+        <p class="hint">서버 실행 시 <code>ADMIN_KEY</code>로 지정한 키를 입력하세요.</p>
+      </div>
+      <div id="admin-panel" class="hidden">
+        <p class="hint" id="admin-summary"></p>
+        <ol id="admin-map-list"></ol>
+      </div>
+      <p class="error" id="admin-msg"></p>
+      <button id="btn-admin-close" class="btn small">닫기</button>
     </div>
   </div>
 

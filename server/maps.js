@@ -16,6 +16,14 @@ const DATA_FILE = path.join(DATA_DIR, 'maps.json');
 const BOUNDS = { minX: 25, maxX: 575, minY: 130 };
 const MAX_COMPONENTS = 400;
 const MAX_CUSTOM_MAPS = 200;
+// 한 생성자(IP)가 하루에 만들 수 있는 맵 수 — 대량 생성 남용 방지 (0=무제한)
+const MAP_DAILY_LIMIT =
+  process.env.MAP_DAILY_LIMIT !== undefined ? Math.max(0, Number(process.env.MAP_DAILY_LIMIT) || 0) : 10;
+
+/** 서버 로컬 기준 YYYY-MM-DD */
+function localDate() {
+  return new Date().toLocaleDateString('sv-SE');
+}
 
 // ── 기본 맵 ──────────────────────────────────────────────
 
@@ -769,6 +777,7 @@ class MapStore {
   constructor() {
     this.builtins = new Map(BUILTIN_MAPS.map((m) => [m.id, m]));
     this.custom = new Map();
+    this.dailyByKey = new Map(); // `${date}|${creatorKey}` -> 오늘 생성 수
     this.load();
   }
 
@@ -805,21 +814,15 @@ class MapStore {
     return this.builtins.get(id) || this.custom.get(id) || null;
   }
 
-  /**
-   * 유저 맵 저장 (검증 포함)
-   * @returns {{ok: true, id: string} | {ok: false, error: string}}
-   */
-  save({ name, author, components, height } = {}) {
+  /** 이름·길이·구성요소 검증 후 정제된 값을 반환 (save/update 공용) */
+  _validate({ name, components, height }) {
     const cleanName = String(name || '').trim().slice(0, 20);
     if (!cleanName) return { ok: false, error: '맵 이름을 입력해주세요.' };
     if (!Array.isArray(components) || components.length === 0)
       return { ok: false, error: '구성요소를 1개 이상 배치해주세요.' };
     if (components.length > MAX_COMPONENTS)
       return { ok: false, error: `구성요소는 최대 ${MAX_COMPONENTS}개까지 가능합니다.` };
-    if (this.custom.size >= MAX_CUSTOM_MAPS)
-      return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
 
-    // 맵 길이: 허용 범위로 잘라서 저장
     const h = Number(height);
     const cleanHeight = Number.isFinite(h)
       ? Math.round(clamp(h, WORLD.minHeight, WORLD.maxHeight) / 50) * 50
@@ -836,7 +839,6 @@ class MapStore {
       if (!Number.isFinite(x) || !Number.isFinite(y))
         return { ok: false, error: '잘못된 좌표가 있습니다.' };
 
-      // props 는 스키마에 정의된 키만, min/max 로 잘라서 저장
       const props = defaultProps(def);
       for (const schema of def.props) {
         const v = Number(comp.props && comp.props[schema.key]);
@@ -844,18 +846,84 @@ class MapStore {
       }
       validated.push({ type: def.id, x: Math.round(x), y: Math.round(y), props });
     }
+    return { ok: true, cleanName, cleanHeight, validated };
+  }
+
+  /**
+   * 유저 맵 저장 (검증 + 하루 생성 제한)
+   * @param creatorKey 생성자 식별키(IP 등) — 하루 제한 집계용
+   * @returns {{ok: true, id: string} | {ok: false, error: string}}
+   */
+  save({ name, author, components, height } = {}, creatorKey = null) {
+    if (this.custom.size >= MAX_CUSTOM_MAPS)
+      return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
+
+    // 하루 생성 제한 (대량 생성 남용 방지)
+    const dkey = creatorKey ? `${localDate()}|${creatorKey}` : null;
+    if (MAP_DAILY_LIMIT > 0 && dkey) {
+      if ((this.dailyByKey.get(dkey) || 0) >= MAP_DAILY_LIMIT)
+        return { ok: false, error: `맵은 하루에 ${MAP_DAILY_LIMIT}개까지 만들 수 있어요. 내일 다시 시도해주세요.` };
+    }
+
+    const v = this._validate({ name, components, height });
+    if (!v.ok) return v;
 
     const id = 'm' + Math.random().toString(36).slice(2, 10);
     this.custom.set(id, {
       id,
-      name: cleanName,
+      name: v.cleanName,
       author: String(author || '익명').trim().slice(0, 12) || '익명',
-      height: cleanHeight,
-      components: validated,
+      height: v.cleanHeight,
+      components: v.validated,
       createdAt: Date.now(),
     });
     this.persist();
+
+    if (MAP_DAILY_LIMIT > 0 && dkey) {
+      this.dailyByKey.set(dkey, (this.dailyByKey.get(dkey) || 0) + 1);
+      if (this.dailyByKey.size > 5000) {
+        const today = localDate();
+        for (const k of this.dailyByKey.keys()) if (!k.startsWith(today)) this.dailyByKey.delete(k);
+      }
+    }
     return { ok: true, id };
+  }
+
+  /** 관리자: 기존 유저 맵 덮어쓰기(재편집) */
+  update(id, { name, components, height } = {}) {
+    const existing = this.custom.get(id);
+    if (!existing) return { ok: false, error: '존재하지 않는 유저 맵입니다.' };
+    const v = this._validate({ name, components, height });
+    if (!v.ok) return v;
+    existing.name = v.cleanName;
+    existing.height = v.cleanHeight;
+    existing.components = v.validated;
+    existing.updatedAt = Date.now();
+    this.persist();
+    return { ok: true, id };
+  }
+
+  /** 관리자: 유저 맵 삭제 (기본 맵은 불가) */
+  remove(id) {
+    if (this.builtins.has(id)) return { ok: false, error: '기본 맵은 삭제할 수 없습니다.' };
+    if (!this.custom.delete(id)) return { ok: false, error: '존재하지 않는 맵입니다.' };
+    this.persist();
+    return { ok: true };
+  }
+
+  /** 관리자: 유저 맵 상세 목록 (최신순) */
+  adminList() {
+    return [...this.custom.values()]
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        author: m.author,
+        count: m.components.length,
+        height: m.height,
+        createdAt: m.createdAt || 0,
+        updatedAt: m.updatedAt || 0,
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
   }
 }
 

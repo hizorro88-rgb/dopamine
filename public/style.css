@@ -531,6 +531,53 @@ input[type='text']:focus {
 .link-btn:hover {
   color: var(--text);
 }
+
+/* ── 관리자 맵 관리 ── */
+#admin-key {
+  width: 100%;
+}
+#admin-map-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 8px 0 12px;
+}
+.admin-map-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #262219;
+  text-align: left;
+}
+.admin-map-info {
+  min-width: 0;
+}
+.admin-map-name {
+  display: block;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-map-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.admin-map-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.danger-btn {
+  border-color: #a33 !important;
+  color: #ff8a8a !important;
+}
+.danger-btn:hover {
+  background: rgba(180, 50, 50, 0.15);
+}
 #donor-box {
   margin-top: 10px;
 }
