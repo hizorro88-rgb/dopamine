@@ -16,6 +16,9 @@
   let eventRoom = null; // event:update 페이로드
   let myParticipantId = null; // 이벤트 추첨에서 내 공 번호
   let autoJoinedEvent = false;
+  let lastRanking = null; // 방금 끝난 판의 전체 순위 (결과 화면의 "이번 판 순위"용)
+  let lastRankingEvent = false;
+  let lastRankingWinMode = 'first';
   const $ = (id) => document.getElementById(id);
 
   const urlEventCode = new URLSearchParams(location.search).get('event');
@@ -457,6 +460,9 @@
     fetch('/api/leaderboard')
       .then((r) => r.json())
       .then(({ leaderboard }) => {
+        $('board-title').textContent = '📊 전체 순위 (누적 전적)';
+        $('board-hint').innerHTML =
+          '모든 게임의 결과가 닉네임 기준으로 누적됩니다.<br>점수 = 참가자 수 − 순위 + 1 (2인 이상 게임만 집계)';
         const list = $('board-list');
         list.innerHTML = '';
         if (!leaderboard.length) {
@@ -478,8 +484,35 @@
       })
       .catch(() => {});
   }
+
+  // ── 이번 판 순위 (방금 끝난 게임의 전체 순위) ──
+  function openRoundRanking() {
+    const ranking = lastRanking || [];
+    const mineKey = lastRankingEvent ? myParticipantId : myId;
+    $('board-title').textContent = '🏁 이번 판 순위';
+    $('board-hint').innerHTML = lastRankingWinMode === 'last'
+      ? '🐢 늦게 골인 우승 — 늦게 도착할수록 높은 순위'
+      : '🥇 먼저 골인 우승 — 먼저 도착한 순서';
+    const list = $('board-list');
+    list.innerHTML = '';
+    if (!ranking.length) {
+      list.innerHTML = '<li class="board-empty">순위 기록이 없어요.</li>';
+    }
+    const rankEmoji = ['🥇', '🥈', '🥉'];
+    for (const r of ranking) {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="hall-rank">${rankEmoji[r.rank - 1] || r.rank}</span>
+        <span class="player-dot" style="background:${r.color || '#888'}"></span>
+        <span>${escapeHtml(r.name)}${r.playerId === mineKey ? ' (나)' : ''}</span>
+        <span class="board-stats">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>`;
+      list.appendChild(li);
+    }
+    $('board-modal').classList.remove('hidden');
+  }
+
   $('btn-board').addEventListener('click', openLeaderboard);
-  $('btn-board-result').addEventListener('click', openLeaderboard);
+  // 게임 결과 화면의 버튼은 "방금 끝난 판의 전체 순위"를 보여준다
+  $('btn-board-result').addEventListener('click', openRoundRanking);
   $('btn-board-close').addEventListener('click', () => $('board-modal').classList.add('hidden'));
 
   // ── 명예의 전당 ──
@@ -1423,6 +1456,10 @@
   /** 최종 결과 화면 (아이템전/이벤트 추첨 공용) */
   function showResults(ranking, { event = false } = {}) {
     const mineKey = event ? myParticipantId : myId;
+    // "이번 판 순위" 보기용으로 이번 결과를 저장
+    lastRanking = ranking;
+    lastRankingEvent = event;
+    lastRankingWinMode = game ? game.winMode : 'first';
 
     // 우승자 배너
     const winner = ranking[0];
