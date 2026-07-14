@@ -10,6 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'reviews.json');
@@ -34,8 +35,7 @@ class ReviewStore {
   }
 
   persist() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(this.byMap, null, 2));
+    atomicWriteJSON(DATA_FILE, this.byMap);
   }
 
   /** 후기 등록 (같은 이름은 덮어쓰기) */

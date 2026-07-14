@@ -5,7 +5,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { WORLD, COMPONENTS, defaultProps } = require('../public/components.js');
+const { WORLD, COMPONENTS, defaultProps, lookupComponent } = require('../public/components.js');
+const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'maps.json');
@@ -703,8 +704,7 @@ class MapStore {
   }
 
   persist() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify([...this.custom.values()], null, 2));
+    atomicWriteJSON(DATA_FILE, [...this.custom.values()]);
   }
 
   /** 맵 목록 (메타데이터만) */
@@ -747,7 +747,7 @@ class MapStore {
 
     const validated = [];
     for (const comp of components) {
-      const def = COMPONENTS[comp && comp.type];
+      const def = lookupComponent(comp && comp.type);
       if (!def) return { ok: false, error: `알 수 없는 구성요소: ${comp && comp.type}` };
 
       const x = clamp(Number(comp.x), BOUNDS.minX, BOUNDS.maxX);

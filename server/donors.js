@@ -13,11 +13,20 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'donors.json');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** 추측 불가능한 후원자 코드 (암호학적 난수) */
+function randomCode() {
+  let code = 'DN-';
+  for (let i = 0; i < 8; i++) code += CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];
+  return code;
+}
 
 class DonorStore {
   constructor() {
@@ -34,8 +43,7 @@ class DonorStore {
   }
 
   persist() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(this.donors, null, 2));
+    atomicWriteJSON(DATA_FILE, this.donors);
   }
 
   /** 후원자 등록 → 후원자 코드 발급 */
@@ -45,10 +53,7 @@ class DonorStore {
 
     let code;
     do {
-      code = 'DN-';
-      for (let i = 0; i < 6; i++) {
-        code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-      }
+      code = randomCode();
     } while (this.donors.some((d) => d.code === code));
 
     this.donors.push({

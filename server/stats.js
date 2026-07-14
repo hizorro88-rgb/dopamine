@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'stats.json');
@@ -29,8 +30,7 @@ class StatsStore {
   }
 
   persist() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(this.byName, null, 2));
+    atomicWriteJSON(DATA_FILE, this.byName);
   }
 
   /** 게임 종료 시 순위표를 전적에 반영 */

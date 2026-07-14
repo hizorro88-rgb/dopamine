@@ -408,3 +408,15 @@ curl -X POST http://localhost:3000/api/admin/donors \
 - `GAME_TIMEOUT_MS` — 제한시간(게임 시간 기준), 초과 시 현재 위치 순으로 순위 결정
 - `MAX_PLAYERS` — `server/rooms.js`, 방 최대 인원 (기본 10, 관전자는 무제한)
 - `WORLD` — `public/components.js`, 보드 폭·기본 길이·길이 허용 범위(minHeight~maxHeight). 맵별 길이는 에디터에서 조절하며, 서버 물리·클라이언트 렌더링·미니맵이 모두 맵의 길이를 따릅니다
+
+## 보안 (공개 배포 시)
+
+공개 도메인에 붙일 때를 대비한 기본 방어가 들어가 있습니다.
+
+- **입력 검증**: 모든 소켓 이벤트는 방장 권한·방 소속·게임 상태를 확인하고, 이름/맵/좌표/속성은 서버에서 길이·범위로 잘라 저장합니다. 맵 구성요소의 타입은 own-property 로만 조회해 `__proto__` 같은 프로토타입 키로 서버를 죽이는 공격을 막습니다(`server/security.js` + `lookupComponent`).
+- **XSS 방어**: 사용자 입력(이름·맵 후기 등)은 렌더링 시 모두 `escapeHtml` 로 이스케이프됩니다. 새 `innerHTML` 템플릿에 사용자 값을 넣을 땐 반드시 `escapeHtml()` 로 감싸세요.
+- **레이트 리밋**: 방/이벤트 생성, 맵 저장, 후기, 후원자 코드 확인, `/api/visit` 에 소켓·IP 기준 분당 한도가 걸려 있습니다(`server/security.js` 의 `RateLimiter`).
+- **원자적 저장**: `data/*.json` 은 임시 파일 + rename 으로 원자적으로 저장되어 쓰기 도중 크래시에도 손상되지 않습니다.
+- **관리자 키**: `/api/admin/donors` 는 `ADMIN_KEY` 미설정 시 항상 닫히며, 비교는 상수 시간(timing-safe)입니다. 후원자 코드는 암호학적 난수로 발급됩니다.
+- **`ALLOWED_ORIGINS`** (선택): 쉼표로 구분한 허용 Origin 목록을 설정하면 교차 사이트에서의 소켓 접속을 차단합니다. 예: `ALLOWED_ORIGINS=https://dopamine.me.kr npm start`. 미설정 시 기존처럼 모든 Origin 을 허용합니다(LAN/DDNS 접속 호환). **배포 도메인이 고정되어 있다면 설정을 권장합니다.**
+- 리버스 프록시(nginx) 뒤에서는 `trust proxy` 가 켜져 있어 `X-Forwarded-For` 로 실제 IP 를 인식합니다.

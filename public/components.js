@@ -219,6 +219,11 @@
     },
   };
 
+  /** 레지스트리 안전 조회: 프로토타입 키(__proto__/constructor 등)를 걸러 실제 정의만 반환 */
+  function lookupComponent(type) {
+    return Object.prototype.hasOwnProperty.call(COMPONENTS, type) ? COMPONENTS[type] : null;
+  }
+
   /** props 스키마의 기본값 객체 */
   function defaultProps(def) {
     const out = {};
@@ -228,10 +233,10 @@
 
   /** 구성요소 인스턴스의 도형 계산 (알 수 없는 타입이면 null) */
   function buildShapes(type, props) {
-    const def = COMPONENTS[type];
+    const def = lookupComponent(type);
     if (!def) return null;
     return def.build({ ...defaultProps(def), ...(props || {}) });
   }
 
-  return { WORLD, COMPONENTS, defaultProps, buildShapes };
+  return { WORLD, COMPONENTS, defaultProps, buildShapes, lookupComponent };
 });

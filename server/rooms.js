@@ -6,9 +6,12 @@ const { Game } = require('./game');
 const { MapStore } = require('./maps');
 const { StatsStore } = require('./stats');
 const { ReviewStore } = require('./reviews');
+const { RateLimiter } = require('./security');
 
 // 아이템전(직접 아이템 사용)은 최대 10명 — 그 이상은 이벤트 추첨 모드 사용
 const MAX_PLAYERS = 10;
+// 동시에 존재할 수 있는 방 총량 (스팸/메모리 고갈 방지)
+const MAX_ROOMS = 2000;
 // 주얼 톤 팔레트: 가넷, 샴페인, 진주, 에메랄드, 사파이어, 자수정, 은, 구리, 청록, 올리브
 const COLORS = [
   '#b23a48',
@@ -56,6 +59,13 @@ class RoomManager {
     this.donors = donorStore || null;
     this.stats = new StatsStore();
     this.reviews = new ReviewStore();
+    // 소켓당 남용 방지 레이트 리미터 (분당 허용 횟수)
+    this.limiter = {
+      create: new RateLimiter(60000, 20), // 방 생성
+      save: new RateLimiter(60000, 20), // 맵 저장
+      review: new RateLimiter(60000, 30), // 후기
+      donor: new RateLimiter(60000, 20), // 후원자 코드 확인(브루트포스 방지)
+    };
   }
 
   isDonor(donorCode) {
@@ -65,6 +75,11 @@ class RoomManager {
   handleConnection(socket) {
     socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer } = {}, cb) => {
       if (typeof cb !== 'function') return;
+      if (!this.limiter.create.allow(socket.id))
+        return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
+      if (this.rooms.size >= MAX_ROOMS)
+        return cb({ ok: false, error: '지금은 방이 너무 많아요. 잠시 후 다시 시도해주세요.' });
+      this.leave(socket); // 이전 방 정리 (누수·중복 소속 방지)
       const code = generateCode(this.rooms);
       const room = {
         code,
@@ -90,6 +105,7 @@ class RoomManager {
         return cb({ ok: false, error: '게임이 진행 중인 방입니다. 잠시 후 다시 시도해주세요.' });
       if (room.players.size >= MAX_PLAYERS)
         return cb({ ok: false, error: `방이 가득 찼습니다. (최대 ${MAX_PLAYERS}명)` });
+      this.leave(socket); // 이전 방 정리 (누수·중복 소속 방지)
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
       cb({ ok: true, code: room.code });
     });
@@ -141,6 +157,8 @@ class RoomManager {
     // 후원자 코드 확인 (홈 화면 즉시 피드백용)
     socket.on('donor:check', ({ code } = {}, cb) => {
       if (typeof cb !== 'function') return;
+      // 코드 브루트포스 방지 (분당 20회)
+      if (!this.limiter.donor.allow(socket.id)) return cb({ ok: false });
       const donor = this.donors ? this.donors.findByCode(code) : null;
       cb(donor ? { ok: true, name: donor.name } : { ok: false });
     });
@@ -205,6 +223,8 @@ class RoomManager {
 
     socket.on('reviews:add', ({ mapId, name, rating, text } = {}, cb) => {
       if (typeof cb !== 'function') return;
+      if (!this.limiter.review.allow(socket.id))
+        return cb({ ok: false, error: '후기 작성이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
       if (!this.maps.get(mapId)) return cb({ ok: false, error: '존재하지 않는 맵입니다.' });
       // 방에 있으면 그 닉네임을 우선 사용 (사칭 방지)
       const room = this.roomOf(socket);
@@ -213,6 +233,11 @@ class RoomManager {
     });
 
     socket.on('maps:save', ({ name, components, height } = {}, cb) => {
+      if (!this.limiter.save.allow(socket.id)) {
+        if (typeof cb === 'function')
+          cb({ ok: false, error: '맵 저장이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
+        return;
+      }
       const room = this.roomOf(socket);
       const player = room ? room.players.get(socket.id) : null;
       const result = this.maps.save({

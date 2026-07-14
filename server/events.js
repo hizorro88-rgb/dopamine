@@ -11,8 +11,10 @@
 
 const zlib = require('zlib');
 const { simulateEvent } = require('./eventsim');
+const { RateLimiter } = require('./security');
 
 const MAX_PARTICIPANTS = 500; // 공(참가자) 상한 — 시뮬레이션 성능 기준
+const MAX_EVENTS = 1000; // 동시 이벤트 총량 (스팸/메모리 고갈 방지)
 const PLAYBACK_DELAY_MS = 8000; // 리플레이 다운로드 여유 시간
 const RECENT_NAMES = 30;
 
@@ -40,11 +42,20 @@ class EventManager {
     this.maps = mapStore;
     this.events = new Map(); // code -> event
     this.socketEvent = new Map(); // socketId -> code
+    this.limiter = {
+      create: new RateLimiter(60000, 20),
+      register: new RateLimiter(60000, 30),
+    };
   }
 
   handleConnection(socket) {
     socket.on('event:create', (_payload, cb) => {
       if (typeof cb !== 'function') return;
+      if (!this.limiter.create.allow(socket.id))
+        return cb({ ok: false, error: '너무 자주 이벤트를 만들고 있어요. 잠시 후 다시 시도해주세요.' });
+      if (this.events.size >= MAX_EVENTS)
+        return cb({ ok: false, error: '지금은 이벤트가 너무 많아요. 잠시 후 다시 시도해주세요.' });
+      this.detach(socket); // 이전 이벤트 정리 (누수 방지)
       const code = generateCode(this.events);
       const ev = {
         code,
@@ -66,6 +77,7 @@ class EventManager {
       if (typeof cb !== 'function') return;
       const ev = this.events.get(String(code || '').trim().toUpperCase());
       if (!ev) return cb({ ok: false, error: '존재하지 않는 이벤트 코드입니다.' });
+      this.detach(socket); // 이전 이벤트 정리 (누수 방지)
       this.joinSocket(socket, ev);
       cb({ ok: true, ...this.summary(ev), replay: this.replayInfo(ev) });
       this.broadcast(ev);
@@ -74,6 +86,8 @@ class EventManager {
     // 참가 등록 (공 1개 배정) — 추첨 시작 전까지만
     socket.on('event:register', ({ name } = {}, cb) => {
       if (typeof cb !== 'function') return;
+      if (!this.limiter.register.allow(socket.id))
+        return cb({ ok: false, error: '요청이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
       const ev = this.eventOf(socket);
       if (!ev) return cb({ ok: false, error: '이벤트에 먼저 입장해주세요.' });
       if (ev.state !== 'lobby')
@@ -170,6 +184,24 @@ class EventManager {
   joinSocket(socket, ev) {
     this.socketEvent.set(socket.id, ev.code);
     socket.join(this.roomKey(ev));
+  }
+
+  /** 소켓을 현재 이벤트에서 분리 (다른 이벤트로 이동하기 전에 호출) */
+  detach(socket) {
+    const ev = this.eventOf(socket);
+    if (!ev) return;
+    this.socketEvent.delete(socket.id);
+    socket.leave(this.roomKey(ev));
+    // 호스트가 떠나면 대기 중 이벤트는 승계, 아무도 없으면 정리
+    if (ev.hostId === socket.id) {
+      const roomSockets = this.io.sockets.adapter.rooms.get(this.roomKey(ev));
+      const next = roomSockets ? [...roomSockets][0] : null;
+      if (next) ev.hostId = next;
+    }
+    const roomSockets = this.io.sockets.adapter.rooms.get(this.roomKey(ev));
+    if ((!roomSockets || roomSockets.size === 0) && ev.state === 'lobby') {
+      this.events.delete(ev.code);
+    }
   }
 
   eventOf(socket) {

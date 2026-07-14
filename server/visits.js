@@ -5,9 +5,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'visits.json');
+
+// 하루에 추적하는 순 방문자 id 최대 개수 (메모리·디스크 무한 증가 방지)
+const MAX_SEEN_TODAY = 50000;
 
 /** 서버 로컬 기준 YYYY-MM-DD */
 function localDate() {
@@ -23,6 +27,9 @@ class VisitStore {
     } catch {
       /* 첫 실행 */
     }
+    if (!Array.isArray(this.data.seenToday)) this.data.seenToday = [];
+    this.seen = new Set(this.data.seenToday); // 빠른 중복 확인용
+    this.dirty = false;
     this.rollover();
   }
 
@@ -33,7 +40,8 @@ class VisitStore {
       this.data.date = today;
       this.data.today = 0;
       this.data.seenToday = [];
-      this.save();
+      this.seen = new Set();
+      this.save(true);
     }
   }
 
@@ -41,8 +49,12 @@ class VisitStore {
   visit(vid) {
     this.rollover();
     const id = String(vid || '').slice(0, 40);
-    if (id && !this.data.seenToday.includes(id)) {
-      this.data.seenToday.push(id);
+    // 집합이 한도에 차면 새 id 는 카운트만 하고 추적하지 않는다(메모리 상한 유지)
+    if (id && !this.seen.has(id)) {
+      if (this.seen.size < MAX_SEEN_TODAY) {
+        this.seen.add(id);
+        this.data.seenToday.push(id);
+      }
       this.data.today++;
       this.data.total++;
       this.save();
@@ -50,10 +62,27 @@ class VisitStore {
     return { today: this.data.today, total: this.data.total };
   }
 
-  save() {
+  /**
+   * 디스크 저장을 최대 2초에 한 번으로 합쳐 이벤트 루프 부담과
+   * 잦은 동기 쓰기를 막는다(immediate=true 면 즉시 저장).
+   */
+  save(immediate = false) {
+    this.dirty = true;
+    if (immediate) return this.flush();
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => this.flush(), 2000);
+    if (this.saveTimer.unref) this.saveTimer.unref();
+  }
+
+  flush() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    if (!this.dirty) return;
+    this.dirty = false;
     try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      fs.writeFileSync(DATA_FILE, JSON.stringify(this.data));
+      atomicWriteJSON(DATA_FILE, this.data);
     } catch (e) {
       console.error('방문자 수 저장 실패:', e.message);
     }
