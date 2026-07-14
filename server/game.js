@@ -596,6 +596,8 @@ class Game {
         g: ball.plugin.ghost ? 1 : 0,
         f: ball.plugin.frozen ? 1 : 0,
         b: ball.plugin.balloon ? 1 : 0,
+        m: ball.plugin.magnet ? 1 : 0,
+        s: ball.plugin.slowed ? 1 : 0,
       });
     }
     // 현재 터져 있는(숨겨진) 반응형 구성요소 인덱스

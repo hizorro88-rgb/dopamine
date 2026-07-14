@@ -1200,6 +1200,9 @@
       camY: 0,
       explosions: [], // {x, y, radius, start} — 폭발 애니메이션
       celebrations: [], // {x, y, start, particles} — 🎉 우승 축포
+      fxPops: [], // {x, y, emoji, label, color, start} — 아이템 발동 순간 팝
+      fxSeen: new Map(), // ballKey -> 직전 상태 플래그 (발동 순간 감지용)
+      screenFx: null, // {emoji, label, color, start} — 내 공이 당했을 때 화면 전체 알림
       hiddenComps: new Set(), // 터져서 잠시 사라진 구성요소 인덱스
       shakeUntil: 0,
     };
@@ -1695,6 +1698,113 @@
     return Math.max(0, (b.elapsed + (renderT - b.t) * rate) / 1000);
   }
 
+  // ── 아이템 상태 시각화 (과장된 이펙트) ──────────────────
+  const EFFECT_META = {
+    f: { emoji: '🧊', label: '얼음!', color: '#7fdfff' },
+    b: { emoji: '🎈', label: '풍선!', color: '#ff9ecb' },
+    g: { emoji: '👻', label: '유령!', color: '#e2e8ff' },
+    m: { emoji: '🧲', label: '자석!', color: '#ff6b6b' },
+    s: { emoji: '⚡', label: '번개!', color: '#ffe14a' },
+  };
+  const EFFECT_BITS = [['f', 1], ['b', 2], ['g', 4], ['m', 8], ['s', 16]];
+
+  /** 아이템 효과가 새로 걸린 순간을 감지해 팝 이펙트를 띄운다 (사용/피격을 확실히 알림)
+   *  mine=true(내 공)면 카메라와 무관하게 화면 전체 알림도 띄운다 (내 공이 화면 밖이어도 확실히) */
+  function detectEffectPops(b, key, mine) {
+    let cur = 0;
+    for (const [flag, bit] of EFFECT_BITS) if (b[flag]) cur |= bit;
+    const prev = game.fxSeen.get(key) || 0;
+    if (cur === prev) return;
+    for (const [flag, bit] of EFFECT_BITS) {
+      if (cur & bit && !(prev & bit)) {
+        const m = EFFECT_META[flag];
+        game.fxPops.push({ x: b.x, y: b.y, emoji: m.emoji, label: m.label, color: m.color, start: performance.now() });
+        if (mine) game.screenFx = { emoji: m.emoji, label: `내 공 — ${m.label}`, color: m.color, start: performance.now() };
+      }
+    }
+    game.fxSeen.set(key, cur);
+  }
+
+  /** 본체 뒤 아우라 — 자석(자기장 링) / 번개(둔화 오라) */
+  function drawBallAura(ctx, b, x, y, radius, tNow) {
+    if (b.m) {
+      const pulse = 0.5 + 0.5 * Math.sin(tNow * 0.013);
+      ctx.save();
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.globalAlpha = 0.25 + 0.4 * pulse;
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 5 * i + pulse * 4, -0.25, Math.PI + 0.25);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (b.s) {
+      ctx.save();
+      ctx.globalAlpha = 0.28 + 0.18 * Math.sin(tNow * 0.02);
+      ctx.fillStyle = '#4a7fc1';
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /** 본체 위 오버레이 — 얼음 결정 / 풍선 끈 / 상태 이모지 */
+  function drawBallEffects(ctx, b, x, y, radius, tNow) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (b.f) {
+      // 꽝꽝 언 육각 얼음 결정 + 서리 스파이크 + 반짝임
+      const R = radius + 6;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const px = x + Math.cos(a) * R;
+        const py = y + Math.sin(a) * R;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(150,225,255,0.34)';
+      ctx.fill();
+      ctx.strokeStyle = '#dff4ff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(223,244,255,0.85)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2 + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * radius, y + Math.sin(a) * radius);
+        ctx.lineTo(x + Math.cos(a) * (R + 3), y + Math.sin(a) * (R + 3));
+        ctx.stroke();
+      }
+      const tw = 0.5 + 0.5 * Math.sin(tNow * 0.02 + x);
+      ctx.globalAlpha = tw;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x + radius * 0.4, y - radius * 0.5, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (b.b) {
+      // 풍선 끈
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y + radius);
+      ctx.quadraticCurveTo(x + 4, y + radius + 8, x, y + radius + 14);
+      ctx.stroke();
+    }
+    ctx.font = '12px sans-serif';
+    if (b.g) ctx.fillText('👻', x, y);
+    if (b.m) ctx.fillText('🧲', x, y - radius - 9);
+    if (b.s) ctx.fillText('⚡', x, y - radius - 9);
+    ctx.restore();
+  }
+
   function renderFrame() {
     if (!game) return;
 
@@ -1781,13 +1891,34 @@
     const many = game.players.size > 30;
     const mineKey = game.replay ? myParticipantId : myId;
     const focusKey = focus ? focus.p : null;
+    const tNow = performance.now();
     for (const b of balls) {
       const p = game.players.get(b.p);
       const color = p ? p.color : '#888';
       const radius = b.b ? r * 1.6 : r;
+      const key = b.k || b.p + ':' + (b.i || 0);
+
+      // 아이템 발동 순간 감지 → 팝 이펙트 (내가 쓰거나 당했을 때 확실히 보이게)
+      detectEffectPops(b, key, b.p === mineKey);
+
+      // 🧊 얼음: 으슬으슬 떠는 지터 / 🎈 풍선: 말랑말랑 흔들림
+      const ph = key.length + (b.i || 0) * 3;
+      let bx = b.x;
+      let by = b.y;
+      if (b.f) {
+        bx += Math.sin(tNow * 0.045 + ph) * 1.7 + Math.sin(tNow * 0.13 + ph) * 1.1;
+        by += Math.cos(tNow * 0.05 + ph) * 1.4 + Math.sin(tNow * 0.17 + ph) * 0.8;
+      }
+      let rx = radius;
+      let ry = radius;
+      if (b.b) {
+        const wob = Math.sin(tNow * 0.011 + ph) * 0.16;
+        rx = radius * (1 + wob);
+        ry = radius * (1 - wob);
+      }
 
       ctx.save();
-      if (b.g) ctx.globalAlpha = 0.45; // 유령 상태
+      if (b.g) ctx.globalAlpha = 0.4; // 유령 상태
 
       // 모션 트레일 (속도가 빠를수록 길게)
       if (b.px !== undefined && !game.shuffling) {
@@ -1797,48 +1928,46 @@
         if (speed > 2) {
           const len = Math.min(speed * 2.2, radius * 4);
           ctx.strokeStyle = color;
-          ctx.globalAlpha = (b.g ? 0.45 : 1) * 0.22;
+          ctx.globalAlpha = (b.g ? 0.4 : 1) * 0.22;
           ctx.lineWidth = radius * 1.5;
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(b.x - (dx / speed) * len, b.y - (dy / speed) * len);
-          ctx.lineTo(b.x, b.y);
+          ctx.moveTo(bx - (dx / speed) * len, by - (dy / speed) * len);
+          ctx.lineTo(bx, by);
           ctx.stroke();
-          ctx.globalAlpha = b.g ? 0.45 : 1;
+          ctx.globalAlpha = b.g ? 0.4 : 1;
         }
       }
 
-      // 본체 — 발광 구슬: 공 색 그대로 채우고 같은 색 글로우
+      // 지속형 아이템 아우라(본체 뒤) — 자석/번개
+      drawBallAura(ctx, b, bx, by, radius, tNow);
+
+      // 본체 — 발광 구슬 (풍선이면 타원으로 말랑)
       ctx.shadowColor = color;
-      ctx.shadowBlur = 11;
+      ctx.shadowBlur = b.b ? 16 : 11;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+      ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.shadowBlur = 0;
       // 밝은 코어
       ctx.beginPath();
-      ctx.arc(b.x - radius * 0.2, b.y - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
+      ctx.arc(bx - radius * 0.2, by - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.fill();
 
-      // 내 공은 흰 테두리 + 금테로 표시
+      // 내 공은 금테로 표시
       if (b.p === mineKey) {
         ctx.beginPath();
-        ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+        ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(212,175,55,0.9)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
       ctx.restore();
 
-      // 상태 이모지
-      if (b.f || b.g) {
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        if (b.f) ctx.fillText('🧊', b.x, b.y + 5);
-        if (b.g) ctx.fillText('👻', b.x, b.y + 5);
-      }
+      // 과장된 상태 오버레이 (얼음 결정/풍선 끈/상태 이모지)
+      drawBallEffects(ctx, b, bx, by, radius, tNow);
 
       // 이름표 (후원자는 💖, 멀티볼은 번호 표기)
       const showLabel = !many || b.p === mineKey || b.p === focusKey;
@@ -1927,7 +2056,62 @@
       }
     }
 
+    // ✨ 아이템 발동 순간 팝 (떠오르는 이모지 + 팽창 링 + 라벨) — 월드 좌표
+    const POP_LIFE = 950;
+    game.fxPops = game.fxPops.filter((f) => nowMs - f.start < POP_LIFE);
+    for (const f of game.fxPops) {
+      const t = (nowMs - f.start) / POP_LIFE;
+      const yy = f.y - t * 26;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 3 * (1 - t) + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 8 + t * 32, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1 - t * t;
+      ctx.font = `${16 + (1 - t) * 9}px sans-serif`;
+      ctx.fillText(f.emoji, f.x, yy - 6);
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(f.label, f.x, yy + 12);
+      ctx.restore();
+    }
+
     ctx.restore();
+
+    // 🔔 내 공이 아이템에 걸린 순간 화면 전체 알림 (카메라 밖이어도 확실히 알림)
+    if (game.screenFx) {
+      const age = nowMs - game.screenFx.start;
+      const DUR = 1200;
+      if (age > DUR) {
+        game.screenFx = null;
+      } else {
+        const t = age / DUR;
+        ctx.save();
+        // 가장자리 색 비네트 플래시
+        const cxv = VIEW.width / 2;
+        const cyv = VIEW.height / 2;
+        const grad = ctx.createRadialGradient(cxv, cyv, VIEW.height * 0.28, cxv, cyv, VIEW.height * 0.75);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, game.screenFx.color);
+        ctx.globalAlpha = (1 - t) * 0.5;
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+        // 중앙 배너 (이모지 + 라벨)
+        const pop = t < 0.18 ? t / 0.18 : 1;
+        ctx.globalAlpha = Math.min(1, (1 - t) * 1.7);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.font = `${32 + pop * 10}px sans-serif`;
+        ctx.fillText(game.screenFx.emoji, cxv, VIEW.height * 0.32);
+        ctx.fillStyle = game.screenFx.color;
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText(game.screenFx.label, cxv, VIEW.height * 0.32 + 36);
+        ctx.restore();
+      }
+    }
 
     // 미니맵
     drawMinimap(minimap, {
