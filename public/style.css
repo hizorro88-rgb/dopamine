@@ -1191,6 +1191,17 @@ input[type='text']:focus {
   width: 100%;
   text-align: left;
 }
+.target-btn.target-self {
+  border-color: var(--accent2);
+  background: rgba(212, 175, 55, 0.12);
+}
+.target-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6fdfa0;
+}
 #result-list {
   margin-bottom: 20px;
 }

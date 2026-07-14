@@ -1634,7 +1634,10 @@
   function onItemClick(slotIndex) {
     const item = game.items[slotIndex];
     if (!item) return;
-    if (item.target === 'opponent') {
+    // 늦게 골인 우승: 의미가 뒤집혀 자신에게 쓰는 게 유리할 수 있으므로 대상 자유 선택(자기 포함)
+    if (game.winMode === 'last') {
+      openTargetModal(slotIndex, item, true);
+    } else if (item.target === 'opponent') {
       openTargetModal(slotIndex, item);
     } else {
       useItem(slotIndex, null);
@@ -1652,20 +1655,25 @@
     });
   }
 
-  function openTargetModal(slotIndex, item) {
+  function openTargetModal(slotIndex, item, includeSelf = false) {
     const finished = new Set(game.finishedRanks.map((f) => f.playerId));
     const targets = [...game.players.values()].filter(
-      (p) => p.id !== myId && !finished.has(p.id)
+      (p) => (includeSelf || p.id !== myId) && !finished.has(p.id)
     );
     if (targets.length === 0) return toast('⚠️ 사용할 수 있는 대상이 없습니다.');
 
-    $('target-title').textContent = `${item.emoji} ${item.name} — 누구에게 쓸까요?`;
+    // 늦게 골인 우승에서는 나에게 쓰는 게 유리할 수 있음을 안내
+    $('target-title').innerHTML =
+      game.winMode === 'last'
+        ? `${item.emoji} ${item.name} — 누구에게?<br><span class="target-hint">🐢 느려질수록 우승! 방해 아이템은 나에게 쓰면 유리해요</span>`
+        : `${item.emoji} ${item.name} — 누구에게 쓸까요?`;
     const list = $('target-list');
     list.innerHTML = '';
     for (const p of targets) {
       const btn = document.createElement('button');
-      btn.className = 'btn target-btn';
-      btn.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>${escapeHtml(p.name)}`;
+      btn.className = 'btn target-btn' + (p.id === myId ? ' target-self' : '');
+      const label = p.id === myId ? `${escapeHtml(p.name)} (나 자신)` : escapeHtml(p.name);
+      btn.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>${label}`;
       btn.addEventListener('click', () => {
         $('target-modal').classList.add('hidden');
         useItem(slotIndex, p.id);

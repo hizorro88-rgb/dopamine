@@ -627,10 +627,17 @@ class Game {
     if (this.shuffling) return '아직 시작 전입니다.';
 
     const item = ITEMS[items[slotIndex]];
-    const ballOwnerId = item.target === 'opponent' ? targetId : playerId;
 
-    if (item.target === 'opponent') {
-      if (!targetId || targetId === playerId) return '대상을 선택해주세요.';
+    // 늦게 골인 우승은 아이템 의미가 뒤집히므로(느려질수록 유리) 대상을 자유 선택 —
+    // 방해 아이템을 나에게, 가속 아이템을 상대에게 쓰는 전략이 가능해진다.
+    let ballOwnerId;
+    if (this.winMode === 'last') {
+      ballOwnerId = targetId || playerId; // 지정 없으면 자신
+    } else {
+      ballOwnerId = item.target === 'opponent' ? targetId : playerId;
+      if (item.target === 'opponent' && (!targetId || targetId === playerId)) {
+        return '대상을 선택해주세요.';
+      }
     }
 
     // 선두(골인에 가장 가까운) 공에 적용
@@ -654,7 +661,7 @@ class Game {
       by: byPlayer ? byPlayer.name : '?',
       item: itemMeta(item),
       target: targetPlayer ? targetPlayer.name : '?',
-      self: item.target === 'self',
+      self: ballOwnerId === playerId,
     });
     return null;
   }
