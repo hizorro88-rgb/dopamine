@@ -579,28 +579,36 @@
     fetch('/api/admin/maps', { headers: adminHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('관리자 키가 올바르지 않습니다.'))))
       .then(({ maps }) => {
-        $('admin-summary').textContent = `유저 제작 맵 ${maps.length}개 (기본 맵은 삭제 불가)`;
+        const nCustom = maps.filter((m) => !m.builtin).length;
+        $('admin-summary').textContent = `기본 맵 ${maps.length - nCustom}개 · 유저 맵 ${nCustom}개 (기본 맵은 편집만 가능)`;
         const list = $('admin-map-list');
         list.innerHTML = '';
-        if (!maps.length) {
-          list.innerHTML = '<li class="board-empty">유저가 만든 맵이 아직 없어요.</li>';
-        }
         for (const m of maps) {
           const li = document.createElement('li');
           li.className = 'admin-map-row';
-          const when = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '';
+          const when = m.builtin ? (m.overridden ? '편집됨' : '기본 맵') : m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '';
+          const badge = m.builtin ? '<span class="admin-badge">기본</span>' : '';
+          // 유저 맵 → 삭제 / 기본 맵 → 편집됨이면 기본값 복원, 아니면 편집만
+          const rightBtn = m.builtin
+            ? m.overridden
+              ? `<button class="btn small danger-btn" data-revert="${m.id}" data-name="${escapeHtml(m.name)}">↩ 기본값</button>`
+              : ''
+            : `<button class="btn small danger-btn" data-del="${m.id}" data-name="${escapeHtml(m.name)}">🗑 삭제</button>`;
           li.innerHTML = `<div class="admin-map-info">
-              <span class="admin-map-name">${escapeHtml(m.name)}</span>
+              <span class="admin-map-name">${badge}${escapeHtml(m.name)}</span>
               <span class="admin-map-meta">${escapeHtml(m.author)} · ${m.count}개 · 길이 ${m.height} · ${when}</span>
             </div>
             <div class="admin-map-actions">
               <button class="btn small" data-edit="${m.id}">✏️ 편집</button>
-              <button class="btn small danger-btn" data-del="${m.id}" data-name="${escapeHtml(m.name)}">🗑 삭제</button>
+              ${rightBtn}
             </div>`;
           list.appendChild(li);
         }
         list.querySelectorAll('[data-del]').forEach((b) =>
-          b.addEventListener('click', () => adminDeleteMap(b.dataset.del, b.dataset.name))
+          b.addEventListener('click', () => adminDeleteMap(b.dataset.del, b.dataset.name, false))
+        );
+        list.querySelectorAll('[data-revert]').forEach((b) =>
+          b.addEventListener('click', () => adminDeleteMap(b.dataset.revert, b.dataset.name, true))
         );
         list.querySelectorAll('[data-edit]').forEach((b) =>
           b.addEventListener('click', () => adminEditMap(b.dataset.edit))
@@ -611,15 +619,18 @@
       });
   }
 
-  function adminDeleteMap(id, name) {
-    if (!confirm(`「${name}」 맵을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  function adminDeleteMap(id, name, revert) {
+    const q = revert
+      ? `「${name}」을(를) 기본값으로 되돌릴까요? (편집 내용이 사라집니다)`
+      : `「${name}」 맵을 삭제할까요? 되돌릴 수 없습니다.`;
+    if (!confirm(q)) return;
     fetch('/api/admin/maps/delete', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ id }) })
       .then((r) => r.json())
       .then((res) => {
-        if (!res.ok) return ($('admin-msg').textContent = res.error || '삭제 실패');
+        if (!res.ok) return ($('admin-msg').textContent = res.error || (revert ? '복원 실패' : '삭제 실패'));
         loadAdminMaps();
       })
-      .catch(() => ($('admin-msg').textContent = '삭제 실패'));
+      .catch(() => ($('admin-msg').textContent = revert ? '복원 실패' : '삭제 실패'));
   }
 
   function adminEditMap(id) {

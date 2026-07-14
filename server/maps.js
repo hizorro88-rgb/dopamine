@@ -10,6 +10,7 @@ const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'maps.json');
+const OVERRIDE_FILE = path.join(DATA_DIR, 'map-overrides.json'); // 기본 맵 편집본
 
 // 에디터에서 배치 가능한 영역 (위: 공 시작 구역 / 아래: 골인 구역 제외)
 // maxY 는 맵 길이에 따라 달라짐: height - 100
@@ -17,6 +18,7 @@ const settings = require('./settings'); // 하루 맵 생성 제한을 live 로 
 
 const BOUNDS = { minX: 25, maxX: 575, minY: 130 };
 const MAX_COMPONENTS = 400;
+const MAX_COMPONENTS_ADMIN = 2000; // 관리자 편집은 상한 넉넉히 (기본 맵은 600+ 구성요소도 있음)
 const MAX_CUSTOM_MAPS = 200;
 
 /** 서버 로컬 기준 YYYY-MM-DD */
@@ -776,6 +778,7 @@ class MapStore {
   constructor() {
     this.builtins = new Map(BUILTIN_MAPS.map((m) => [m.id, m]));
     this.custom = new Map();
+    this.overrides = new Map(); // 기본 맵 id -> 관리자가 편집한 버전 (기본값은 코드에 그대로 남김)
     this.dailyByKey = new Map(); // `${date}|${creatorKey}` -> 오늘 생성 수
     this.load();
   }
@@ -790,10 +793,24 @@ class MapStore {
     } catch {
       /* 파일 없으면 무시 */
     }
+    try {
+      const ov = JSON.parse(fs.readFileSync(OVERRIDE_FILE, 'utf8'));
+      for (const m of ov) if (this.builtins.has(m.id)) this.overrides.set(m.id, m);
+    } catch {
+      /* 오버라이드 없으면 무시 */
+    }
   }
 
   persist() {
     atomicWriteJSON(DATA_FILE, [...this.custom.values()]);
+  }
+  persistOverrides() {
+    atomicWriteJSON(OVERRIDE_FILE, [...this.overrides.values()]);
+  }
+
+  /** 기본 맵의 실효 버전 (편집됐으면 편집본) */
+  effectiveBuiltin(m) {
+    return this.overrides.get(m.id) || m;
   }
 
   /** 맵 목록 (메타데이터만) */
@@ -806,21 +823,22 @@ class MapStore {
       count: m.components.length,
       height: m.height,
     });
-    return [...this.builtins.values(), ...this.custom.values()].map(meta);
+    const builtinEff = [...this.builtins.values()].map((m) => this.effectiveBuiltin(m));
+    return [...builtinEff, ...this.custom.values()].map(meta);
   }
 
   get(id) {
-    return this.builtins.get(id) || this.custom.get(id) || null;
+    return this.overrides.get(id) || this.builtins.get(id) || this.custom.get(id) || null;
   }
 
   /** 이름·길이·구성요소 검증 후 정제된 값을 반환 (save/update 공용) */
-  _validate({ name, components, height }) {
+  _validate({ name, components, height }, maxComp = MAX_COMPONENTS) {
     const cleanName = String(name || '').trim().slice(0, 20);
     if (!cleanName) return { ok: false, error: '맵 이름을 입력해주세요.' };
     if (!Array.isArray(components) || components.length === 0)
       return { ok: false, error: '구성요소를 1개 이상 배치해주세요.' };
-    if (components.length > MAX_COMPONENTS)
-      return { ok: false, error: `구성요소는 최대 ${MAX_COMPONENTS}개까지 가능합니다.` };
+    if (components.length > maxComp)
+      return { ok: false, error: `구성요소는 최대 ${maxComp}개까지 가능합니다.` };
 
     const h = Number(height);
     const cleanHeight = Number.isFinite(h)
@@ -889,41 +907,80 @@ class MapStore {
     return { ok: true, id };
   }
 
-  /** 관리자: 기존 유저 맵 덮어쓰기(재편집) */
+  /** 관리자: 맵 재편집 — 유저 맵은 덮어쓰기, 기본 맵은 편집본(override) 저장.
+   *  기본 맵은 구성요소가 많을 수 있어(예: 클래식 600+) 관리자 편집은 상한을 넉넉히 둔다. */
   update(id, { name, components, height } = {}) {
-    const existing = this.custom.get(id);
-    if (!existing) return { ok: false, error: '존재하지 않는 유저 맵입니다.' };
-    const v = this._validate({ name, components, height });
+    const v = this._validate({ name, components, height }, MAX_COMPONENTS_ADMIN);
     if (!v.ok) return v;
-    existing.name = v.cleanName;
-    existing.height = v.cleanHeight;
-    existing.components = v.validated;
-    existing.updatedAt = Date.now();
-    this.persist();
-    return { ok: true, id };
+
+    if (this.custom.has(id)) {
+      const existing = this.custom.get(id);
+      existing.name = v.cleanName;
+      existing.height = v.cleanHeight;
+      existing.components = v.validated;
+      existing.updatedAt = Date.now();
+      this.persist();
+      return { ok: true, id };
+    }
+    if (this.builtins.has(id)) {
+      const base = this.builtins.get(id);
+      this.overrides.set(id, {
+        id,
+        name: v.cleanName,
+        author: base.author,
+        builtin: true,
+        height: v.cleanHeight,
+        components: v.validated,
+        updatedAt: Date.now(),
+      });
+      this.persistOverrides();
+      return { ok: true, id };
+    }
+    return { ok: false, error: '존재하지 않는 맵입니다.' };
   }
 
-  /** 관리자: 유저 맵 삭제 (기본 맵은 불가) */
+  /** 관리자: 삭제 — 유저 맵은 삭제, 기본 맵은 편집본이 있으면 기본값으로 되돌림 */
   remove(id) {
-    if (this.builtins.has(id)) return { ok: false, error: '기본 맵은 삭제할 수 없습니다.' };
+    if (this.builtins.has(id)) {
+      if (this.overrides.delete(id)) {
+        this.persistOverrides();
+        return { ok: true, reverted: true };
+      }
+      return { ok: false, error: '기본 맵은 삭제할 수 없어요. (편집만 가능하며, 편집본은 기본값으로 되돌릴 수 있어요)' };
+    }
     if (!this.custom.delete(id)) return { ok: false, error: '존재하지 않는 맵입니다.' };
     this.persist();
     return { ok: true };
   }
 
-  /** 관리자: 유저 맵 상세 목록 (최신순) */
+  /** 관리자: 전체 맵 상세 목록 (기본 맵 먼저, 유저 맵은 최신순) */
   adminList() {
-    return [...this.custom.values()]
+    const builtinRows = [...this.builtins.values()].map((m) => {
+      const eff = this.effectiveBuiltin(m);
+      return {
+        id: m.id,
+        name: eff.name,
+        author: eff.author,
+        count: eff.components.length,
+        height: eff.height,
+        builtin: true,
+        overridden: this.overrides.has(m.id),
+        createdAt: 0,
+      };
+    });
+    const customRows = [...this.custom.values()]
       .map((m) => ({
         id: m.id,
         name: m.name,
         author: m.author,
         count: m.components.length,
         height: m.height,
+        builtin: false,
+        overridden: false,
         createdAt: m.createdAt || 0,
-        updatedAt: m.updatedAt || 0,
       }))
       .sort((a, b) => b.createdAt - a.createdAt);
+    return [...builtinRows, ...customRows];
   }
 }
 
