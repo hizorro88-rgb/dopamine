@@ -206,12 +206,22 @@ class Game {
         this.handleContact(pair.bodyB, pair.bodyA);
       }
     });
+    // 지속 접촉도 감지: 공이 발사대(점프 패드) 위에 얹혀 멈추면 collisionStart 가
+    // 다시 안 울려 끼어버린다 → 접촉이 유지되는 동안 계속 발사(쿨다운으로 도배 방지)
+    Matter.Events.on(this.engine, 'collisionActive', (ev) => {
+      for (const pair of ev.pairs) {
+        this.handleContact(pair.bodyA, pair.bodyB, true);
+        this.handleContact(pair.bodyB, pair.bodyA, true);
+      }
+    });
   }
 
-  /** a가 반응형 구성요소이고 b가 공이면 동작 발동 */
-  handleContact(a, b) {
+  /** a가 반응형 구성요소이고 b가 공이면 동작 발동.
+   *  activeOnly=true(지속 접촉)면 '발사대'처럼 얹혀 끼는 걸 막아야 하는 동작만 재발동한다. */
+  handleContact(a, b, activeOnly = false) {
     const inst = this.reactive.get((a.parent || a).id);
     if (!inst || inst.exploded) return;
+    if (activeOnly && inst.hit.action !== 'launch') return; // 지속 접촉은 발사대만 (폭탄·포탈 재발동 방지)
     const ballBody = b.parent || b;
     if (!ballBody.plugin || !ballBody.plugin.playerId) return;
     const action = HIT_ACTIONS[inst.hit.action];
