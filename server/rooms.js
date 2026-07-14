@@ -163,6 +163,28 @@ class RoomManager {
     // 방 나가기 (관전자·플레이어 공용)
     socket.on('room:leave', () => this.leave(socket));
 
+    // 대기실에서 자신의 닉네임 변경 (QR로 바로 입장한 뒤 각자 개명)
+    socket.on('room:rename', ({ name } = {}, cb) => {
+      const room = this.roomOf(socket);
+      const player = room && room.players.get(socket.id);
+      if (!room || !player) {
+        if (typeof cb === 'function') cb({ ok: false, error: '방에 있지 않습니다.' });
+        return;
+      }
+      if (room.state !== 'lobby') {
+        if (typeof cb === 'function') cb({ ok: false, error: '게임 중에는 닉네임을 바꿀 수 없어요.' });
+        return;
+      }
+      const clean = String(name || '').trim().slice(0, 12);
+      if (!clean) {
+        if (typeof cb === 'function') cb({ ok: false, error: '닉네임을 입력해주세요.' });
+        return;
+      }
+      player.name = this.uniqueName(room, clean, socket.id);
+      this.broadcastRoom(room);
+      if (typeof cb === 'function') cb({ ok: true, name: player.name });
+    });
+
     // 후원자 코드 확인 (홈 화면 즉시 피드백용)
     socket.on('donor:check', ({ code } = {}, cb) => {
       if (typeof cb !== 'function') return;
@@ -352,9 +374,12 @@ class RoomManager {
     this.broadcastRoom(room);
   }
 
-  /** 방 안에서 겹치는 닉네임이면 번호를 붙여 구분 (홍길동 → 홍길동 2) */
-  uniqueName(room, name) {
-    const used = new Set([...room.players.values()].map((p) => p.name));
+  /** 방 안에서 겹치는 닉네임이면 번호를 붙여 구분 (홍길동 → 홍길동 2)
+   *  @param excludeId 이 소켓의 현재 이름은 비교에서 제외 (본인 개명 시 자기와 충돌 방지) */
+  uniqueName(room, name, excludeId = null) {
+    const used = new Set(
+      [...room.players.entries()].filter(([id]) => id !== excludeId).map(([, p]) => p.name)
+    );
     if (!used.has(name)) return name;
     for (let i = 2; i < 100; i++) {
       const candidate = `${name} ${i}`;

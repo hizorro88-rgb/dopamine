@@ -111,9 +111,26 @@ function adminOk(req) {
   return !!key && safeEqual(req.get('x-admin-key'), key);
 }
 
+// 관리자 가드: 통과하면 true, 아니면 사유별 응답을 쓰고 false.
+//  · 서버에 ADMIN_KEY 자체가 없으면(가장 흔한 "열기가 안돼" 원인) 그 사실을 명확히 알린다.
+function requireAdmin(req, res) {
+  if (!process.env.ADMIN_KEY) {
+    res.status(503).json({
+      ok: false,
+      error: '서버에 ADMIN_KEY가 설정되어 있지 않습니다. .env 또는 start.bat 에 ADMIN_KEY=원하는키 를 지정하고 서버를 재시작하세요.',
+    });
+    return false;
+  }
+  if (!adminOk(req)) {
+    res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+    return false;
+  }
+  return true;
+}
+
 // 후원자 등록 (관리자 전용) → 후원자 코드 발급
 app.post('/api/admin/donors', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   res.json(donors.add(req.body || {}));
 });
 
@@ -145,26 +162,26 @@ const rooms = new RoomManager(io, donors);
 
 // ── 관리자: 유저 맵 관리 (목록/삭제/재편집) — x-admin-key 필요 ──
 app.get('/api/admin/maps', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   res.json({ ok: true, maps: rooms.maps.adminList() });
 });
 app.post('/api/admin/maps/delete', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   res.json(rooms.maps.remove((req.body || {}).id));
 });
 app.post('/api/admin/maps/update', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   const { id, name, components, height, finish } = req.body || {};
   res.json(rooms.maps.update(id, { name, components, height, finish }));
 });
 
 // ── 관리자: 런타임 설정 (후원 링크·낙하 배속·아이템 소개·하루 맵 제한 등) ──
 app.get('/api/admin/settings', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   res.json({ ok: true, settings: settings.all() });
 });
 app.post('/api/admin/settings', (req, res) => {
-  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  if (!requireAdmin(req, res)) return;
   res.json(settings.update(req.body || {}));
 });
 const events = new EventManager(io, rooms.maps);

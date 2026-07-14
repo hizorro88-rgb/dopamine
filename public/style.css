@@ -803,8 +803,19 @@ input[type='password']:focus {
 }
 #rooms-list {
   list-style: none;
-  max-height: 240px;
+  /* 방이 많이 쌓여도 약 3개 높이까지만 보이고 나머지는 스크롤 (4번째가 살짝 보여 스크롤 가능함을 암시) */
+  max-height: 186px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* 모바일 관성 스크롤 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.5) transparent;
+}
+#rooms-list::-webkit-scrollbar {
+  width: 6px;
+}
+#rooms-list::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.5);
+  border-radius: 3px;
 }
 #rooms-list li {
   display: flex;

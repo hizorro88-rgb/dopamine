@@ -606,8 +606,21 @@
   // 로그인 성공 시 설정 + 맵을 함께 불러온다
   function loadAdmin() {
     $('admin-msg').textContent = '';
+    if (!adminKey.trim()) return ($('admin-msg').textContent = '관리자 키를 입력해주세요.');
+    $('admin-msg').textContent = '확인 중…';
     fetch('/api/admin/settings', { headers: adminHeaders() })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('관리자 키가 올바르지 않습니다.'))))
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        // 서버가 준 사유(키 미설정/오류 등)를 그대로 보여준다
+        let msg = '관리자 키가 올바르지 않습니다.';
+        try {
+          const j = await r.json();
+          if (j && j.error) msg = j.error;
+        } catch {
+          /* 본문 없음 */
+        }
+        throw new Error(msg);
+      })
       .then(({ settings }) => {
         $('admin-login').classList.add('hidden');
         $('admin-panel').classList.remove('hidden');
@@ -1150,6 +1163,16 @@
         ${p.id === room.hostId ? '<span class="host-badge">👑 방장</span>' : ''}`;
       list.appendChild(li);
     }
+    // 내 닉네임 변경 행 — 플레이어만(관전자 제외), 편집 중이 아니면 현재 이름으로 채움
+    const me = room.players.find((p) => p.id === myId);
+    const renameRow = $('lobby-rename-row');
+    if (me && !spectating) {
+      renameRow.style.display = '';
+      const nameInput = $('input-lobby-name');
+      if (document.activeElement !== nameInput) nameInput.value = me.name;
+    } else {
+      renameRow.style.display = 'none';
+    }
     const isHost = room.hostId === myId;
     const startBtn = $('btn-start');
     startBtn.disabled = !isHost;
@@ -1460,6 +1483,29 @@
     showScreen('home');
   });
 
+  // 대기실에서 내 닉네임 변경
+  function submitLobbyRename() {
+    const name = $('input-lobby-name').value.trim();
+    const msg = $('lobby-rename-msg');
+    if (!name) return (msg.textContent = '닉네임을 입력해주세요.');
+    socket.emit('room:rename', { name }, (res) => {
+      if (!res || !res.ok) {
+        msg.style.color = 'var(--danger)';
+        return (msg.textContent = (res && res.error) || '변경 실패');
+      }
+      // 이 탭·다음 방문용으로도 기억 (홈 입력과 동일 규칙)
+      sessionStorage.setItem('pinball-name', res.name);
+      localStorage.setItem('pinball-name-manual', res.name);
+      msg.style.color = '#6fdfa0';
+      msg.textContent = `✅ "${res.name}"(으)로 변경했어요.`;
+      $('input-lobby-name').value = res.name;
+    });
+  }
+  $('btn-lobby-rename').addEventListener('click', submitLobbyRename);
+  $('input-lobby-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitLobbyRename();
+  });
+
   // ── 게임 시작 ─────────────────────────────────────────
   // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
   function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished, introMs }) {
@@ -1730,14 +1776,16 @@
     startConfetti();
   }
 
-  // ── 색종이 축하 효과 ──────────────────────────────────
-  // 금박·은박·크림슨 — 승자의 색
+  // ── 색종이 + 폭죽 축하 효과 ────────────────────────────
+  // 금박·은박·크림슨 색종이 비 + 화려하게 터지는 폭죽(불꽃놀이)
   const CONFETTI_COLORS = ['#d4af37', '#e8d48b', '#b23a48', '#f0ead6', '#c0c0c8', '#8a6d4a'];
+  const FIREWORK_COLORS = ['#ff5c7a', '#ffd12e', '#35e0ff', '#9bec00', '#c86bff', '#ff9d2e', '#fff3b0'];
   function startConfetti() {
     const c = $('confetti');
     c.width = c.clientWidth;
     c.height = c.clientHeight;
     const cx = c.getContext('2d');
+    // 색종이 비 (배경에 은은하게 계속)
     const parts = Array.from({ length: 110 }, () => ({
       x: Math.random() * c.width,
       y: -Math.random() * c.height * 0.6,
@@ -1749,12 +1797,57 @@
       rot: Math.random() * Math.PI,
       vr: (Math.random() - 0.5) * 0.18,
     }));
-    const step = () => {
+
+    // 폭죽(불꽃놀이): 무작위 위치에서 방사형으로 펑! 하고 터진다
+    const sparks = [];
+    function burst(bx, by) {
+      const color = FIREWORK_COLORS[(Math.random() * FIREWORK_COLORS.length) | 0];
+      const n = 46 + ((Math.random() * 26) | 0);
+      const power = 3.4 + Math.random() * 2.2;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+        const sp = power * (0.55 + Math.random() * 0.7);
+        sparks.push({
+          x: bx, y: by,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp,
+          // 일부는 흰빛 반짝이로 섞어 화려함 UP
+          color: Math.random() < 0.18 ? '#ffffff' : color,
+          r: 1.6 + Math.random() * 2.2,
+          life: 0,
+          ttl: 780 + Math.random() * 620,
+        });
+      }
+    }
+    // 등장 직후 화려하게 여러 발 연속으로 터뜨린다 (0.9초간)
+    const start = performance.now();
+    const schedule = [0, 180, 340, 520, 720, 900].map((t) => ({
+      t,
+      x: c.width * (0.2 + Math.random() * 0.6),
+      y: c.height * (0.22 + Math.random() * 0.3),
+      fired: false,
+    }));
+
+    let last = start;
+    const step = (now) => {
       if ($('result-modal').classList.contains('hidden')) {
         cx.clearRect(0, 0, c.width, c.height);
         return; // 화면 닫히면 종료
       }
+      const dt = Math.min(48, now - last);
+      last = now;
+      const elapsed = now - start;
+      // 예약된 폭죽 발사
+      for (const s of schedule) {
+        if (!s.fired && elapsed >= s.t) {
+          s.fired = true;
+          burst(s.x, s.y);
+        }
+      }
+
       cx.clearRect(0, 0, c.width, c.height);
+
+      // 색종이 비
       for (const p of parts) {
         p.x += p.vx;
         p.y += p.vy;
@@ -1770,9 +1863,37 @@
         cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
         cx.restore();
       }
+
+      // 폭죽 불꽃 (중력 + 페이드 + 글로우)
+      cx.save();
+      cx.globalCompositeOperation = 'lighter';
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.life += dt;
+        if (s.life >= s.ttl) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        const k = dt / 16.7;
+        s.x += s.vx * k;
+        s.y += s.vy * k;
+        s.vy += 0.05 * k; // 중력
+        s.vx *= 0.985;
+        s.vy *= 0.985;
+        const alpha = 1 - s.life / s.ttl;
+        cx.globalAlpha = alpha;
+        cx.fillStyle = s.color;
+        cx.shadowColor = s.color;
+        cx.shadowBlur = 8;
+        cx.beginPath();
+        cx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        cx.fill();
+      }
+      cx.restore();
+
       requestAnimationFrame(step);
     };
-    step();
+    requestAnimationFrame(step);
   }
 
   $('btn-back-lobby').addEventListener('click', () => {
