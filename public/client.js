@@ -380,20 +380,56 @@
   if (urlCode) inputCode.value = urlCode.toUpperCase();
 
   // ── 🎲 랜덤 닉네임 ──
+  // 수백 명이 동시에 참가해도 왠만하면 겹치지 않도록: 어휘 풀을 크게 늘리고
+  // 여러 "형태(템플릿)"를 섞어서 조합 수를 크게 키운다. (숫자 접미사는 쓰지 않음)
   const NAME_ADJ = [
     '전설의', '황금', '불꽃', '광란의', '무적', '최후의', '폭주', '은하', '벼락', '진격의',
     '강철', '초신성', '심연의', '질주하는', '광속', '백발백중', '운명의', '콰광', '대박', '미친',
-    '침착한', '수상한', '전직', '자칭', '떠오르는',
+    '침착한', '수상한', '전직', '자칭', '떠오르는', '전설급', '빛나는', '어둠의', '고독한', '방랑하는',
+    '불멸의', '태초의', '심해의', '천상의', '지하의', '폭풍의', '한밤의', '새벽의', '황혼의', '얼어붙은',
+    '작열하는', '춤추는', '노련한', '무명의', '은둔한', '해적', '용맹한', '교활한', '거대한', '초월의',
+    '천둥의', '서릿발', '만렙', '금수저', '비밀의', '떠도는', '숨은', '반짝이는', '광폭한', '냉혹한',
   ];
   const NAME_NOUN = [
     '핀볼러', '도파민', '잭팟', '구슬왕', '승부사', '룰렛', '한탕', '갬블러', '폭탄', '유령',
     '회오리', '스나이퍼', '폭격기', '불사조', '타짜', '큰손', '한방', '용', '늑대', '여우',
-    '요정', '기계', '전사', '점쟁이', '술래',
+    '요정', '기계', '전사', '점쟁이', '술래', '마술사', '검객', '해적왕', '연금술사', '사냥꾼',
+    '방랑자', '기사', '도박꾼', '카우보이', '닌자', '사무라이', '광부', '탐험가', '기관사', '조련사',
+    '마도사', '주술사', '표범', '독수리', '상어', '코뿔소', '무당벌레', '두더지', '햄스터', '수달',
+    '고래', '펭귄', '알파카', '너구리', '까마귀', '올빼미', '살쾡이', '치타', '나침반', '유성',
+  ];
+  const NAME_TITLE = [
+    '대장', '장인', '고수', '달인', '제왕', '요원', '마스터', '전설', 'king', '챔피언',
+    '보스', '히어로', '킬러', '천재', '괴물', '레전드', '에이스', '지배자', '수호자', '개척자',
+    '해결사', '스타', '거장', '패왕',
+  ];
+  const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+  function pick2(arr) {
+    // 서로 다른 두 원소를 뽑는다
+    const a = pick(arr);
+    let b = pick(arr);
+    for (let i = 0; i < 4 && b === a; i++) b = pick(arr);
+    return [a, b];
+  }
+  const NAME_TEMPLATES = [
+    () => `${pick(NAME_ADJ)} ${pick(NAME_NOUN)}`,
+    () => `${pick(NAME_NOUN)} ${pick(NAME_TITLE)}`,
+    () => `${pick(NAME_ADJ)} ${pick(NAME_TITLE)}`,
+    () => {
+      const [a, b] = pick2(NAME_NOUN);
+      return `${a}의 ${b}`;
+    },
+    () => `${pick(NAME_ADJ)}${pick(NAME_NOUN)}`,
+    () => `${pick(NAME_ADJ)} ${pick(NAME_NOUN)} ${pick(NAME_TITLE)}`,
+    () => {
+      const [a, b] = pick2(NAME_NOUN);
+      return `${pick(NAME_ADJ)} ${a}의 ${b}`;
+    },
   ];
   function randomName() {
-    const a = NAME_ADJ[(Math.random() * NAME_ADJ.length) | 0];
-    const n = NAME_NOUN[(Math.random() * NAME_NOUN.length) | 0];
-    return `${a} ${n}`.slice(0, 12); // maxlength 안전
+    let name = pick(NAME_TEMPLATES)();
+    if (name.length > 12) name = `${pick(NAME_ADJ)} ${pick(NAME_NOUN)}`; // 12자 초과 시 짧은 형태로
+    return name.slice(0, 12); // maxlength 안전
   }
 
   // 닉네임은 "탭마다" 다르게 정한다 (sessionStorage) — 같은 사람이 여러 창을 열어도 겹치지 않게.
@@ -812,8 +848,9 @@
   $('btn-event-create').addEventListener('click', () => {
     socket.emit('event:create', {}, (res) => {
       if (!res.ok) return (homeError.textContent = res.error || '이벤트 생성 실패');
-      eventRoom = { code: res.code };
-      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || '';
+      eventRoom = { code: res.code, ...res };
+      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || randomName();
+      renderEventScreen(eventRoom);
       showScreen('event');
     });
   });
@@ -823,7 +860,7 @@
       if (!res.ok) return (homeError.textContent = res.error || '이벤트 입장 실패');
       eventRoom = res;
       myParticipantId = null;
-      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || '';
+      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || randomName();
       $('event-my-status').textContent = '';
       renderEventScreen(res);
       showScreen('event');
@@ -839,6 +876,20 @@
   function renderEventScreen(ev) {
     if (!ev || !ev.code) return;
     $('event-code').textContent = ev.code;
+    // 가까이 있는 사람은 QR을 찍어서 바로 참가 (같은 코드면 다시 그리지 않음)
+    const evQr = $('event-qr');
+    if (evQr && evQr.dataset.code !== ev.code) {
+      evQr.dataset.code = ev.code;
+      try {
+        /* global qrcode */
+        const qr = qrcode(0, 'M');
+        qr.addData(`${location.origin}${location.pathname}?event=${ev.code}`);
+        qr.make();
+        evQr.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+      } catch {
+        if (evQr.parentElement) evQr.parentElement.style.display = 'none';
+      }
+    }
     $('event-participant-count').textContent = `참가 ${ev.participantCount || 0}/${ev.maxParticipants || 500}명`;
     $('event-viewers').textContent = `시청 ${ev.viewers || 0}명`;
 
@@ -890,6 +941,16 @@
 
   $('event-map-select').addEventListener('change', (e) => {
     socket.emit('event:setMap', { mapId: e.target.value });
+  });
+
+  $('btn-event-random-name').addEventListener('click', () => {
+    const inp = $('input-event-name');
+    inp.value = randomName();
+    // 아이콘 회전 연출 (재클릭해도 다시 재생되도록 리셋)
+    const b = $('btn-event-random-name');
+    b.classList.remove('spinning');
+    void b.offsetWidth;
+    b.classList.add('spinning');
   });
 
   $('btn-event-register').addEventListener('click', () => {

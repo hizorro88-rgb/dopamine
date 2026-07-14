@@ -245,14 +245,26 @@
       <div class="invite-box">
         <div class="invite-code" id="event-code">------</div>
         <button id="btn-event-copy" class="btn small">🔗 초대 링크 복사</button>
+        <div class="invite-qr">
+          <div id="event-qr"></div>
+          <div class="qr-hint">📱 찍으면 바로 참가</div>
+        </div>
       </div>
       <div id="event-stats">
         <span id="event-participant-count">참가 0명</span> · <span id="event-viewers">시청 0명</span>
       </div>
       <div id="event-names"></div>
-      <div class="join-row" id="event-register-row">
-        <input id="input-event-name" type="text" maxlength="12" placeholder="추첨에 걸 이름" autocomplete="off" />
-        <button id="btn-event-register" class="btn">✋ 참가</button>
+      <div id="event-register-row">
+        <div class="name-row">
+          <input id="input-event-name" type="text" maxlength="12" placeholder="추첨에 걸 이름" autocomplete="off" />
+          <button id="btn-event-random-name" class="icon-btn" title="닉네임 새로고침" aria-label="닉네임 새로고침">
+            <svg viewBox="0 0 24 24" fill="none" stroke="url(#goldRefresh)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4" />
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" />
+            </svg>
+          </button>
+        </div>
+        <button id="btn-event-register" class="btn primary" style="width:100%">✋ 참가</button>
       </div>
       <p id="event-my-status" class="hint"></p>
       <div class="map-row" id="event-map-row">

@@ -285,7 +285,8 @@ input[type='password']:focus {
   min-width: 180px;
 }
 /* 초대 QR — 스캔되려면 밝은 바탕 + 여백(quiet zone)이 필요하다 */
-#lobby-qr {
+#lobby-qr,
+#event-qr {
   background: #fff;
   padding: 7px;
   border-radius: 10px;
@@ -293,7 +294,8 @@ input[type='password']:focus {
   width: fit-content;
   margin: 0 auto;
 }
-#lobby-qr svg {
+#lobby-qr svg,
+#event-qr svg {
   display: block;
   width: 92px;
   height: 92px;
