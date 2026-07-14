@@ -107,13 +107,16 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
       handleContact(pair.bodyB, pair.bodyA);
     }
   });
-  // 지속 접촉: 발사대 위에 공이 얹혀 끼는 것 방지 (라이브 게임과 동일)
-  Matter.Events.on(engine, 'collisionActive', (ev) => {
-    for (const pair of ev.pairs) {
-      handleContact(pair.bodyA, pair.bodyB, true);
-      handleContact(pair.bodyB, pair.bodyA, true);
-    }
-  });
+  // 지속 접촉: 발사대 위에 공이 얹혀 끼는 것 방지 — 발사대가 있는 맵에서만 (핀 많은 맵 낭비 방지)
+  const hasLaunchPads = [...built.reactive.values()].some((i) => i.hit && i.hit.action === 'launch');
+  if (hasLaunchPads) {
+    Matter.Events.on(engine, 'collisionActive', (ev) => {
+      for (const pair of ev.pairs) {
+        handleContact(pair.bodyA, pair.bodyB, true);
+        handleContact(pair.bodyB, pair.bodyA, true);
+      }
+    });
+  }
   function handleContact(a, b, activeOnly = false) {
     const inst = built.reactive.get((a.parent || a).id);
     if (!inst || inst.exploded) return;

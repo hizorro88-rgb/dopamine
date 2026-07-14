@@ -206,14 +206,18 @@ class Game {
         this.handleContact(pair.bodyB, pair.bodyA);
       }
     });
-    // 지속 접촉도 감지: 공이 발사대(점프 패드) 위에 얹혀 멈추면 collisionStart 가
-    // 다시 안 울려 끼어버린다 → 접촉이 유지되는 동안 계속 발사(쿨다운으로 도배 방지)
-    Matter.Events.on(this.engine, 'collisionActive', (ev) => {
-      for (const pair of ev.pairs) {
-        this.handleContact(pair.bodyA, pair.bodyB, true);
-        this.handleContact(pair.bodyB, pair.bodyA, true);
-      }
-    });
+    // 지속 접촉 감지는 '발사대'가 있는 맵에서만 켠다.
+    //  collisionActive 는 매 틱 모든 접촉쌍에 대해 울리므로(핀 많은 맵은 수백 쌍),
+    //  점프 패드가 없는 맵에서까지 돌리면 순수 낭비 → 서버 틱이 무거워져 화면이 밀린다.
+    const hasLaunchPads = [...this.reactive.values()].some((i) => i.hit && i.hit.action === 'launch');
+    if (hasLaunchPads) {
+      Matter.Events.on(this.engine, 'collisionActive', (ev) => {
+        for (const pair of ev.pairs) {
+          this.handleContact(pair.bodyA, pair.bodyB, true);
+          this.handleContact(pair.bodyB, pair.bodyA, true);
+        }
+      });
+    }
   }
 
   /** a가 반응형 구성요소이고 b가 공이면 동작 발동.

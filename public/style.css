@@ -607,6 +607,10 @@ textarea:focus {
   gap: 8px 16px;
   margin-top: 16px;
 }
+/* 개선 요청은 긴 문구라 아랫줄에 따로 두어 위 링크들을 밀지 않게 */
+.home-links-sub {
+  margin-top: 8px;
+}
 .link-btn {
   display: inline-flex;
   align-items: center;
@@ -1264,16 +1268,55 @@ textarea:focus {
 @media (max-width: 720px) {
   #editor-layout {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     overflow-y: auto;
+    gap: 8px;
+    padding: 6px;
   }
+  /* 캔버스를 화면 상단에 고정 — 슬라이더·팔레트를 만지는 동안에도 보드가 계속 보이게 */
   #editor-wrap {
-    height: auto;
-    width: min(92vw, 420px);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    height: 46vh;
+    width: auto;
+    aspect-ratio: 600 / 900;
+    align-self: center;
+    background: var(--bg); /* 뒤로 스크롤되는 컨트롤이 비쳐 보이지 않게 */
   }
   #editor-side {
-    width: min(92vw, 420px);
+    width: 100%;
     max-height: none;
+    padding: 12px;
+  }
+  /* 긴 설명·제목은 공간을 많이 먹어 모바일에선 숨긴다 */
+  #editor-title,
+  #editor-hint {
+    display: none;
+  }
+  /* '고르고 → 바로 배치' 되도록 팔레트와 속성 슬라이더를 맨 위로 끌어올린다 */
+  #palette {
+    order: -3;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  #editor-props {
+    order: -2;
+  }
+  #btn-comp-delete {
+    order: -1;
+  }
+  /* 터치하기 쉽게 슬라이더 손잡이 영역을 키운다 */
+  .prop-row input[type='range'],
+  #map-length-row input[type='range'] {
+    height: 30px;
+  }
+  .palette-btn {
+    padding: 8px 3px;
+    font-size: 11px;
+  }
+  .palette-btn .palette-icon {
+    width: 30px;
+    height: 30px;
   }
 }
 
