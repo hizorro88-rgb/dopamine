@@ -2710,8 +2710,8 @@
       : editor.adminEditId
         ? '🔧 관리자 맵 편집'
         : '🛠 맵 에디터';
-    $('btn-editor-back').textContent =
-      editor.from === 'maps' ? '← 갤러리로' : editor.from === 'admin' ? '← 관리자로' : editor.from === 'home' ? '← 홈으로' : '← 대기실로';
+    // 라벨은 전 화면 통일 (← 돌아가기). 실제 이동 대상은 from 값으로 결정된다.
+    $('btn-editor-back').textContent = '← 돌아가기';
 
     $('input-map-length').value = editor.height;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;

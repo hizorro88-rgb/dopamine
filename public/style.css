@@ -169,6 +169,19 @@ input[type='password']:focus {
   padding: 8px 14px;
   font-size: 13px;
 }
+/* 화면 하단 '나가기 / 돌아가기' 버튼 — 전 화면 통일된 보조(아웃라인) 스타일 */
+.back-btn {
+  width: 100%;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #322e24;
+  color: var(--muted);
+}
+.back-btn:hover:not(:disabled) {
+  filter: none;
+  background: var(--panel2);
+  color: var(--text);
+}
 
 .divider {
   display: flex;
