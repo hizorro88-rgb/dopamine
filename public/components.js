@@ -227,11 +227,11 @@
       },
     },
 
-    // 🌀 포탈: 같은 채널의 다른 포탈로 순간이동 — 경로가 비선형이 된다
+    // 🕳️ 포탈: 같은 채널의 다른 포탈로 순간이동 — 경로가 비선형이 된다
     portal: {
       id: 'portal',
       name: '포탈',
-      emoji: '🌀',
+      emoji: '🕳️',
       desc: '닿으면 같은 채널의 다른 포탈로 순간이동! 두 개씩 짝지어 배치하세요',
       props: [
         { key: 'channel', label: '채널 (같은 번호끼리 연결)', min: 1, max: 4, step: 1, default: 1 },
@@ -239,10 +239,13 @@
       build(p) {
         const colors = ['#35e0ff', '#c86bff', '#ffd12e', '#9bec00'];
         const c = colors[(Math.round(p.channel) - 1 + 400) % 4];
+        // 동심원(빛나는 고리 여러 겹) → 빨려드는 '워프' 느낌
         return {
           shapes: [
             { kind: 'circle', x: 0, y: 0, r: 24, fill: c },
-            { kind: 'circle', x: 0, y: 0, r: 16, fill: '#0a0a10', glow: c },
+            { kind: 'circle', x: 0, y: 0, r: 18, fill: '#0a0a10', glow: c },
+            { kind: 'circle', x: 0, y: 0, r: 12, fill: c },
+            { kind: 'circle', x: 0, y: 0, r: 6, fill: '#0a0a10', glow: c },
           ],
           spin: 0,
           restitution: 0,

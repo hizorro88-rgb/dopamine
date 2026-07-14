@@ -1128,6 +1128,16 @@ input[type='password']:focus {
   font-size: 22px;
   margin-bottom: 3px;
 }
+/* 실제 모양 미리보기 아이콘 */
+.palette-btn .palette-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 4px;
+}
+.palette-btn .palette-label {
+  display: block;
+}
 .palette-btn.selected {
   border-color: var(--accent);
   background: #2e2716;

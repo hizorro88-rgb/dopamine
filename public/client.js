@@ -2754,6 +2754,29 @@
     }
   });
 
+  // 팔레트 아이콘: 이모지 대신 '실제 배치되는 모양'을 작은 캔버스로 그려 보여준다
+  // (회전 막대·포탈·점프 패드 등이 서로 확실히 구분되도록)
+  function paletteIcon(def) {
+    const built = buildShapes(def.id, defaultProps(def));
+    const comp = { type: def.id, x: 0, y: 0, shapes: built.shapes, spin: built.spin };
+    let rad = 8;
+    for (const s of built.shapes) {
+      const off = Math.hypot(s.x, s.y);
+      rad = Math.max(rad, off + (s.kind === 'circle' ? s.r : Math.max(s.w, s.h) / 2));
+    }
+    const size = 34;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const c = document.createElement('canvas');
+    c.className = 'palette-icon';
+    c.width = c.height = size * dpr;
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.translate(size / 2, size / 2);
+    ctx.scale((size / 2 - 4) / rad, (size / 2 - 4) / rad); // 여백 두고 맞춤
+    drawComponent(ctx, comp, 0);
+    return c;
+  }
+
   function renderPalette() {
     const palette = $('palette');
     palette.innerHTML = '';
@@ -2761,7 +2784,11 @@
       const btn = document.createElement('button');
       btn.className = 'palette-btn' + (editor.tool === def.id ? ' selected' : '');
       btn.title = def.desc;
-      btn.innerHTML = `<span class="emoji">${def.emoji}</span>${def.name}`;
+      btn.appendChild(paletteIcon(def));
+      const label = document.createElement('span');
+      label.className = 'palette-label';
+      label.textContent = def.name;
+      btn.appendChild(label);
       btn.addEventListener('click', () => {
         editor.tool = def.id;
         editor.selected = -1;
