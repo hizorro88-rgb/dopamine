@@ -38,9 +38,10 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
     );
     frame.push({ x, y, w, h, angle: 0 });
   };
-  addFrameWall(-10, H / 2, 20, H * 4);
-  addFrameWall(WORLD.width + 10, H / 2, 20, H * 4);
-  if (ceiling) addFrameWall(WORLD.width / 2, -10, WORLD.width * 2, 20);
+  // 바깥으로 두껍게(안쪽 면은 그대로 0 / width) — 빠른 공이 벽을 뚫고 나가는 터널링 방지
+  addFrameWall(-30, H / 2, 60, H * 4);
+  addFrameWall(WORLD.width + 30, H / 2, 60, H * 4);
+  if (ceiling) addFrameWall(WORLD.width / 2, -30, WORLD.width * 2, 60);
 
   const renderComponents = [];
 

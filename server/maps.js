@@ -573,6 +573,79 @@ function trampolineComponents() {
   return [...comps, ...funnel(4800)];
 }
 
+// 🕹️ 진짜 핀볼: 곡선 어깨 레일 + ⚡3구 범퍼 클러스터 + 중앙 대형 회전 타깃
+//   + 중앙 킥커(공이 닿으면 위로 되돌려 보냄) + 하단 플리퍼 + 왼쪽 행운의 샛길
+function pinballComponents() {
+  const H = 3200;
+  const comps = [];
+  const B = (x, y, size = 20) => comps.push({ type: 'bumper', x, y, props: { size } });
+  const S = (x, y, length, speed) =>
+    comps.push({ type: 'spinner', x, y, props: { length, speed } });
+
+  // ── 상단 플레이필드: 곡선 어깨 레일 + ⚡ 3구 범퍼 클러스터(핀볼의 상징) ──
+  // 넓게 퍼져 출발한 공을 안쪽 범퍼 지대로 모으는 곡선 레일 (레퍼런스 상단의 스윙 레일)
+  wallPath(comps, [[25, 250], [95, 430], [220, 530]]);
+  wallPath(comps, [[575, 250], [505, 430], [380, 530]]);
+  B(300, 250, 24);
+  B(250, 340, 22);
+  B(350, 340, 22);
+  lineDots(comps, 150, 420, 210, 470, 30, 6);
+  lineDots(comps, 450, 420, 390, 470, 30, 6);
+
+  // ── 중상단: 스피너 쌍 + 사이드 슬링샷 범퍼 ──
+  S(165, 690, 150, 4);
+  S(435, 690, 150, -4);
+  B(90, 800, 16);
+  B(510, 800, 16);
+  wallPath(comps, [[25, 960], [200, 1050]]);
+  wallPath(comps, [[575, 960], [400, 1050]]);
+
+  // ── 중앙 대형 회전 타깃(레퍼런스의 방사형 휠) + 둘레 범퍼 링 ──
+  // 링의 맨 아래(i=4)는 비워서 공이 중앙 킥커로 흘러내리는 길을 연다
+  const cx = 300;
+  const cy = 1280;
+  S(cx, cy, 200, 5);
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) continue;
+    const a = (Math.PI * 2 * i) / 8 - Math.PI / 2;
+    B(Math.round(cx + Math.cos(a) * 150), Math.round(cy + Math.sin(a) * 150), 15);
+  }
+
+  // ── 중앙 킥커: 공이 닿으면 위로 쏘아 되돌려 보낸다 (핵심 요청) ──
+  // 위쪽 V자 깔때기가 중앙 물줄기를 킥커로 모아 안정적으로 발동시킨다
+  comps.push({ type: 'wall', x: 224, y: 1500, props: { length: 130, angle: 30 } });
+  comps.push({ type: 'wall', x: 376, y: 1500, props: { length: 130, angle: -30 } });
+  comps.push({ type: 'jumper', x: 300, y: 1600, props: { width: 130, power: 15, angle: 0 } });
+
+  // ── 하단 플레이필드: 범퍼·핀 밭 + 회전체 ──
+  B(150, 1780, 18);
+  B(450, 1780, 18);
+  S(300, 1800, 140, -4);
+  pegRow(comps, 1960);
+  pegRow(comps, 2030, 27);
+  B(120, 2120, 16);
+  B(480, 2120, 16);
+  B(300, 2160, 20);
+
+  // ── 왼쪽 행운의 샛길: 안쪽 벽으로 통로를 만들고 입구는 좁게 —
+  //    운좋게 슬쩍 빠진 공은 장애물 없이 그대로 골인까지 직행한다 ──
+  wallPath(comps, [[110, 2260], [110, 2880]]); // 샛길 안쪽(수직) 벽 → 왼쪽 통로 형성
+  wallPath(comps, [[110, 2260], [190, 2205]]); // 입구 가림막 — 대부분 튕겨나가고 운좋으면 진입
+
+  // ── 오른쪽 하단 퍼올리기(욕망의 항아리 방식): 회전 바가 흘러온 공을 위로 퍼올린다 ──
+  // 오른쪽으로 흘러온 공을 스쿱 바로 모으는 짧은 유도벽 + 아래 받침으로 헛돌지 않게 함
+  comps.push({ type: 'wall', x: 548, y: 2250, props: { length: 130, angle: 64 } });
+  comps.push({ type: 'wall', x: 505, y: 2560, props: { length: 120, angle: -20 } });
+  comps.push({ type: 'spinner', x: 512, y: 2430, props: { length: 150, speed: -5 } });
+
+  // ── 하단 플리퍼: 두 날개(레퍼런스의 흰 삼각형) — 가운데 배수구로 유도 ──
+  comps.push({ type: 'wall', x: 250, y: 2760, props: { length: 170, angle: 24 } });
+  comps.push({ type: 'wall', x: 420, y: 2770, props: { length: 130, angle: -34 } });
+  B(300, 2600, 16);
+
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   {
     id: 'classic',
@@ -589,6 +662,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: WORLD.height,
     components: spinnerParkComponents(),
+  },
+  {
+    id: 'pinball',
+    name: '🕹️ 진짜 핀볼',
+    author: '기본 맵',
+    builtin: true,
+    height: 3200,
+    components: pinballComponents(),
   },
   // ── 미니맵 아트 맵: 미니맵으로 보면 그림, 게임에선 핀·범퍼·회전체·폭탄 ──
   {
