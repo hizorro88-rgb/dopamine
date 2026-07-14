@@ -142,10 +142,10 @@
     return c;
   }
 
-  // flat=true(미니맵)면 글로우 생략.
-  function drawComponent(ctx, comp, angle, flat) {
+  // flat=true(미니맵)면 글로우 생략. offX/offY 는 움직이는 벽의 실시간 위치 오프셋.
+  function drawComponent(ctx, comp, angle, flat, offX, offY) {
     ctx.save();
-    ctx.translate(comp.x, comp.y);
+    ctx.translate(comp.x + (offX || 0), comp.y + (offY || 0));
     if (angle) ctx.rotate(angle);
     for (const s of comp.shapes) {
       const color = s.fill || '#35e0ff';
@@ -2436,12 +2436,19 @@
     drawBoardDecor(ctx, board);
     drawGoal(ctx, board.goal);
 
-    // 맵 구성요소 (화면 근처만 그리기, 회전체는 경과 시간으로 각도 계산 → 서버와 동기화)
+    // 맵 구성요소 (화면 근처만 그리기, 회전체·이동체는 경과 시간으로 계산 → 서버와 동기화)
     for (let i = 0; i < board.components.length; i++) {
       const comp = board.components[i];
       if (game.hiddenComps.has(i)) continue; // 터진 폭탄 등은 재생성까지 숨김
       if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) continue;
-      drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0);
+      let ox = 0;
+      let oy = 0;
+      if (comp.move) {
+        const off = Math.sin(elapsed * comp.move.speed) * comp.move.range;
+        if (comp.move.axis === 'y') oy = off;
+        else ox = off;
+      }
+      drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0, false, ox, oy);
     }
 
     // 공 (인원이 많으면 그림자/이름표 생략 — 선두와 내 공만 이름표)
@@ -2773,6 +2780,7 @@
     comp.shapes = built.shapes;
     comp.spin = built.spin;
     comp.hit = built.hit || null;
+    comp.move = built.move || null;
   }
 
   /**
@@ -3255,6 +3263,20 @@
           eCtx.strokeStyle = 'rgba(255,176,58,0.55)';
           eCtx.beginPath();
           eCtx.arc(comp.x, comp.y, comp.hit.radius, 0, Math.PI * 2);
+          eCtx.stroke();
+        }
+        // ↔️ 움직이는 벽: 왕복 이동 범위(트랙) 표시
+        if (comp.move) {
+          const rng = comp.move.range;
+          eCtx.strokeStyle = 'rgba(180,140,232,0.7)';
+          eCtx.beginPath();
+          if (comp.move.axis === 'y') {
+            eCtx.moveTo(comp.x, comp.y - rng);
+            eCtx.lineTo(comp.x, comp.y + rng);
+          } else {
+            eCtx.moveTo(comp.x - rng, comp.y);
+            eCtx.lineTo(comp.x + rng, comp.y);
+          }
           eCtx.stroke();
         }
         eCtx.setLineDash([]);

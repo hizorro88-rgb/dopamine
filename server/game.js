@@ -194,6 +194,7 @@ class Game {
     const built = buildBoard(this.engine, mapDef);
     this.board = built.board;
     this.spinners = built.spinners;
+    this.movers = built.movers; // ↔️ 움직이는 벽
     this.reactive = built.reactive;
     this.height = built.height;
     this.goalY = built.goalY;
@@ -476,6 +477,19 @@ class Game {
     for (const s of this.spinners) {
       Matter.Body.rotate(s.body, s.spin * target - s.angle, s.pivot);
       s.angle = s.spin * target;
+    }
+    this.moveMovers(target);
+  }
+
+  /** ↔️ 움직이는 벽: 기준 위치에서 sin 파형으로 왕복 (게임 시간 기준 → 클라와 동기) */
+  moveMovers(target = this.simMs / 1000) {
+    if (!this.movers || !this.movers.length) return;
+    for (const m of this.movers) {
+      const off = Math.sin(target * m.speed) * m.range;
+      Matter.Body.setPosition(m.body, {
+        x: m.base.x + (m.axis === 'x' ? off : 0),
+        y: m.base.y + (m.axis === 'y' ? off : 0),
+      });
     }
   }
 

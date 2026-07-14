@@ -174,6 +174,32 @@
       },
     },
 
+    // ↔️ 움직이는 벽: 좌우(또는 위아래)로 왕복하는 벽 — 타이밍을 맞춰 통과
+    movewall: {
+      id: 'movewall',
+      name: '움직이는 벽',
+      emoji: '↔️',
+      desc: '좌우(또는 위아래)로 왕복하며 움직이는 벽. 타이밍을 맞춰 통과하세요!',
+      props: [
+        { key: 'length', label: '길이', min: 40, max: 260, step: 10, default: 120 },
+        { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 5, default: 0 },
+        { key: 'range', label: '이동 거리', min: 30, max: 240, step: 10, default: 120 },
+        { key: 'movespeed', label: '이동 속도', min: 0.5, max: 4, step: 0.5, default: 1.5 },
+        { key: 'vertical', label: '세로 이동(0=좌우,1=위아래)', min: 0, max: 1, step: 1, default: 0 },
+      ],
+      build(p) {
+        return {
+          shapes: [
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 14, angle: (p.angle || 0) * DEG, fill: '#b48ce8' },
+            { kind: 'rect', x: 0, y: 0, w: p.length * 0.5, h: 4, angle: (p.angle || 0) * DEG, fill: '#e8d6ff' },
+          ],
+          spin: 0,
+          restitution: 0.3,
+          move: { axis: p.vertical ? 'y' : 'x', range: p.range, speed: p.movespeed },
+        };
+      },
+    },
+
     // ★ 회전 막대: 뱅글뱅글 돌아가는 방해물
     spinner: {
       id: 'spinner',

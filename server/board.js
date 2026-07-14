@@ -29,6 +29,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   const bodies = [];
   const frame = [];
   const spinners = []; // { body, spin, pivot, angle }
+  const movers = []; // { body, base, axis, range, speed } — 왕복 이동 벽
   const reactive = new Map(); // rootBodyId -> 반응형 구성요소 인스턴스 (폭탄 등)
 
   const addFrameWall = (x, y, w, h) => {
@@ -88,6 +89,15 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
     if (built.spin) {
       spinners.push({ body, spin: built.spin, pivot: { x: comp.x, y: comp.y }, angle: 0 });
     }
+    if (built.move) {
+      movers.push({
+        body,
+        base: { x: comp.x, y: comp.y },
+        axis: built.move.axis === 'y' ? 'y' : 'x',
+        range: built.move.range,
+        speed: built.move.speed,
+      });
+    }
     if (built.hit) {
       reactive.set(body.id, {
         index: renderComponents.length,
@@ -106,6 +116,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       y: comp.y,
       shapes: built.shapes,
       spin: built.spin || 0,
+      move: built.move || 0, // 클라이언트 애니메이션용 {axis,range,speed}
     });
   }
 
@@ -121,6 +132,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       mapName: mapDef.name,
     },
     spinners,
+    movers,
     reactive,
     height: H,
     goalY,

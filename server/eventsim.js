@@ -185,6 +185,18 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         s.angle = target;
       }
 
+      // ↔️ 움직이는 벽 (game.js 와 동일 파형)
+      if (built.movers.length) {
+        const tt = simNow / 1000;
+        for (const m of built.movers) {
+          const off = Math.sin(tt * m.speed) * m.range;
+          Matter.Body.setPosition(m.body, {
+            x: m.base.x + (m.axis === 'x' ? off : 0),
+            y: m.base.y + (m.axis === 'y' ? off : 0),
+          });
+        }
+      }
+
       // 폭탄 재생성
       for (const inst of built.reactive.values()) {
         if (inst.exploded && simNow >= inst.respawnAt) {
