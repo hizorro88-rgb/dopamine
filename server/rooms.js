@@ -73,7 +73,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.create.allow(socket.id))
         return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
@@ -91,6 +91,7 @@ class RoomManager {
         mapId: 'classic',
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
+        itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
@@ -126,6 +127,7 @@ class RoomManager {
           mapName: mapDef.name,
           winMode: r.winMode || 'first',
           ballsPerPlayer: r.ballsPerPlayer || 1,
+          itemsEnabled: r.itemsEnabled !== false,
         };
       });
       // 게임 중인 방 먼저(구경거리!), 그 다음 사람 많은 순
@@ -275,6 +277,14 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
+    // 방장이 대기실에서 아이템전 / 노템전 변경
+    socket.on('room:setItems', ({ itemsEnabled } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      room.itemsEnabled = itemsEnabled !== false;
+      this.broadcastRoom(room);
+    });
+
     // ⏩ 방장이 게임 중 배속 변경
     socket.on('game:setSpeed', ({ mult } = {}) => {
       const room = this.roomOf(socket);
@@ -376,6 +386,7 @@ class RoomManager {
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
+      itemsEnabled: room.itemsEnabled !== false,
     });
   }
 }

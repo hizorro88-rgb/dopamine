@@ -151,6 +151,8 @@ class Game {
     this.autoPilot = !!opts.autoPilot;
     // 우승 조건: 'first' = 먼저 골인한 순서 / 'last' = 늦게 골인한 순서
     this.winMode = room.winMode === 'last' ? 'last' : 'first';
+    // 아이템전(기본) / 노템전 — 노템전이면 아이템·아이템 소개 없이 셔플→낙하만
+    this.itemsEnabled = room.itemsEnabled !== false;
     // 인당 공 개수
     this.ballsPerPlayer = Math.min(
       Math.max(1, Number(room.ballsPerPlayer) || 1),
@@ -270,12 +272,13 @@ class Game {
         this.balls.set(key, ball);
         Matter.Composite.add(this.engine.world, ball);
       }
-      // 랜덤 아이템 배정 (공 개수와 무관하게 인당 2개, 올랜덤은 시스템이 대신 발동)
-      this.playerItems.set(player.id, this.autoPilot ? [] : randomItems(ITEMS_PER_PLAYER));
+      // 랜덤 아이템 배정 (공 개수와 무관하게 인당 2개) — 올랜덤·노템전은 아이템 없음
+      const noItems = this.autoPilot || !this.itemsEnabled;
+      this.playerItems.set(player.id, noItems ? [] : randomItems(ITEMS_PER_PLAYER));
     }
 
-    // 🎡 인생은 돌고돌아: 10% 확률로 단 한 명에게만 (2인 이상, 올랜덤 제외)
-    if (!this.autoPilot && players.length >= 2 && Math.random() < KARMA_CHANCE) {
+    // 🎡 인생은 돌고돌아: 10% 확률로 단 한 명에게만 (2인 이상, 올랜덤·노템전 제외)
+    if (!this.autoPilot && this.itemsEnabled && players.length >= 2 && Math.random() < KARMA_CHANCE) {
       const lucky = players[Math.floor(Math.random() * players.length)];
       this.playerItems.get(lucky.id).push('karma');
     }
@@ -287,7 +290,8 @@ class Game {
     }
 
     this.startedAt = Date.now();
-    if (!this.autoPilot && ITEM_INTRO_MS > 0) {
+    // 아이템 소개는 아이템전에서만 (노템전·올랜덤은 소개 없이 바로 셔플)
+    if (!this.autoPilot && this.itemsEnabled && ITEM_INTRO_MS > 0) {
       this.introUntil = this.startedAt + ITEM_INTRO_MS;
     }
 

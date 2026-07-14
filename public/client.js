@@ -492,6 +492,21 @@
     });
   }
 
+  // ── 아이템전 / 노템전 선택 (방 만들기) ──
+  let homeItems = localStorage.getItem('pinball-items') !== '0'; // 기본 아이템전
+  function renderHomeItems() {
+    $('home-item-on').classList.toggle('selected', homeItems);
+    $('home-item-off').classList.toggle('selected', !homeItems);
+  }
+  renderHomeItems();
+  for (const id of ['home-item-on', 'home-item-off']) {
+    $(id).addEventListener('click', (e) => {
+      homeItems = e.currentTarget.dataset.items === '1';
+      localStorage.setItem('pinball-items', homeItems ? '1' : '0');
+      renderHomeItems();
+    });
+  }
+
   // 인당 공 개수 (방 만들기)
   const homeBallCount = $('home-ball-count');
   homeBallCount.value = localStorage.getItem('pinball-balls') || '1';
@@ -507,6 +522,7 @@
         donorCode: myDonorCode(),
         winMode: homeWinMode,
         ballsPerPlayer: Number(homeBallCount.value),
+        itemsEnabled: homeItems,
       },
       (res) => {
         if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
@@ -555,7 +571,7 @@
               <span class="room-state ${playing ? 'playing' : ''}">${playing ? '🔴 게임중' : '🟢 대기중'}</span>
               ${escapeHtml(r.hostName)}의 방
             </div>
-            <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개</div>
+            <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개 · ${r.itemsEnabled === false ? '🚫 노템' : '🎁 아이템'}</div>
           </div>
           <div class="room-actions">
             ${!playing && !full ? `<button class="btn small" data-join="${r.code}">입장</button>` : ''}
@@ -870,13 +886,22 @@
     $('btn-start-random').classList.toggle('hidden', spectating);
     $('btn-leave-room').classList.toggle('hidden', !spectating);
     const specNote = room.spectators > 0 ? ` · 👁 관전 ${room.spectators}명` : '';
-    $('lobby-hint').textContent = `${room.players.length}/${room.maxPlayers}명${specNote} · 시작하면 각자 랜덤 아이템 2개를 받아요!`;
+    const itemsOn = room.itemsEnabled !== false;
+    $('lobby-hint').textContent =
+      `${room.players.length}/${room.maxPlayers}명${specNote} · ` +
+      (itemsOn ? '시작하면 각자 랜덤 아이템 2개를 받아요!' : '🚫 노템전 — 아이템 없이 순수 실력·운!');
 
     // 우승 조건 표시 (방장만 변경 가능)
     $('lobby-wm-first').classList.toggle('selected', room.winMode !== 'last');
     $('lobby-wm-last').classList.toggle('selected', room.winMode === 'last');
     $('lobby-wm-first').disabled = !isHost;
     $('lobby-wm-last').disabled = !isHost;
+
+    // 아이템전 / 노템전 표시 (방장만 변경 가능)
+    $('lobby-item-on').classList.toggle('selected', itemsOn);
+    $('lobby-item-off').classList.toggle('selected', !itemsOn);
+    $('lobby-item-on').disabled = !isHost;
+    $('lobby-item-off').disabled = !isHost;
 
     // 인당 공 개수 (방장만 변경 가능)
     $('lobby-ball-count').value = String(room.ballsPerPlayer || 1);
@@ -892,6 +917,12 @@
   for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
     $(id).addEventListener('click', (e) => {
       socket.emit('room:setWinMode', { winMode: e.currentTarget.dataset.mode });
+    });
+  }
+
+  for (const id of ['lobby-item-on', 'lobby-item-off']) {
+    $(id).addEventListener('click', (e) => {
+      socket.emit('room:setItems', { itemsEnabled: e.currentTarget.dataset.items === '1' });
     });
   }
 
@@ -1176,8 +1207,9 @@
     miniStatic = null; // 새 게임 → 미니맵 정적 캐시 갱신
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
-    // 올랜덤·관전자는 아이템 바 숨김
-    $('item-bar').style.display = game.autoPilot || game.spectator ? 'none' : '';
+    // 올랜덤·관전자·노템전은 아이템 바 숨김
+    const hasItems = !game.autoPilot && !game.spectator && (game.items || []).some(Boolean);
+    $('item-bar').style.display = hasItems ? '' : 'none';
     if (game.autoPilot) {
       toast(
         `🎲 올랜덤 — 맵: ${board.mapName} · 인당 공 ${game.ballsPer}개 · ${game.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 우승`
