@@ -50,6 +50,9 @@
           <option value="5">5개</option>
         </select>
       </div>
+      <div class="join-row" id="home-pw-row">
+        <input id="input-room-pw" type="text" maxlength="20" placeholder="🔒 방 비밀번호 (선택 — 비우면 공개방)" autocomplete="off" />
+      </div>
       <button id="btn-create" class="btn primary">🏠 방 만들기</button>
       <div class="divider"><span>또는</span></div>
       <div class="join-row">
@@ -160,6 +163,19 @@
       <div id="donate-qr-box"></div>
       <p class="hint" id="donate-qr-url"></p>
       <button id="btn-donate-qr-close" class="btn small">닫기</button>
+    </div>
+  </div>
+
+  <!-- 🔒 비밀방 입장: 비밀번호 입력 -->
+  <div id="join-pw-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>🔒 비밀번호가 필요한 방</h2>
+      <p class="hint" id="join-pw-room" style="margin-top:0"></p>
+      <input id="input-join-pw" type="text" maxlength="20" placeholder="방 비밀번호" autocomplete="off" />
+      <button id="btn-join-pw" class="btn primary" style="width:100%;margin-top:8px">🔑 입장</button>
+      <p class="hint">관전은 비밀번호 없이 언제든 가능해요.</p>
+      <p class="error" id="join-pw-msg"></p>
+      <button id="btn-join-pw-close" class="btn small">취소</button>
     </div>
   </div>
 

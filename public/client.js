@@ -787,6 +787,7 @@
         winMode: homeWinMode,
         ballsPerPlayer: Number(homeBallCount.value),
         itemsEnabled: homeItems,
+        password: $('input-room-pw').value,
       },
       (res) => {
         if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
@@ -804,15 +805,44 @@
   inputCode.addEventListener('input', updateJoinReady);
   updateJoinReady(); // 초대 링크(?room=)로 들어와 미리 채워진 경우
 
-  function joinRoom(codeArg) {
+  function joinRoom(codeArg, password) {
     // 클릭 핸들러로도 직접 연결되므로 문자열일 때만 인자 사용
     const code = (typeof codeArg === 'string' ? codeArg : inputCode.value).trim().toUpperCase();
     if (!code) return (homeError.textContent = '초대 코드를 입력해주세요.');
-    socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode() }, (res) => {
-      if (!res.ok) homeError.textContent = res.error || '입장 실패';
-      else spectating = false;
+    socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode(), password }, (res) => {
+      if (res.ok) {
+        spectating = false;
+        closeJoinPw();
+        return;
+      }
+      // 🔒 비밀방이면 비밀번호 입력창을 띄운다 (관전은 별도 버튼으로 언제든 가능)
+      if (res.locked) return openJoinPw(code, password ? res.error : '');
+      homeError.textContent = res.error || '입장 실패';
     });
   }
+
+  // ── 🔒 비밀방 입장: 비밀번호 모달 ──
+  let pendingJoinCode = null;
+  function openJoinPw(code, errMsg) {
+    pendingJoinCode = code;
+    $('join-pw-room').textContent = `${code} 방`;
+    $('input-join-pw').value = '';
+    $('join-pw-msg').textContent = errMsg || '';
+    $('join-pw-modal').classList.remove('hidden');
+    $('input-join-pw').focus();
+  }
+  function closeJoinPw() {
+    pendingJoinCode = null;
+    $('join-pw-modal').classList.add('hidden');
+  }
+  function submitJoinPw() {
+    const pw = $('input-join-pw').value.trim();
+    if (!pw) return ($('join-pw-msg').textContent = '비밀번호를 입력해주세요.');
+    if (pendingJoinCode) joinRoom(pendingJoinCode, pw);
+  }
+  $('btn-join-pw').addEventListener('click', submitJoinPw);
+  $('input-join-pw').addEventListener('keydown', (e) => e.key === 'Enter' && submitJoinPw());
+  $('btn-join-pw-close').addEventListener('click', closeJoinPw);
 
   // ── 🔥 공개 방 목록 (누구나 입장·관전) ────────────────
   function refreshRooms() {
@@ -833,7 +863,7 @@
         li.innerHTML = `<div>
             <div class="room-title">
               <span class="room-state ${playing ? 'playing' : ''}">${playing ? '🔴 게임중' : '🟢 대기중'}</span>
-              ${escapeHtml(r.hostName)}의 방
+              ${r.locked ? '🔒 ' : ''}${escapeHtml(r.hostName)}의 방
             </div>
             <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개 · ${r.itemsEnabled === false ? '🚫 노템' : '🎁 아이템'}</div>
           </div>
@@ -1187,8 +1217,9 @@
     $('btn-leave-room').classList.remove('hidden');
     const specNote = room.spectators > 0 ? ` · 👁 관전 ${room.spectators}명` : '';
     const itemsOn = room.itemsEnabled !== false;
+    const lockNote = room.locked ? '🔒 비밀방 · ' : '';
     $('lobby-hint').textContent =
-      `${room.players.length}/${room.maxPlayers}명${specNote} · ` +
+      `${lockNote}${room.players.length}/${room.maxPlayers}명${specNote} · ` +
       (itemsOn ? '시작하면 각자 랜덤 아이템 2개를 받아요!' : '🚫 노템전 — 아이템 없이 순수 실력·운!');
 
     // 우승 조건 표시 (방장만 변경 가능)

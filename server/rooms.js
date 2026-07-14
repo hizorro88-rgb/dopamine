@@ -80,7 +80,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.create.allow(socket.id))
         return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
@@ -99,18 +99,30 @@ class RoomManager {
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
         itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
+        // 🔒 비밀방: 입장은 비번을 아는 사람만, 관전은 누구나. 서버 메모리에만 보관(클라 전송 X)
+        password: String(password || '').trim().slice(0, 20) || null,
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
       cb({ ok: true, code });
     });
 
-    socket.on('room:join', ({ code, name, donorCode } = {}, cb) => {
+    socket.on('room:join', ({ code, name, donorCode, password } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const room = this.rooms.get(String(code || '').trim().toUpperCase());
       if (!room) return cb({ ok: false, error: '존재하지 않는 방 코드입니다.' });
       if (room.state === 'playing')
         return cb({ ok: false, error: '게임이 진행 중인 방입니다. 잠시 후 다시 시도해주세요.' });
+      // 🔒 비밀방: 비번 확인 (틀리면 locked 플래그로 응답 → 클라가 비번 입력창을 띄운다). 관전은 이 검사 없음.
+      if (room.password) {
+        const given = String(password || '').trim();
+        if (given !== room.password)
+          return cb({
+            ok: false,
+            locked: true,
+            error: given ? '비밀번호가 틀렸습니다.' : '비밀번호가 필요한 방입니다.',
+          });
+      }
       if (room.players.size >= MAX_PLAYERS)
         return cb({ ok: false, error: `방이 가득 찼습니다. (최대 ${MAX_PLAYERS}명)` });
       this.leave(socket); // 이전 방 정리 (누수·중복 소속 방지)
@@ -135,6 +147,7 @@ class RoomManager {
           winMode: r.winMode || 'first',
           ballsPerPlayer: r.ballsPerPlayer || 1,
           itemsEnabled: r.itemsEnabled !== false,
+          locked: !!r.password, // 🔒 비밀방 여부(비번 자체는 절대 보내지 않음)
         };
       });
       // 게임 중인 방 먼저(구경거리!), 그 다음 사람 많은 순
@@ -436,6 +449,7 @@ class RoomManager {
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
       itemsEnabled: room.itemsEnabled !== false,
+      locked: !!room.password, // 🔒 비밀방 여부
     });
   }
 }
