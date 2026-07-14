@@ -20,7 +20,17 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// 정적 자산: HTML/JS/CSS 는 항상 재검증(no-cache)해서 프록시(Cloudflare 등)·브라우저가
+// 옛 버전을 붙잡아 코드 변경이 반영되지 않는 문제를 막는다. ETag 로 안 바뀐 건 304 로 가볍게 처리.
+app.use(
+  express.static(path.join(__dirname, '..', 'public'), {
+    setHeaders: (res, filePath) => {
+      if (/\.(html|js|css)$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  })
+);
 app.use(express.json({ limit: '64kb' })); // 과대 요청 바디 차단
 
 const donors = new DonorStore();
