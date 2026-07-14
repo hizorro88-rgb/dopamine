@@ -1199,6 +1199,7 @@
       overShown: false,
       camY: 0,
       explosions: [], // {x, y, radius, start} — 폭발 애니메이션
+      celebrations: [], // {x, y, start, particles} — 🎉 우승 축포
       hiddenComps: new Set(), // 터져서 잠시 사라진 구성요소 인덱스
       shakeUntil: 0,
     };
@@ -1334,7 +1335,9 @@
   socket.on('game:ballFinished', (data) => {
     if (!game || game.replay) return;
     appendFinishRow(data);
-    if (data.rank === 1) {
+    if (data.celebrate) {
+      spawnCelebration(data.celebrateX, data.name);
+    } else if (data.rank === 1) {
       toast(
         game.winMode === 'last'
           ? `⚡ ${data.name}님이 가장 먼저 도착... 늦게 골인이 우승인데요!`
@@ -1342,6 +1345,30 @@
       );
     }
   });
+
+  // 🎉 우승 축포: 골인 지점에서 색색 컨페티가 펑! 하고 터진다
+  const CELEB_COLORS = ['#ff5c7a', '#ffd12e', '#35e0ff', '#9bec00', '#c86bff', '#ff9d2e', '#fff3b0'];
+  function spawnCelebration(x, name) {
+    if (!game || !game.board) return;
+    const ox = typeof x === 'number' ? x : game.board.goal.x;
+    const oy = game.board.goal.y - 6;
+    const particles = [];
+    for (let i = 0; i < 70; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.3; // 위쪽으로 부채꼴
+      const s = 0.16 + Math.random() * 0.22; // px/ms
+      particles.push({
+        a,
+        s,
+        color: CELEB_COLORS[(Math.random() * CELEB_COLORS.length) | 0],
+        w: 4 + Math.random() * 5,
+        h: 7 + Math.random() * 7,
+        rot: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 0.02,
+      });
+    }
+    game.celebrations.push({ x: ox, y: oy, start: performance.now(), particles });
+    toast(`🎉 ${name}님 우승! 축하합니다! 🎊`);
+  }
 
   function formatTime(timeMs) {
     return timeMs == null ? '' : (timeMs / 1000).toFixed(1) + '초';
@@ -1864,6 +1891,40 @@
         }
       }
       ctx.restore();
+    }
+
+    // 🎉 우승 축포 컨페티 (골인 지점, 월드 좌표)
+    const CELEB_LIFE = 1900;
+    game.celebrations = game.celebrations.filter((c) => nowMs - c.start < CELEB_LIFE);
+    for (const c of game.celebrations) {
+      const age = nowMs - c.start;
+      // 초반 섬광 링 ("펑!")
+      if (age < 420) {
+        const ft = age / 420;
+        ctx.save();
+        ctx.globalAlpha = (1 - ft) * 0.9;
+        ctx.strokeStyle = '#fff3b0';
+        ctx.shadowColor = '#ffd12e';
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 6 * (1 - ft) + 1;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 20 + ft * 90, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // 컨페티 조각
+      for (const p of c.particles) {
+        const px = c.x + Math.cos(p.a) * p.s * age;
+        const py = c.y + Math.sin(p.a) * p.s * age + 0.00028 * age * age; // 중력
+        const alpha = age < CELEB_LIFE - 500 ? 1 : 1 - (age - (CELEB_LIFE - 500)) / 500;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.translate(px, py);
+        ctx.rotate(p.rot + p.rotSpeed * age);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
     }
 
     ctx.restore();

@@ -561,12 +561,17 @@ class Game {
         this.finishTimes.set(key, Date.now() - this.dropAt); // 체감(실제) 시간 기록
         const player = this.room.players.get(ball.plugin.playerId);
         const name = player ? player.name : '?';
+        // 🎉 축포: 먼저 골인 우승 → 첫 골인 / 늦게 골인 우승 → 마지막 골인 순간
+        const allDoneNow = [...this.balls.values()].every((b) => b.plugin.done);
+        const celebrate = this.winMode === 'last' ? allDoneNow : this.finished.length === 1;
         this.io.to(this.room.code).emit('game:ballFinished', {
           playerId: ball.plugin.playerId,
           ballIndex: ball.plugin.idx,
           name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
           rank: this.finished.length,
           timeMs: this.finishTimes.get(key),
+          celebrate,
+          celebrateX: Math.round(ball.position.x),
         });
       }
     }
