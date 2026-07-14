@@ -515,33 +515,70 @@
   $('btn-board-result').addEventListener('click', openRoundRanking);
   $('btn-board-close').addEventListener('click', () => $('board-modal').classList.add('hidden'));
 
-  // ── 🔧 관리자: 유저 맵 관리 ──
+  // ── 🔧 관리자 (숨은 경로 /dopaman 로만 진입) ──
   let adminKey = ''; // 세션 메모리에만 보관
   const adminHeaders = () => ({ 'x-admin-key': adminKey, 'Content-Type': 'application/json' });
+  const SETTING_KEYS = ['donationUrl', 'donationLabel', 'timeScale', 'itemIntroMs', 'shuffleAutoDropMs', 'mapDailyLimit'];
 
-  $('btn-admin').addEventListener('click', () => {
+  function openAdmin() {
     $('admin-msg').textContent = '';
     $('admin-panel').classList.add('hidden');
     $('admin-login').classList.remove('hidden');
     $('admin-key').value = adminKey;
     $('admin-modal').classList.remove('hidden');
-  });
+    $('admin-key').focus();
+  }
+  // /dopaman 으로 접속하면 관리자 화면을 연다 (일반 사용자에게는 노출되지 않음)
+  if (/\/dopaman\/?$/.test(location.pathname)) openAdmin();
+
   $('btn-admin-close').addEventListener('click', () => $('admin-modal').classList.add('hidden'));
   $('btn-admin-open').addEventListener('click', () => {
     adminKey = $('admin-key').value;
-    loadAdminMaps();
+    loadAdmin();
   });
   $('admin-key').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { adminKey = $('admin-key').value; loadAdminMaps(); }
+    if (e.key === 'Enter') { adminKey = $('admin-key').value; loadAdmin(); }
+  });
+
+  // 로그인 성공 시 설정 + 맵을 함께 불러온다
+  function loadAdmin() {
+    $('admin-msg').textContent = '';
+    fetch('/api/admin/settings', { headers: adminHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('관리자 키가 올바르지 않습니다.'))))
+      .then(({ settings }) => {
+        $('admin-login').classList.add('hidden');
+        $('admin-panel').classList.remove('hidden');
+        for (const k of SETTING_KEYS) {
+          const el = $('set-' + k);
+          if (el) el.value = settings[k] != null ? settings[k] : '';
+        }
+        loadAdminMaps();
+      })
+      .catch((e) => ($('admin-msg').textContent = e.message || '불러오기 실패'));
+  }
+
+  $('btn-admin-save-settings').addEventListener('click', () => {
+    const patch = {};
+    for (const k of SETTING_KEYS) {
+      const el = $('set-' + k);
+      if (el) patch[k] = el.value;
+    }
+    fetch('/api/admin/settings', { method: 'POST', headers: adminHeaders(), body: JSON.stringify(patch) })
+      .then((r) => r.json())
+      .then((res) => {
+        const msg = $('admin-settings-msg');
+        if (!res.ok) { msg.style.color = 'var(--danger)'; return (msg.textContent = res.error || '저장 실패'); }
+        msg.style.color = '#6fdfa0';
+        msg.textContent = '✅ 저장했습니다. (즉시 적용)';
+        for (const k of SETTING_KEYS) { const el = $('set-' + k); if (el) el.value = res.settings[k]; }
+      })
+      .catch(() => ($('admin-settings-msg').textContent = '저장 실패'));
   });
 
   function loadAdminMaps() {
-    $('admin-msg').textContent = '';
     fetch('/api/admin/maps', { headers: adminHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('관리자 키가 올바르지 않습니다.'))))
       .then(({ maps }) => {
-        $('admin-login').classList.add('hidden');
-        $('admin-panel').classList.remove('hidden');
         $('admin-summary').textContent = `유저 제작 맵 ${maps.length}개 (기본 맵은 삭제 불가)`;
         const list = $('admin-map-list');
         list.innerHTML = '';
@@ -2636,7 +2673,8 @@
           mapThumbCache.delete(editor.adminEditId); // 썸네일 캐시 갱신
           editor.adminEditId = null;
           showScreen('home');
-          $('btn-admin').click(); // 관리자 목록 다시 열기
+          $('admin-modal').classList.remove('hidden'); // 관리자 목록 다시 열기 (키 유지)
+          loadAdmin();
         })
         .catch(() => (msg.textContent = '저장 실패'));
       return;

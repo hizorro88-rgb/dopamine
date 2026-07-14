@@ -45,14 +45,19 @@ app.post('/api/visit', (req, res) => {
   res.json(visits.visit((req.body || {}).vid));
 });
 
-// 클라이언트 설정: 후원 링크 (환경변수로 덮어쓰기 가능, 'off' 면 버튼 숨김)
-const DEFAULT_DONATION_URL = 'https://qr.kakaopay.com/Ej8euQo2R'; // 운영자 카카오페이
+// 클라이언트 설정: 후원 링크 (관리자 페이지에서 변경 가능, 'off' 면 버튼 숨김)
+const settings = require('./settings');
 app.get('/api/config', (_req, res) => {
-  const url = process.env.DONATION_URL || DEFAULT_DONATION_URL;
+  const url = settings.get('donationUrl');
   res.json({
     donationUrl: url === 'off' ? '' : url,
-    donationLabel: process.env.DONATION_LABEL || '💛 서버비 후원하기 (카카오페이)',
+    donationLabel: settings.get('donationLabel'),
   });
+});
+
+// 관리자 숨은 경로: /dopaman 으로 접속하면 같은 SPA 를 띄우고 클라이언트가 관리자 화면을 연다
+app.get('/dopaman', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
 // 후원자 명예의 전당 (공개)
@@ -119,6 +124,16 @@ app.post('/api/admin/maps/update', (req, res) => {
   if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
   const { id, name, components, height } = req.body || {};
   res.json(rooms.maps.update(id, { name, components, height }));
+});
+
+// ── 관리자: 런타임 설정 (후원 링크·낙하 배속·아이템 소개·하루 맵 제한 등) ──
+app.get('/api/admin/settings', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  res.json({ ok: true, settings: settings.all() });
+});
+app.post('/api/admin/settings', (req, res) => {
+  if (!adminOk(req)) return res.status(403).json({ ok: false, error: '관리자 키가 올바르지 않습니다.' });
+  res.json(settings.update(req.body || {}));
 });
 const events = new EventManager(io, rooms.maps);
 io.on('connection', (socket) => {

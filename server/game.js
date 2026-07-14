@@ -27,15 +27,11 @@ const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률�
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
-const { SHUFFLE_AUTO_DROP_MS, ITEM_INTRO_MS } = require('./config'); // 자동 낙하 5초 / 아이템 소개 6초
+const settings = require('./settings'); // 낙하배속·아이템소개·자동낙하 시간을 live 로 읽는다 (관리자 페이지에서 변경 가능)
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
-// 낙하 후 시간 가속 배율(공의 속도): server/config.js 에서 조절.
-// 틱당 물리 서브스텝 횟수 방식이라 한 스텝당 이동량은 그대로 → 터널링 없이 전체 게임이 N배 빨라진다.
-// (셔플 단계는 실시간 유지. 아이템 지속시간·회전체·타임아웃은 게임 시간 기준으로 함께 가속)
-const { TIME_SCALE } = require('./config');
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -183,7 +179,7 @@ class Game {
     this.shuffleTargets = new Map(); // ballKey -> {x, y}
     this.nextShuffleAt = 0;
     // 올랜덤: 시스템이 4~9초 사이 무작위 시점에 낙하
-    this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : SHUFFLE_AUTO_DROP_MS;
+    this.shuffleLimitMs = this.autoPilot ? 4000 + Math.random() * 5000 : settings.get('shuffleAutoDropMs');
     this.autoTriggers = []; // 올랜덤 자동 아이템 스케줄
     this.speedMult = 1; // ⏩ 방장이 게임 중 올릴 수 있는 추가 배속 (1~3)
     // 🎁 아이템 소개 단계: 이 시각까지는 셔플·낙하가 잠긴다 (올랜덤은 아이템이 없으므로 생략)
@@ -291,8 +287,9 @@ class Game {
 
     this.startedAt = Date.now();
     // 아이템 소개는 아이템전에서만 (노템전·올랜덤은 소개 없이 바로 셔플)
-    if (!this.autoPilot && this.itemsEnabled && ITEM_INTRO_MS > 0) {
-      this.introUntil = this.startedAt + ITEM_INTRO_MS;
+    const introMs = settings.get('itemIntroMs');
+    if (!this.autoPilot && this.itemsEnabled && introMs > 0) {
+      this.introUntil = this.startedAt + introMs;
     }
 
     // 각자에게 자기 아이템 포함 시작 정보 전송
@@ -444,8 +441,8 @@ class Game {
       // 방장이 너무 오래 안 누르면 자동 낙하 (올랜덤은 시스템이 4~9초에 낙하)
       if (!inIntro && wall - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
-      // 낙하 단계: TIME_SCALE × 방장 배속 — 틱당 서브스텝 반복
-      const steps = TIME_SCALE * this.speedMult;
+      // 낙하 단계: 낙하배속 × 방장 배속 — 틱당 서브스텝 반복 (배속은 관리자 설정에서 live)
+      const steps = settings.get('timeScale') * this.speedMult;
       for (let i = 0; i < steps && !this.over; i++) this.substep();
       if (this.over) return;
     }
@@ -735,4 +732,4 @@ class Game {
   }
 }
 
-module.exports = { Game, HIT_ACTIONS, TIME_SCALE };
+module.exports = { Game, HIT_ACTIONS };

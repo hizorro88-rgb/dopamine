@@ -13,12 +13,11 @@ const DATA_FILE = path.join(DATA_DIR, 'maps.json');
 
 // 에디터에서 배치 가능한 영역 (위: 공 시작 구역 / 아래: 골인 구역 제외)
 // maxY 는 맵 길이에 따라 달라짐: height - 100
+const settings = require('./settings'); // 하루 맵 생성 제한을 live 로 읽는다 (관리자 페이지에서 변경 가능)
+
 const BOUNDS = { minX: 25, maxX: 575, minY: 130 };
 const MAX_COMPONENTS = 400;
 const MAX_CUSTOM_MAPS = 200;
-// 한 생성자(IP)가 하루에 만들 수 있는 맵 수 — 대량 생성 남용 방지 (0=무제한)
-const MAP_DAILY_LIMIT =
-  process.env.MAP_DAILY_LIMIT !== undefined ? Math.max(0, Number(process.env.MAP_DAILY_LIMIT) || 0) : 10;
 
 /** 서버 로컬 기준 YYYY-MM-DD */
 function localDate() {
@@ -858,11 +857,12 @@ class MapStore {
     if (this.custom.size >= MAX_CUSTOM_MAPS)
       return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
 
-    // 하루 생성 제한 (대량 생성 남용 방지)
+    // 하루 생성 제한 (대량 생성 남용 방지) — 관리자 설정에서 live
+    const dailyLimit = settings.get('mapDailyLimit');
     const dkey = creatorKey ? `${localDate()}|${creatorKey}` : null;
-    if (MAP_DAILY_LIMIT > 0 && dkey) {
-      if ((this.dailyByKey.get(dkey) || 0) >= MAP_DAILY_LIMIT)
-        return { ok: false, error: `맵은 하루에 ${MAP_DAILY_LIMIT}개까지 만들 수 있어요. 내일 다시 시도해주세요.` };
+    if (dailyLimit > 0 && dkey) {
+      if ((this.dailyByKey.get(dkey) || 0) >= dailyLimit)
+        return { ok: false, error: `맵은 하루에 ${dailyLimit}개까지 만들 수 있어요. 내일 다시 시도해주세요.` };
     }
 
     const v = this._validate({ name, components, height });
@@ -879,7 +879,7 @@ class MapStore {
     });
     this.persist();
 
-    if (MAP_DAILY_LIMIT > 0 && dkey) {
+    if (dailyLimit > 0 && dkey) {
       this.dailyByKey.set(dkey, (this.dailyByKey.get(dkey) || 0) + 1);
       if (this.dailyByKey.size > 5000) {
         const today = localDate();

@@ -11,7 +11,8 @@ const Matter = require('matter-js');
 const { WORLD } = require('../public/components.js');
 const { buildBoard, createBall, CAT_WALL, DEFAULT_MASK, BALL_RESTITUTION } = require('./board');
 const { ITEMS, itemMeta } = require('./items');
-const { HIT_ACTIONS, TIME_SCALE } = require('./game');
+const { HIT_ACTIONS } = require('./game');
+const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 // 재생은 게임 시간을 TIME_SCALE 배속으로 압축해 실제 20Hz 로 녹화

@@ -71,7 +71,6 @@
         <button id="btn-board" class="link-btn">📊 전체 순위</button>
         <button id="btn-hall" class="link-btn">🏆 후원자 명예의 전당</button>
         <button id="btn-donor-toggle" class="link-btn">💖 후원자 코드 입력</button>
-        <button id="btn-admin" class="link-btn">🔧 관리자</button>
       </div>
       <div id="donor-box" class="hidden">
         <input id="input-donor-code" type="text" maxlength="9" placeholder="DN-XXXXXX" autocomplete="off" />
@@ -105,6 +104,30 @@
         <p class="hint">서버 실행 시 <code>ADMIN_KEY</code>로 지정한 키를 입력하세요.</p>
       </div>
       <div id="admin-panel" class="hidden">
+        <h3 class="admin-h">⚙️ 서버 설정</h3>
+        <div class="admin-settings">
+          <label>후원 링크 (끄려면 <code>off</code>)
+            <input id="set-donationUrl" type="text" autocomplete="off" />
+          </label>
+          <label>후원 버튼 문구
+            <input id="set-donationLabel" type="text" autocomplete="off" />
+          </label>
+          <label>낙하 배속 (1~20, 클수록 빠름)
+            <input id="set-timeScale" type="number" min="1" max="20" />
+          </label>
+          <label>아이템 소개 시간 (ms, 0=생략)
+            <input id="set-itemIntroMs" type="number" min="0" max="30000" step="500" />
+          </label>
+          <label>자동 낙하 시간 (ms)
+            <input id="set-shuffleAutoDropMs" type="number" min="1000" max="30000" step="500" />
+          </label>
+          <label>하루 맵 생성 제한 (IP당, 0=무제한)
+            <input id="set-mapDailyLimit" type="number" min="0" max="1000" />
+          </label>
+          <button id="btn-admin-save-settings" class="btn primary">⚙️ 설정 저장</button>
+          <p class="hint" id="admin-settings-msg"></p>
+        </div>
+        <h3 class="admin-h" style="margin-top:18px">🗺 맵 관리</h3>
         <p class="hint" id="admin-summary"></p>
         <ol id="admin-map-list"></ol>
       </div>
