@@ -340,10 +340,22 @@ class RoomManager {
     this.broadcastRoom(room);
   }
 
+  /** 방 안에서 겹치는 닉네임이면 번호를 붙여 구분 (홍길동 → 홍길동 2) */
+  uniqueName(room, name) {
+    const used = new Set([...room.players.values()].map((p) => p.name));
+    if (!used.has(name)) return name;
+    for (let i = 2; i < 100; i++) {
+      const candidate = `${name} ${i}`;
+      if (!used.has(candidate)) return candidate;
+    }
+    return `${name} ${Math.floor(Math.random() * 900 + 100)}`;
+  }
+
   addPlayer(room, socket, name, isDonor = false) {
     const usedColors = new Set([...room.players.values()].map((p) => p.color));
     const color = COLORS.find((c) => !usedColors.has(c)) || COLORS[0];
-    room.players.set(socket.id, { id: socket.id, name, color, isDonor });
+    const finalName = this.uniqueName(room, name);
+    room.players.set(socket.id, { id: socket.id, name: finalName, color, isDonor });
     this.socketRoom.set(socket.id, room.code);
     socket.join(room.code);
     this.broadcastRoom(room);
