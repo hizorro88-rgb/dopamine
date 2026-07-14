@@ -2345,7 +2345,15 @@
       input.max = schema.max;
       input.step = schema.step;
       input.value = comp.props[schema.key];
-      const setLabel = () => (label.textContent = `${schema.label}: ${input.value}`);
+      const setLabel = () => {
+        let extra = '';
+        // 회전 속도는 부호로 방향이 정해지므로 시계/반시계를 명확히 표시
+        if (schema.key === 'speed') {
+          const v = Number(input.value);
+          extra = v > 0 ? '  ↻ 시계방향' : v < 0 ? '  ↺ 반시계방향' : '  (정지)';
+        }
+        label.textContent = `${schema.label}: ${input.value}${extra}`;
+      };
       setLabel();
       input.addEventListener('input', () => {
         comp.props[schema.key] = Number(input.value);

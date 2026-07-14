@@ -95,10 +95,10 @@
       id: 'spinner',
       name: '회전 막대',
       emoji: '🌀',
-      desc: '뱅글뱅글 돌아가며 공을 쳐내는 막대',
+      desc: '뱅글뱅글 돌아가며 공을 쳐내는 막대 (속도 +는 시계방향, −는 반시계방향)',
       props: [
         { key: 'length', label: '길이', min: 60, max: 260, step: 10, default: 150 },
-        { key: 'speed', label: '회전 속도', min: -9, max: 9, step: 0.5, default: 4 },
+        { key: 'speed', label: '회전 속도(±방향)', min: -9, max: 9, step: 0.5, default: 4 },
       ],
       build(p) {
         return {
@@ -176,7 +176,7 @@
       props: [
         { key: 'width', label: '폭', min: 50, max: 160, step: 10, default: 90 },
         { key: 'power', label: '점프력', min: 8, max: 24, step: 1, default: 15 },
-        { key: 'angle', label: '발사 각도(°)', min: -45, max: 45, step: 5, default: 0 },
+        { key: 'angle', label: '발사 각도(°)', min: -90, max: 90, step: 5, default: 0 },
       ],
       build(p) {
         return {
@@ -200,10 +200,10 @@
       id: 'cross',
       name: '회전 십자',
       emoji: '➕',
-      desc: '십자 모양으로 돌아가는 방해물',
+      desc: '십자 모양으로 돌아가는 방해물 (속도 +는 시계방향, −는 반시계방향)',
       props: [
         { key: 'length', label: '길이', min: 60, max: 220, step: 10, default: 130 },
-        { key: 'speed', label: '회전 속도', min: -9, max: 9, step: 0.5, default: -3.5 },
+        { key: 'speed', label: '회전 속도(±방향)', min: -9, max: 9, step: 0.5, default: -3.5 },
       ],
       build(p) {
         return {
