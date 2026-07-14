@@ -21,18 +21,46 @@ app.use((_req, res, next) => {
   next();
 });
 
-// 정적 자산: HTML/JS/CSS 는 항상 재검증(no-cache)해서 프록시(Cloudflare 등)·브라우저가
-// 옛 버전을 붙잡아 코드 변경이 반영되지 않는 문제를 막는다. ETag 로 안 바뀐 건 304 로 가볍게 처리.
+const fs = require('fs');
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+
+// 정적 자산: HTML/JS/CSS 는 항상 재검증(no-cache). index.html 자동 서빙은 끈다(아래에서 버전 주입).
 app.use(
-  express.static(path.join(__dirname, '..', 'public'), {
+  express.static(PUBLIC_DIR, {
+    index: false,
     setHeaders: (res, filePath) => {
-      if (/\.(html|js|css)$/i.test(filePath)) {
-        res.setHeader('Cache-Control', 'no-cache');
-      }
+      if (/\.(html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
     },
   })
 );
 app.use(express.json({ limit: '64kb' })); // 과대 요청 바디 차단
+
+// index.html 을 낼 때 자산 URL(client.js 등)에 버전 토큰(파일 mtime 기반)을 붙여
+// 파일이 바뀌면 URL 도 바뀌게 한다 → Cloudflare/브라우저가 옛 버전을 붙잡는 문제를 근본적으로 차단.
+function assetVersion() {
+  let m = 0;
+  for (const f of ['client.js', 'style.css', 'components.js', 'index.html']) {
+    try {
+      m = Math.max(m, fs.statSync(path.join(PUBLIC_DIR, f)).mtimeMs);
+    } catch {
+      /* 파일 없으면 무시 */
+    }
+  }
+  return Math.floor(m).toString(36);
+}
+function serveIndex(_req, res) {
+  let html;
+  try {
+    html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  } catch {
+    return res.status(500).send('index.html not found');
+  }
+  const v = assetVersion();
+  html = html.replace(/(\/(?:client|components|qrcode)\.js|\/style\.css)(?=")/g, `$1?v=${v}`);
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(html);
+}
+app.get('/', serveIndex);
 
 const donors = new DonorStore();
 const { VisitStore } = require('./visits');
@@ -55,10 +83,8 @@ app.get('/api/config', (_req, res) => {
   });
 });
 
-// 관리자 숨은 경로: /dopaman 으로 접속하면 같은 SPA 를 띄우고 클라이언트가 관리자 화면을 연다
-app.get('/dopaman', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
+// 관리자 숨은 경로: /dopaman 으로 접속하면 같은 SPA(버전 주입된 index.html)를 띄운다
+app.get('/dopaman', serveIndex);
 
 // 후원자 명예의 전당 (공개)
 app.get('/api/donors', (_req, res) => {
