@@ -396,12 +396,29 @@
     return `${a} ${n}`.slice(0, 12); // maxlength 안전
   }
 
-  // 저장된 닉네임이 없으면 랜덤으로 하나 채워준다
-  inputName.value = localStorage.getItem('pinball-name') || randomName();
+  // 닉네임은 "탭마다" 다르게 정한다 (sessionStorage) — 같은 사람이 여러 창을 열어도 겹치지 않게.
+  //  · sessionStorage: 이 탭이 정한 이름 (새로고침해도 유지, 다른 탭과는 분리)
+  //  · localStorage 'pinball-name-manual': 사용자가 직접 입력한 이름만 기억 (다음 방문에 이어씀)
+  //  · 그 외에는 탭마다 새 랜덤 이름
+  function initialName() {
+    return (
+      sessionStorage.getItem('pinball-name') ||
+      localStorage.getItem('pinball-name-manual') ||
+      randomName()
+    );
+  }
+  inputName.value = initialName();
+  sessionStorage.setItem('pinball-name', inputName.value);
+
+  // 사용자가 직접 입력하면 그 이름을 이 탭 + 다음 방문용으로 기억
+  inputName.addEventListener('input', () => {
+    sessionStorage.setItem('pinball-name', inputName.value);
+    localStorage.setItem('pinball-name-manual', inputName.value.trim());
+  });
 
   $('btn-random-name').addEventListener('click', () => {
     inputName.value = randomName();
-    localStorage.setItem('pinball-name', inputName.value);
+    sessionStorage.setItem('pinball-name', inputName.value); // 랜덤은 이 탭에만 (localStorage 에 안 남김)
     updateJoinReady();
     // 아이콘 회전 연출 (재클릭해도 다시 재생되도록 리셋)
     const b = $('btn-random-name');
@@ -412,7 +429,7 @@
 
   function myName() {
     const name = inputName.value.trim() || '플레이어';
-    localStorage.setItem('pinball-name', name);
+    sessionStorage.setItem('pinball-name', name);
     return name;
   }
 
@@ -796,7 +813,7 @@
     socket.emit('event:create', {}, (res) => {
       if (!res.ok) return (homeError.textContent = res.error || '이벤트 생성 실패');
       eventRoom = { code: res.code };
-      $('input-event-name').value = localStorage.getItem('pinball-name') || '';
+      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || '';
       showScreen('event');
     });
   });
@@ -806,7 +823,7 @@
       if (!res.ok) return (homeError.textContent = res.error || '이벤트 입장 실패');
       eventRoom = res;
       myParticipantId = null;
-      $('input-event-name').value = localStorage.getItem('pinball-name') || '';
+      $('input-event-name').value = sessionStorage.getItem('pinball-name') || localStorage.getItem('pinball-name-manual') || '';
       $('event-my-status').textContent = '';
       renderEventScreen(res);
       showScreen('event');
