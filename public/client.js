@@ -835,6 +835,20 @@
 
   function renderLobby() {
     $('lobby-code').textContent = room.code;
+    // 가까이 있는 사람은 QR을 찍어서 바로 입장 (같은 코드면 다시 그리지 않음)
+    const qrBox = $('lobby-qr');
+    if (qrBox.dataset.code !== room.code) {
+      qrBox.dataset.code = room.code;
+      try {
+        /* global qrcode */
+        const qr = qrcode(0, 'M');
+        qr.addData(`${location.origin}${location.pathname}?room=${room.code}`);
+        qr.make();
+        qrBox.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+      } catch {
+        qrBox.parentElement.style.display = 'none';
+      }
+    }
     const list = $('lobby-players');
     list.innerHTML = '';
     for (const p of room.players) {
