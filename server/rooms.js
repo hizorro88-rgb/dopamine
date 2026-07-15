@@ -57,6 +57,13 @@ function sanitizeBallCount(v) {
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), 5) : 1;
 }
 
+// 이어서 진행할 판 수 (1~10). 여러 판을 이어 최종 승자/벌칙자를 가린다.
+const MAX_ROUNDS = 10;
+function sanitizeRounds(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), MAX_ROUNDS) : 1;
+}
+
 class RoomManager {
   constructor(io, donorStore) {
     this.io = io;
@@ -80,7 +87,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password, rounds } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.create.allow(socket.id))
         return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
@@ -99,6 +106,9 @@ class RoomManager {
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
         itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
+        rounds: sanitizeRounds(rounds), // 이어서 진행할 판 수 (1=단판, 2+=시리즈)
+        series: null, // 시리즈 진행 상태 (여러 판일 때만)
+        seriesTimer: null, // 다음 판 자동 시작 타이머
         // 🔒 비밀방: 입장은 비번을 아는 사람만, 관전은 누구나. 서버 메모리에만 보관(클라 전송 X)
         password: String(password || '').trim().slice(0, 20) || null,
       };
@@ -147,6 +157,7 @@ class RoomManager {
           winMode: r.winMode || 'first',
           ballsPerPlayer: r.ballsPerPlayer || 1,
           itemsEnabled: r.itemsEnabled !== false,
+          rounds: r.rounds || 1, // 진행할 판 수 (시리즈)
           locked: !!r.password, // 🔒 비밀방 여부(비번 자체는 절대 보내지 않음)
         };
       });
@@ -332,6 +343,14 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
+    // 방장이 대기실에서 진행할 판 수 변경 (여러 판 시리즈)
+    socket.on('room:setRounds', ({ rounds } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      room.rounds = sanitizeRounds(rounds);
+      this.broadcastRoom(room);
+    });
+
     // ⏩ 방장이 게임 중 배속 변경
     socket.on('game:setSpeed', ({ mult } = {}) => {
       const room = this.roomOf(socket);
@@ -374,6 +393,8 @@ class RoomManager {
 
     if (room.players.size === 0) {
       if (room.game) room.game.stop();
+      if (room.seriesTimer) clearTimeout(room.seriesTimer); // 자동 다음 판 타이머 정리
+      room.series = null;
       this.rooms.delete(room.code);
       // 남아있던 관전자들에게 방이 사라졌음을 알림
       for (const specId of room.spectators.keys()) this.socketRoom.delete(specId);
@@ -418,22 +439,90 @@ class RoomManager {
 
   launchGame(room, { autoPilot }) {
     if (room.players.size < 1) return;
+    // 여러 판 시리즈: 일반 게임에서 rounds>1 이고 아직 시리즈가 시작 안 됐으면 준비
+    if (!autoPilot && !room.series && (room.rounds || 1) > 1) {
+      const scores = new Map();
+      const meta = new Map();
+      for (const p of room.players.values()) {
+        scores.set(p.id, 0);
+        meta.set(p.id, { name: p.name, color: p.color });
+      }
+      room.series = { total: room.rounds, roundNo: 1, scores, meta, roundResults: [] };
+    }
     const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
     room.state = 'playing';
     room.game = new Game(
       room,
       this.io,
       mapDef,
-      (ranking) => {
-        this.stats.record(ranking); // 전체 순위(리더보드)에 누적
-        room.state = 'lobby';
-        room.game = null;
-        this.broadcastRoom(room);
-      },
+      (ranking) => this.onRoundEnd(room, ranking, autoPilot),
       { autoPilot }
     );
     room.game.start();
     this.broadcastRoom(room);
+  }
+
+  /** 한 판 종료 콜백 — 단판이면 대기실로, 시리즈면 점수 합산 후 다음 판/최종결과 */
+  onRoundEnd(room, ranking, autoPilot) {
+    this.stats.record(ranking); // 전체 순위(리더보드)에 매 판 누적
+    room.game = null;
+    const series = room.series;
+
+    // 단판(또는 올랜덤): 기존 동작 — 바로 대기실로
+    if (autoPilot || !series) {
+      room.state = 'lobby';
+      this.broadcastRoom(room);
+      return;
+    }
+
+    // 이번 판 점수 합산: N명 중 1등 N점 … 꼴찌 1점
+    const n = ranking.length;
+    for (const r of ranking) {
+      series.scores.set(r.playerId, (series.scores.get(r.playerId) || 0) + (n - r.rank + 1));
+      if (!series.meta.has(r.playerId)) series.meta.set(r.playerId, { name: r.name, color: r.color });
+    }
+    series.roundResults.push({ round: series.roundNo, ranking });
+
+    if (series.roundNo < series.total) {
+      // 다음 판 예고 후 자동 시작 (그 사이 방은 계속 'playing' 상태로 난입 차단)
+      const nextNo = series.roundNo + 1;
+      series.roundNo = nextNo;
+      const startInMs = 6000;
+      this.io.to(room.code).emit('series:next', {
+        round: nextNo,
+        total: series.total,
+        standings: this.seriesStandings(series),
+        startInMs,
+      });
+      if (room.seriesTimer) clearTimeout(room.seriesTimer);
+      room.seriesTimer = setTimeout(() => {
+        room.seriesTimer = null;
+        if (this.rooms.has(room.code) && room.players.size >= 1 && room.series) {
+          this.launchGame(room, { autoPilot: false });
+        }
+      }, startInMs);
+    } else {
+      // 최종 판 종료 → 최종 결과 발표
+      this.io.to(room.code).emit('series:over', {
+        total: series.total,
+        standings: this.seriesStandings(series),
+        rounds: series.roundResults,
+      });
+      room.series = null;
+      room.state = 'lobby';
+      this.broadcastRoom(room);
+    }
+  }
+
+  /** 시리즈 누적 순위표 (점수 내림차순, place 부여) */
+  seriesStandings(series) {
+    const rows = [...series.scores.entries()].map(([pid, score]) => {
+      const m = series.meta.get(pid) || {};
+      return { playerId: pid, name: m.name || '(나감)', color: m.color || '#888', score };
+    });
+    rows.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    rows.forEach((r, i) => (r.place = i + 1));
+    return rows;
   }
 
   broadcastRoom(room) {
@@ -449,6 +538,9 @@ class RoomManager {
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
       itemsEnabled: room.itemsEnabled !== false,
+      rounds: room.rounds || 1, // 진행할 판 수 (시리즈)
+      // 시리즈 진행 중이면 현재 판/총 판 (대기실·게임 화면 표시용)
+      series: room.series ? { roundNo: room.series.roundNo, total: room.series.total } : null,
       locked: !!room.password, // 🔒 비밀방 여부
     });
   }

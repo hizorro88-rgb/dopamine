@@ -865,7 +865,11 @@ class Game {
       };
     });
 
-    this.io.to(this.room.code).emit('game:over', { ranking });
+    // 시리즈(여러 판) 진행 중이면 이번 판이 몇 번째인지 함께 알려 클라가 화면을 구분한다.
+    const series = this.room.series
+      ? { round: this.room.series.roundNo, total: this.room.series.total }
+      : null;
+    this.io.to(this.room.code).emit('game:over', { ranking, series });
     this.onGameOver(ranking);
   }
 

@@ -53,6 +53,19 @@
           <option value="5">5개</option>
         </select>
       </div>
+      <div class="balls-row">
+        <span>🔁 진행할 판 수</span>
+        <select id="home-round-count">
+          <option value="1">1판 (단판)</option>
+          <option value="2">2판</option>
+          <option value="3">3판</option>
+          <option value="4">4판</option>
+          <option value="5">5판</option>
+          <option value="6">6판</option>
+          <option value="7">7판</option>
+          <option value="10">10판</option>
+        </select>
+      </div>
       <div class="join-row" id="home-pw-row">
         <input id="input-room-pw" type="text" maxlength="20" placeholder="🔒 방 비밀번호 (선택 — 비우면 공개방)" autocomplete="off" />
       </div>
@@ -269,6 +282,19 @@
           <option value="5">5개</option>
         </select>
       </div>
+      <div class="balls-row">
+        <span>🔁 진행할 판 수</span>
+        <select id="lobby-round-count" disabled>
+          <option value="1">1판 (단판)</option>
+          <option value="2">2판</option>
+          <option value="3">3판</option>
+          <option value="4">4판</option>
+          <option value="5">5판</option>
+          <option value="6">6판</option>
+          <option value="7">7판</option>
+          <option value="10">10판</option>
+        </select>
+      </div>
       <div class="map-box">
         <div class="map-pick-row">
           <canvas class="map-thumb" id="lobby-map-thumb" title="맵 미리보기"></canvas>
@@ -434,6 +460,16 @@
         <button id="btn-board-result" class="link-btn">📊 전체 순위 보기</button>
         <a class="donate-link hidden" target="_blank" rel="noopener"></a>
         <p class="hint donate-hint hidden">재밌으셨다면 서버 유지에 힘을 보태주세요!</p>
+      </div>
+    </div>
+
+    <!-- 🔁 시리즈(여러 판): 라운드 사이 누적순위 & 최종 결과 -->
+    <div id="series-modal" class="modal top-modal hidden">
+      <canvas id="series-confetti"></canvas>
+      <div class="modal-card series-card">
+        <h2 id="series-title"></h2>
+        <div id="series-body"></div>
+        <div id="series-foot"></div>
       </div>
     </div>
   </section>

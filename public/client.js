@@ -905,6 +905,12 @@
     localStorage.setItem('pinball-balls', homeBallCount.value)
   );
 
+  const homeRoundCount = $('home-round-count');
+  homeRoundCount.value = localStorage.getItem('pinball-rounds') || '1';
+  homeRoundCount.addEventListener('change', () =>
+    localStorage.setItem('pinball-rounds', homeRoundCount.value)
+  );
+
   $('btn-create').addEventListener('click', () => {
     socket.emit(
       'room:create',
@@ -914,6 +920,7 @@
         winMode: homeWinMode,
         ballsPerPlayer: Number(homeBallCount.value),
         itemsEnabled: homeItems,
+        rounds: Number(homeRoundCount.value),
         password: $('input-room-pw').value,
       },
       (res) => {
@@ -992,7 +999,7 @@
               <span class="room-state ${playing ? 'playing' : ''}">${playing ? '🔴 게임중' : '🟢 대기중'}</span>
               ${r.locked ? '🔒 ' : ''}${escapeHtml(r.hostName)}의 방
             </div>
-            <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개 · ${r.itemsEnabled === false ? '🚫 노템' : '🎁 아이템'}</div>
+            <div class="room-meta">${escapeHtml(r.mapName)} · ${r.players}/${r.maxPlayers}명${spec} · ${r.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 · 공 ${r.ballsPerPlayer}개 · ${r.itemsEnabled === false ? '🚫 노템' : '🎁 아이템'}${r.rounds > 1 ? ` · 🔁 ${r.rounds}판` : ''}</div>
           </div>
           <div class="room-actions">
             ${!playing && !full ? `<button class="btn small" data-join="${r.code}">입장</button>` : ''}
@@ -1383,11 +1390,19 @@
     $('lobby-ball-count').value = String(room.ballsPerPlayer || 1);
     $('lobby-ball-count').disabled = !isHost;
 
+    // 진행할 판 수 (방장만 변경 가능)
+    $('lobby-round-count').value = String(room.rounds || 1);
+    $('lobby-round-count').disabled = !isHost;
+
     refreshMaps();
   }
 
   $('lobby-ball-count').addEventListener('change', (e) => {
     socket.emit('room:setBalls', { ballsPerPlayer: Number(e.target.value) });
+  });
+
+  $('lobby-round-count').addEventListener('change', (e) => {
+    socket.emit('room:setRounds', { rounds: Number(e.target.value) });
   });
 
   for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
@@ -1725,11 +1740,18 @@
       );
     }
     if (game.spectator) toast('👁 관전 모드 — 경기를 지켜보는 중입니다');
-    // 순위판 제목에 우승 조건 표시
+    // 순위판 제목에 우승 조건(+ 시리즈면 현재 판) 표시
+    const roundTag = room && room.series ? `🔁 ${room.series.roundNo}/${room.series.total}판 · ` : '';
     document.querySelector('#rank-board h3').textContent =
+      roundTag +
       (game.autoPilot ? '🎲 올랜덤 · ' : game.spectator ? '👁 관전 · ' : '') +
       (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 당첨' : '순위 · 🥇 먼저 골인 우승');
     $('result-modal').classList.add('hidden');
+    $('series-modal').classList.add('hidden'); // 다음 판 시작 → 라운드 사이 화면 닫기
+    if (seriesCountTimer) {
+      clearInterval(seriesCountTimer);
+      seriesCountTimer = null;
+    }
     $('target-modal').classList.add('hidden');
     // 아이템전 시작 시 잠깐 아이템 소개 시간을 가진다 (서버가 그동안 셔플·낙하를 멈춘다)
     game.introEndsAt = introMs > 0 ? performance.now() + introMs : 0;
@@ -1897,10 +1919,136 @@
     );
   });
 
-  socket.on('game:over', ({ ranking }) => {
+  socket.on('game:over', ({ ranking, series }) => {
     if (!game || game.replay) return;
     game.overShown = true;
+    // 시리즈(여러 판) 진행 중이면 일반 결과창 대신 시리즈 화면(series:next/over)이 그린다.
+    // 방금 판 순위는 저장해 두었다가 라운드 사이 화면에서 보여준다.
+    if (series) {
+      seriesLastRound = { round: series.round, total: series.total, ranking };
+      return;
+    }
     showResults(ranking, { event: false });
+  });
+
+  // ── 🔁 시리즈(여러 판) 화면 ──────────────────────────────
+  let seriesLastRound = null; // 방금 끝난 판의 { round, total, ranking }
+
+  /** 누적 순위표 HTML (place · 이름 · 점수). winner/loser 강조 옵션 */
+  function standingsHtml(standings, { highlight = false } = {}) {
+    const mineKey = myId;
+    const last = standings.length - 1;
+    const medal = (p) => (p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : `${p}등`);
+    return (
+      '<ol class="series-standings">' +
+      standings
+        .map((r, i) => {
+          const cls =
+            highlight && i === 0 ? ' winner' : highlight && i === last && standings.length > 1 ? ' loser' : '';
+          return `<li class="series-row${cls}">
+            <span class="series-place">${medal(r.place)}</span>
+            <span class="player-dot" style="background:${r.color}"></span>
+            <span class="series-name">${escapeHtml(r.name)}${r.playerId === mineKey ? ' (나)' : ''}</span>
+            <span class="series-score">${r.score}점</span>
+          </li>`;
+        })
+        .join('') +
+      '</ol>'
+    );
+  }
+
+  /** 라운드 사이 인터스티셜: 방금 판 순위 + 누적 순위 + 카운트다운 */
+  socket.on('series:next', ({ round, total, standings, startInMs }) => {
+    if (!game && !room) return;
+    $('result-modal').classList.add('hidden');
+    const title = $('series-title');
+    const body = $('series-body');
+    const foot = $('series-foot');
+    title.textContent = `🔁 ${round - 1}판 종료 — 곧 ${round}/${total}판 시작!`;
+    let html = '';
+    if (seriesLastRound) {
+      html += `<div class="series-section-label">방금 판 순위</div>`;
+      html += `<ol class="series-standings compact">${seriesLastRound.ranking
+        .map(
+          (r) => `<li class="series-row">
+            <span class="series-place">${r.rank}등</span>
+            <span class="player-dot" style="background:${r.color}"></span>
+            <span class="series-name">${escapeHtml(r.name)}${r.playerId === myId ? ' (나)' : ''}</span>
+            <span class="series-score">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>
+          </li>`
+        )
+        .join('')}</ol>`;
+    }
+    html += `<div class="series-section-label">누적 순위 (${round - 1}판 합산)</div>`;
+    html += standingsHtml(standings);
+    body.innerHTML = html;
+    let sec = Math.ceil((startInMs || 6000) / 1000);
+    const tick = () => {
+      foot.innerHTML = `<div class="series-count">${round}판 시작까지 <b>${sec}</b>초…</div>`;
+    };
+    tick();
+    if (seriesCountTimer) clearInterval(seriesCountTimer);
+    seriesCountTimer = setInterval(() => {
+      sec -= 1;
+      if (sec <= 0) {
+        clearInterval(seriesCountTimer);
+        seriesCountTimer = null;
+        foot.innerHTML = `<div class="series-count">잠시 후 시작합니다…</div>`;
+        return;
+      }
+      tick();
+    }, 1000);
+    $('series-modal').classList.remove('hidden');
+  });
+  let seriesCountTimer = null;
+
+  /** 최종 결과: 우승자/벌칙자 + 누적 순위 + 판별 순위 */
+  socket.on('series:over', ({ total, standings, rounds }) => {
+    if (seriesCountTimer) {
+      clearInterval(seriesCountTimer);
+      seriesCountTimer = null;
+    }
+    $('result-modal').classList.add('hidden');
+    const win = standings[0];
+    const lose = standings.length > 1 ? standings[standings.length - 1] : null;
+    $('series-title').textContent = `🏆 최종 결과 (총 ${total}판)`;
+    let html = '';
+    html += `<div class="series-final-banner win">🏆 최종 우승 · <b>${escapeHtml(
+      win ? win.name : '?'
+    )}</b> <span>${win ? win.score : 0}점</span></div>`;
+    if (lose) {
+      html += `<div class="series-final-banner lose">💀 벌칙 당첨(꼴찌) · <b>${escapeHtml(
+        lose.name
+      )}</b> <span>${lose.score}점</span></div>`;
+    }
+    html += `<div class="series-section-label">최종 누적 순위</div>`;
+    html += standingsHtml(standings, { highlight: true });
+    html += `<div class="series-section-label">판별 순위</div>`;
+    html += '<div class="series-rounds">';
+    for (const rd of rounds) {
+      const order = rd.ranking
+        .map((r) => {
+          const m = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : `${r.rank}.`;
+          return `<span class="series-round-name">${m} ${escapeHtml(r.name)}</span>`;
+        })
+        .join('');
+      html += `<div class="series-round-line"><span class="series-round-no">${rd.round}판</span>${order}</div>`;
+    }
+    html += '</div>';
+    $('series-body').innerHTML = html;
+    $('series-foot').innerHTML = `<button id="btn-series-back" class="btn primary">대기실로 돌아가기</button>`;
+    $('btn-series-back').addEventListener('click', () => {
+      $('series-modal').classList.add('hidden');
+      game = null;
+      if (room) {
+        renderLobby();
+        showScreen('lobby');
+      } else {
+        showScreen('home');
+      }
+    });
+    $('series-modal').classList.remove('hidden');
+    startSeriesConfetti();
   });
 
   /** 최종 결과 화면 (아이템전/이벤트 추첨 공용) */
@@ -1966,8 +2114,11 @@
   // 금박·은박·크림슨 색종이 비 + 화려하게 터지는 폭죽(불꽃놀이)
   const CONFETTI_COLORS = ['#d4af37', '#e8d48b', '#b23a48', '#f0ead6', '#c0c0c8', '#8a6d4a'];
   const FIREWORK_COLORS = ['#ff5c7a', '#ffd12e', '#35e0ff', '#9bec00', '#c86bff', '#ff9d2e', '#fff3b0'];
-  function startConfetti() {
-    const c = $('confetti');
+  function startSeriesConfetti() {
+    startConfetti('series-confetti', 'series-modal');
+  }
+  function startConfetti(canvasId = 'confetti', modalId = 'result-modal') {
+    const c = $(canvasId);
     c.width = c.clientWidth;
     c.height = c.clientHeight;
     const cx = c.getContext('2d');
@@ -2016,7 +2167,7 @@
 
     let last = start;
     const step = (now) => {
-      if ($('result-modal').classList.contains('hidden')) {
+      if ($(modalId).classList.contains('hidden')) {
         cx.clearRect(0, 0, c.width, c.height);
         return; // 화면 닫히면 종료
       }
