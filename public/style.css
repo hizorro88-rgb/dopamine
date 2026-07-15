@@ -1380,6 +1380,7 @@ textarea:focus {
   gap: 14px;
   align-items: flex-start;
   height: 100%;
+  padding-left: 104px; /* 미니맵을 보드 왼쪽 바깥에 둘 자리 확보 (데스크톱) */
 }
 #editor-wrap {
   position: relative;
@@ -1475,6 +1476,12 @@ textarea:focus {
     gap: 8px;
     padding: 6px;
   }
+  /* 모바일: 미니맵은 다시 보드 위 우상단 오버레이로 (좁은 화면에서 왼쪽 바깥 공간이 없음) */
+  #editor-minimap {
+    left: auto;
+    right: 8px;
+    top: 8px;
+  }
   /* 캔버스를 화면 상단에 고정 — 슬라이더·팔레트를 만지는 동안에도 보드가 계속 보이게 */
   #editor-wrap {
     position: sticky;
@@ -1562,6 +1569,10 @@ textarea:focus {
 #editor-minimap {
   pointer-events: auto; /* 에디터에서는 클릭/드래그로 화면 이동 */
   cursor: pointer;
+  /* 데스크톱: 보드 왼쪽 바깥에 배치해 편집 영역을 가리지 않는다 */
+  left: -104px;
+  right: auto;
+  top: 0;
 }
 
 #game-side {

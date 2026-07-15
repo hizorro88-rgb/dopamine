@@ -135,7 +135,7 @@
       <div id="admin-panel" class="hidden">
         <h3 class="admin-h">⚙️ 서버 설정</h3>
         <div class="admin-settings">
-          <label>후원 링크 (끄려면 <code>off</code>)
+          <label><span>후원 링크 (끄려면 <code>off</code>)</span>
             <input id="set-donationUrl" type="text" autocomplete="off" />
           </label>
           <label>후원 버튼 문구
@@ -387,6 +387,10 @@
         <div class="prop-row" id="map-length-row">
           <span id="map-length-label">📐 맵 길이: 2400</span>
           <input id="input-map-length" type="range" min="900" max="6000" step="100" value="2400" />
+        </div>
+        <div class="prop-row" id="map-width-row">
+          <span id="map-width-label">📏 맵 폭: 600</span>
+          <input id="input-map-width" type="range" min="600" max="1400" step="50" value="600" />
         </div>
         <div id="palette"></div>
         <div id="editor-props"></div>

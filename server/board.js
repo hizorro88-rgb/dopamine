@@ -3,7 +3,7 @@
  */
 
 const Matter = require('matter-js');
-const { WORLD, buildShapes, clampFinish, FINISH } = require('../public/components.js');
+const { WORLD, buildShapes, clampFinish, clampWidth, FINISH } = require('../public/components.js');
 
 // 충돌 카테고리
 const CAT_WALL = 0x0001; // 외벽 (유령 상태에서도 충돌)
@@ -22,8 +22,9 @@ const GOAL_MARGIN = 55; // 맵 바닥에서 이만큼 위가 골인선
  */
 function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   const H = Number(mapDef.height) || WORLD.height;
+  const W = clampWidth(mapDef.width); // 맵 폭 (없으면 기본 600)
   // 🏁 골인 지점: 맵마다 위치·크기를 지정할 수 있다(없으면 바닥 중앙 기본값)
-  const finish = clampFinish(mapDef.finish, H);
+  const finish = clampFinish(mapDef.finish, H, W);
   const goalY = finish.y; // 도착선(존의 윗변)
 
   const bodies = [];
@@ -43,8 +44,8 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   };
   // 바깥으로 두껍게(안쪽 면은 그대로 0 / width) — 빠른 공이 벽을 뚫고 나가는 터널링 방지
   addFrameWall(-30, H / 2, 60, H * 4);
-  addFrameWall(WORLD.width + 30, H / 2, 60, H * 4);
-  if (ceiling) addFrameWall(WORLD.width / 2, -30, WORLD.width * 2, 60);
+  addFrameWall(W + 30, H / 2, 60, H * 4);
+  if (ceiling) addFrameWall(W / 2, -30, W * 2, 60);
 
   const renderComponents = [];
 
@@ -60,8 +61,8 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       kickers.push({ type: 'wall', x: 32, y, props: { length: 90, angle: 58 } });
     }
     const ry = y + 280;
-    if (ry < goalY - 380 && !nearWall(WORLD.width - 32, ry)) {
-      kickers.push({ type: 'wall', x: WORLD.width - 32, y: ry, props: { length: 90, angle: -58 } });
+    if (ry < goalY - 380 && !nearWall(W - 32, ry)) {
+      kickers.push({ type: 'wall', x: W - 32, y: ry, props: { length: 90, angle: -58 } });
     }
   }
   const allComponents = [...(mapDef.components || []), ...kickers];
@@ -124,7 +125,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
 
   return {
     board: {
-      world: { width: WORLD.width, height: H },
+      world: { width: W, height: H },
       frame,
       components: renderComponents,
       goal: { x: finish.x, y: finish.y, width: finish.width, height: finish.height },

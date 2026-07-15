@@ -135,7 +135,9 @@ const ITEMS = {
     },
     tick(game, ball) {
       if (!ball.plugin.magnet) return;
-      const pullX = (300 - ball.position.x) * 0.004;
+      // 골인 지점(x) 쪽으로 끌어당긴다 — 맵 폭에 따라 골인 위치가 달라도 정확
+      const targetX = game.finishZone ? game.finishZone.x : game.width / 2;
+      const pullX = (targetX - ball.position.x) * 0.004;
       Matter.Body.setVelocity(ball, {
         x: ball.velocity.x * 0.92 + pullX,
         y: Math.min(ball.velocity.y + 0.45, 15),
@@ -240,7 +242,7 @@ const ITEMS = {
     range: 260, // 빨아들이는 반경 — 이 안에 든 공만 끌려온다
     apply(game, ball, ctx) {
       // 시전자의 가장 하단(골인에 가장 가까운) 공 위치에서 발동한다.
-      const cx = Math.min(540, Math.max(60, ball.position.x));
+      const cx = Math.min((game.width || 600) - 60, Math.max(60, ball.position.x));
       const cy = ball.position.y;
       ball.plugin.blackhole = { x: cx, y: cy, r: this.range, by: ctx && ctx.byPlayerId };
       if (game.blackholeEffect) game.blackholeEffect(cx, cy, this.range, this.duration);
@@ -285,7 +287,7 @@ const ITEMS = {
       }
       if (!leader) return;
       const from = { x: leader.position.x, y: leader.position.y };
-      const nx = 60 + Math.random() * 480;
+      const nx = 60 + Math.random() * ((game.width || 600) - 120);
       Matter.Body.setPosition(leader, { x: nx, y: 82 });
       Matter.Body.setVelocity(leader, { x: 0, y: 0 });
       leader.plugin.prevY = 82;

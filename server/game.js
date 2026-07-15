@@ -85,10 +85,15 @@ const SPAWN_PATTERNS = {
     })),
 };
 
-/** 무작위 패턴의 슬롯을 무작위 순서로 반환 */
-function randomPatternSlots(n) {
+/** 무작위 패턴의 슬롯을 무작위 순서로 반환 (맵 폭 W 에 맞춰 가로로 펼침) */
+function randomPatternSlots(n, W = 600) {
   const keys = Object.keys(SPAWN_PATTERNS);
   const slots = SPAWN_PATTERNS[keys[Math.floor(Math.random() * keys.length)]](n);
+  // 패턴은 폭 600 기준으로 만들어졌으므로 실제 폭에 비례해 가로 위치를 늘린다
+  if (W !== 600) {
+    const k = W / 600;
+    for (const s of slots) s.x *= k;
+  }
   return slots.sort(() => Math.random() - 0.5);
 }
 
@@ -204,6 +209,7 @@ class Game {
     this.movers = built.movers; // ↔️ 움직이는 벽
     this.reactive = built.reactive;
     this.height = built.height;
+    this.width = built.board.world.width; // 맵 폭 (기본 600, 맵마다 가변)
     this.goalY = built.goalY;
     this.finishZone = built.finish; // 🏁 골인 존 {x,y,width,height} (finish() 메서드와 이름 충돌 주의)
 
@@ -346,7 +352,7 @@ class Game {
     for (const player of players) {
       for (let i = 0; i < this.ballsPerPlayer; i++) {
         const key = `${player.id}:${i}`;
-        const ball = createBall(300, 76);
+        const ball = createBall(this.width / 2, 76);
         ball.plugin = { playerId: player.id, idx: i, key };
         this.balls.set(key, ball);
         Matter.Composite.add(this.engine.world, ball);
@@ -444,7 +450,7 @@ class Game {
 
   /** 새 배치 패턴을 골라 공들의 이동 목표를 재배정 */
   assignShuffleTargets() {
-    const slots = randomPatternSlots(this.balls.size);
+    const slots = randomPatternSlots(this.balls.size, this.width);
     let i = 0;
     for (const key of this.balls.keys()) {
       this.shuffleTargets.set(key, slots[i++]);
@@ -659,7 +665,7 @@ class Game {
           const player = this.room.players.get(ball.plugin.playerId);
           const name = player ? player.name : '?';
           Matter.Body.setPosition(ball, {
-            x: 60 + Math.random() * 480,
+            x: 60 + Math.random() * (this.width - 120),
             y: 76,
           });
           Matter.Body.setVelocity(ball, { x: 0, y: 0 });
@@ -667,7 +673,7 @@ class Game {
           if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...ball.position };
           this.io.to(this.room.code).emit('game:karma', {
             name: this.ballsPerPlayer > 1 ? `${name} ${ball.plugin.idx + 1}번` : name,
-            x: 300,
+            x: this.width / 2,
             y: this.goalY - 40,
           });
           continue;

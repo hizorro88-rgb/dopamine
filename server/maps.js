@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { WORLD, COMPONENTS, defaultProps, lookupComponent, clampFinish } = require('../public/components.js');
+const { WORLD, COMPONENTS, defaultProps, lookupComponent, clampFinish, clampWidth } = require('../public/components.js');
 const { atomicWriteJSON } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -886,6 +886,7 @@ class MapStore {
       builtin: !!m.builtin,
       count: m.components.length,
       height: m.height,
+      ...(m.width ? { width: m.width } : {}),
     });
     const builtinEff = [...this.builtins.values()].map((m) => this.effectiveBuiltin(m));
     return [...builtinEff, ...this.custom.values()].map(meta);
@@ -896,7 +897,7 @@ class MapStore {
   }
 
   /** 이름·길이·구성요소 검증 후 정제된 값을 반환 (save/update 공용) */
-  _validate({ name, components, height, finish }, maxComp = MAX_COMPONENTS) {
+  _validate({ name, components, height, width, finish }, maxComp = MAX_COMPONENTS) {
     const cleanName = String(name || '').trim().slice(0, 20);
     if (!cleanName) return { ok: false, error: '맵 이름을 입력해주세요.' };
     if (!Array.isArray(components) || components.length === 0)
@@ -908,16 +909,18 @@ class MapStore {
     const cleanHeight = Number.isFinite(h)
       ? Math.round(clamp(h, WORLD.minHeight, WORLD.maxHeight) / 50) * 50
       : WORLD.height;
+    const cleanWidth = clampWidth(width); // 맵 폭 (없으면 기본 600)
     const maxY = cleanHeight - 100;
-    // 🏁 골인 존: 지정됐으면 맵 길이에 맞게 정제해 저장(없으면 undefined → 기본 위치)
-    const cleanFinish = finish ? clampFinish(finish, cleanHeight) : undefined;
+    const maxX = cleanWidth - BOUNDS.minX; // 좌우 여백은 폭에 맞춰 대칭
+    // 🏁 골인 존: 지정됐으면 맵 폭·길이에 맞게 정제해 저장(없으면 undefined → 기본 위치)
+    const cleanFinish = finish ? clampFinish(finish, cleanHeight, cleanWidth) : undefined;
 
     const validated = [];
     for (const comp of components) {
       const def = lookupComponent(comp && comp.type);
       if (!def) return { ok: false, error: `알 수 없는 구성요소: ${comp && comp.type}` };
 
-      const x = clamp(Number(comp.x), BOUNDS.minX, BOUNDS.maxX);
+      const x = clamp(Number(comp.x), BOUNDS.minX, maxX);
       const y = clamp(Number(comp.y), BOUNDS.minY, maxY);
       if (!Number.isFinite(x) || !Number.isFinite(y))
         return { ok: false, error: '잘못된 좌표가 있습니다.' };
@@ -929,7 +932,7 @@ class MapStore {
       }
       validated.push({ type: def.id, x: Math.round(x), y: Math.round(y), props });
     }
-    return { ok: true, cleanName, cleanHeight, validated, cleanFinish };
+    return { ok: true, cleanName, cleanHeight, cleanWidth, validated, cleanFinish };
   }
 
   /**
@@ -937,7 +940,7 @@ class MapStore {
    * @param creatorKey 생성자 식별키(IP 등) — 하루 제한 집계용
    * @returns {{ok: true, id: string} | {ok: false, error: string}}
    */
-  save({ name, author, components, height, finish } = {}, creatorKey = null) {
+  save({ name, author, components, height, width, finish } = {}, creatorKey = null) {
     if (this.custom.size >= MAX_CUSTOM_MAPS)
       return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
 
@@ -949,7 +952,7 @@ class MapStore {
         return { ok: false, error: `맵은 하루에 ${dailyLimit}개까지 만들 수 있어요. 내일 다시 시도해주세요.` };
     }
 
-    const v = this._validate({ name, components, height, finish });
+    const v = this._validate({ name, components, height, width, finish });
     if (!v.ok) return v;
 
     const id = 'm' + Math.random().toString(36).slice(2, 10);
@@ -958,6 +961,7 @@ class MapStore {
       name: v.cleanName,
       author: String(author || '익명').trim().slice(0, 12) || '익명',
       height: v.cleanHeight,
+      ...(v.cleanWidth !== WORLD.width ? { width: v.cleanWidth } : {}),
       components: v.validated,
       ...(v.cleanFinish ? { finish: v.cleanFinish } : {}),
       createdAt: Date.now(),
@@ -976,14 +980,16 @@ class MapStore {
 
   /** 관리자: 맵 재편집 — 유저 맵은 덮어쓰기, 기본 맵은 편집본(override) 저장.
    *  기본 맵은 구성요소가 많을 수 있어(예: 클래식 600+) 관리자 편집은 상한을 넉넉히 둔다. */
-  update(id, { name, components, height, finish } = {}) {
-    const v = this._validate({ name, components, height, finish }, MAX_COMPONENTS_ADMIN);
+  update(id, { name, components, height, width, finish } = {}) {
+    const v = this._validate({ name, components, height, width, finish }, MAX_COMPONENTS_ADMIN);
     if (!v.ok) return v;
 
     if (this.custom.has(id)) {
       const existing = this.custom.get(id);
       existing.name = v.cleanName;
       existing.height = v.cleanHeight;
+      if (v.cleanWidth !== WORLD.width) existing.width = v.cleanWidth;
+      else delete existing.width;
       existing.components = v.validated;
       if (v.cleanFinish) existing.finish = v.cleanFinish;
       else delete existing.finish;
@@ -999,6 +1005,7 @@ class MapStore {
         author: base.author,
         builtin: true,
         height: v.cleanHeight,
+        ...(v.cleanWidth !== WORLD.width ? { width: v.cleanWidth } : {}),
         components: v.validated,
         ...(v.cleanFinish ? { finish: v.cleanFinish } : {}),
         updatedAt: Date.now(),

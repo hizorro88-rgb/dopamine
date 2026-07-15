@@ -229,6 +229,7 @@
   /** 보드 장식: 좌우 네온 파이프 라인 + 깊이 눈금 */
   function drawBoardDecor(ctx, board) {
     const H = board.world.height;
+    const W = board.world.width || WORLD.width;
     ctx.save();
     ctx.shadowColor = '#35e0ff';
     ctx.shadowBlur = 10;
@@ -237,16 +238,16 @@
     ctx.beginPath();
     ctx.moveTo(1.5, 0);
     ctx.lineTo(1.5, H);
-    ctx.moveTo(WORLD.width - 1.5, 0);
-    ctx.lineTo(WORLD.width - 1.5, H);
+    ctx.moveTo(W - 1.5, 0);
+    ctx.lineTo(W - 1.5, H);
     ctx.stroke();
     ctx.restore();
     ctx.fillStyle = 'rgba(53,224,255,0.30)';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'right';
     for (let y = 300; y < H - 120; y += 300) {
-      ctx.fillRect(WORLD.width - 14, y, 12, 1);
-      ctx.fillText(String(y), WORLD.width - 17, y + 3);
+      ctx.fillRect(W - 14, y, 12, 1);
+      ctx.fillText(String(y), W - 17, y + 3);
     }
   }
 
@@ -260,16 +261,16 @@
 
   function drawMinimap(
     mCanvas,
-    { height, components, balls, camY, elapsed, selected, hidden, explosions, dynamic }
+    { width = WORLD.width, height, components, balls, camY, elapsed, selected, hidden, explosions, dynamic }
   ) {
     const mctx = mCanvas.getContext('2d');
-    const s = mCanvas.width / WORLD.width;
+    const s = mCanvas.width / width;
     mctx.setTransform(s, 0, 0, s, 0, 0);
-    mctx.clearRect(0, 0, WORLD.width, height);
+    mctx.clearRect(0, 0, width, height);
 
     // 골인 지점
     mctx.fillStyle = 'rgba(53,224,255,0.30)';
-    mctx.fillRect(0, height - 70, WORLD.width, 70);
+    mctx.fillRect(0, height - 70, width, 70);
 
     if (dynamic) {
       // 에디터: 구성요소가 계속 바뀌므로 캐시 없이 그대로 그린다
@@ -351,26 +352,26 @@
     // 현재 화면 영역
     mctx.strokeStyle = 'rgba(255,255,255,0.75)';
     mctx.lineWidth = 10;
-    mctx.strokeRect(5, camY + 5, WORLD.width - 10, VIEW.height - 10);
+    mctx.strokeRect(5, camY + 5, width - 10, VIEW.height - 10);
   }
 
-  /** 미니맵 캔버스 해상도 + 화면 크기를 맵 길이 비율에 맞춤 */
-  function setupMinimapCanvas(mCanvas, mapH) {
+  /** 미니맵 캔버스 해상도 + 화면 크기를 맵 폭·길이 비율에 맞춤 */
+  function setupMinimapCanvas(mCanvas, mapH, mapW = WORLD.width) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = 90; // CSS 픽셀 기준 내부 해상도
     mCanvas.width = w * dpr;
-    mCanvas.height = w * (mapH / WORLD.width) * dpr;
+    mCanvas.height = w * (mapH / mapW) * dpr;
 
     // 표시 크기: 세로는 보드의 절반 정도, 짧은 맵은 가로가 너무 커지지 않게 제한
     const wrap = mCanvas.parentElement;
     const wrapH = wrap.clientHeight || 780;
     const wrapW = wrap.clientWidth || 520;
     let h = wrapH * 0.5;
-    let cssW = h * (WORLD.width / mapH);
+    let cssW = h * (mapW / mapH);
     const maxW = wrapW * 0.2;
     if (cssW > maxW) {
       cssW = maxW;
-      h = cssW * (mapH / WORLD.width);
+      h = cssW * (mapH / mapW);
     }
     mCanvas.style.width = cssW + 'px';
     mCanvas.style.height = h + 'px';
@@ -1553,7 +1554,7 @@
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     const c2 = canvas.getContext('2d');
-    const sx = (W * dpr) / WORLD.width;
+    const sx = (W * dpr) / (map.width || WORLD.width);
     const sy = (H * dpr) / map.height;
     c2.fillStyle = '#07070b';
     c2.fillRect(0, 0, W * dpr, H * dpr);
@@ -2375,11 +2376,26 @@
   let scale = 1;
 
   function setupCanvas() {
+    // 맵 폭에 맞춰 뷰 폭·캔버스 비율을 조정 (기본 600, 넓은 맵이면 그만큼 넓게)
+    VIEW.width = (game.board.world && game.board.world.width) || 600;
+    const wrap = document.getElementById('canvas-wrap');
+    if (wrap) {
+      wrap.style.aspectRatio = `${VIEW.width} / ${VIEW.height}`;
+      // 데스크톱: 넓은 맵이어도 사이드 순위판이 화면 밖으로 밀리지 않게 보드 높이를 제한
+      if (window.innerWidth > 720) {
+        const availW = window.innerWidth - 240 - 44; // 사이드 순위판 + 여백
+        const availH = window.innerHeight - 20;
+        wrap.style.height =
+          Math.max(320, Math.min(availH, availW * (VIEW.height / VIEW.width))) + 'px';
+      } else {
+        wrap.style.height = '';
+      }
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = VIEW.width * dpr;
     canvas.height = VIEW.height * dpr;
     scale = dpr;
-    setupMinimapCanvas(minimap, game.board.world.height);
+    setupMinimapCanvas(minimap, game.board.world.height, game.board.world.width);
   }
 
   // ── 스냅샷 보간 ───────────────────────────────────────
@@ -2982,6 +2998,7 @@
 
     // 미니맵
     drawMinimap(minimap, {
+      width: board.world.width,
       height: mapH,
       components: board.components,
       hidden: game.hiddenComps,
@@ -3046,10 +3063,12 @@
     dragging: false,
     camY: 0,
     height: WORLD.height, // 이 맵의 길이 (슬라이더로 조절)
+    width: WORLD.width, // 이 맵의 폭 (슬라이더로 조절)
     finish: null, // 🏁 골인 존 {x,y,width,height}
   };
 
   const editMaxY = () => editor.height - 100;
+  const editMaxX = () => editor.width - EDIT_BOUNDS.minX;
 
   const eCanvas = $('editor-canvas');
   const eCtx = eCanvas.getContext('2d');
@@ -3057,11 +3076,26 @@
   let eScale = 1;
 
   function setupEditorCanvas() {
+    // 맵 폭에 맞춰 뷰 폭·캔버스 비율 조정
+    VIEW.width = editor.width || WORLD.width;
+    const wrap = document.getElementById('editor-wrap');
+    if (wrap) {
+      wrap.style.aspectRatio = `${VIEW.width} / ${VIEW.height}`;
+      // 데스크톱: 폭이 넓어도 사이드 패널이 화면 밖으로 밀리지 않게 보드 높이를 제한
+      if (window.innerWidth > 720) {
+        const availW = window.innerWidth - 104 - 260 - 48; // 미니맵자리 + 사이드 + 여백
+        const availH = window.innerHeight - 20;
+        wrap.style.height =
+          Math.max(320, Math.min(availH, availW * (VIEW.height / VIEW.width))) + 'px';
+      } else {
+        wrap.style.height = ''; // 모바일은 CSS(46vh)에 맡김
+      }
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     eCanvas.width = VIEW.width * dpr;
     eCanvas.height = VIEW.height * dpr;
     eScale = dpr;
-    setupMinimapCanvas(eMinimap, editor.height);
+    setupMinimapCanvas(eMinimap, editor.height, editor.width);
   }
 
   function rebuildComp(comp) {
@@ -3088,8 +3122,9 @@
     editor.tool = 'peg';
     editor.camY = 0;
     editor.height = opts.map ? opts.map.height : WORLD.height;
+    editor.width = (opts.map && opts.map.width) || WORLD.width;
     // 🏁 골인 존: 불러온 맵에 있으면 그대로, 없으면 기본(바닥 중앙)
-    editor.finish = clampFinish(opts.map && opts.map.finish, editor.height);
+    editor.finish = clampFinish(opts.map && opts.map.finish, editor.height, editor.width);
 
     // 맵 불러오기 (구경 모드)
     if (opts.map) {
@@ -3101,7 +3136,7 @@
     }
 
     // 편집 컨트롤 표시/숨김
-    const editControls = ['palette', 'editor-props', 'btn-comp-delete', 'input-map-name', 'btn-map-save', 'map-length-row', 'editor-hint'];
+    const editControls = ['palette', 'editor-props', 'btn-comp-delete', 'input-map-name', 'btn-map-save', 'map-length-row', 'map-width-row', 'editor-hint'];
     for (const id of editControls) {
       $(id).style.display = editor.viewOnly ? 'none' : '';
     }
@@ -3115,6 +3150,8 @@
 
     $('input-map-length').value = editor.height;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
+    $('input-map-width').value = editor.width;
+    $('map-width-label').textContent = `📏 맵 폭: ${editor.width}`;
     $('input-map-name').value = opts.adminEditName || '';
     $('btn-map-save').textContent = editor.adminEditId ? '💾 관리자 저장(덮어쓰기)' : '💾 저장하고 공유하기';
     $('editor-msg').textContent = '';
@@ -3134,9 +3171,20 @@
       if (comp.y > editMaxY()) comp.y = editMaxY();
     }
     // 🏁 골인 존도 새 길이에 맞춰 안전 범위로 보정
-    if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height);
+    if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height, editor.width);
     editor.camY = clampCam(editor.camY, editor.height);
-    setupMinimapCanvas(eMinimap, editor.height);
+    setupMinimapCanvas(eMinimap, editor.height, editor.width);
+  });
+
+  // 맵 폭 슬라이더: 폭이 바뀌면 캔버스 비율을 다시 잡고, 범위를 벗어난 요소를 안쪽으로
+  $('input-map-width').addEventListener('input', (e) => {
+    editor.width = Number(e.target.value);
+    $('map-width-label').textContent = `📏 맵 폭: ${editor.width}`;
+    for (const comp of editor.comps) {
+      if (comp.x > editMaxX()) comp.x = editMaxX();
+    }
+    if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height, editor.width);
+    setupEditorCanvas(); // 뷰 폭·비율·미니맵 재설정
   });
 
   $('btn-editor-back').addEventListener('click', () => {
@@ -3229,7 +3277,7 @@
           f[key] = Number(input.value);
           // 폭이 커지면 x가 벽을 넘지 않도록 보정
           const half = f.width / 2;
-          f.x = Math.min(Math.max(f.x, half), WORLD.width - half);
+          f.x = Math.min(Math.max(f.x, half), editor.width - half);
           setLabel();
         });
         row.appendChild(lab);
@@ -3296,7 +3344,7 @@
 
   function clampToBounds(pos) {
     return {
-      x: Math.round(Math.min(Math.max(pos.x, EDIT_BOUNDS.minX), EDIT_BOUNDS.maxX) / 5) * 5,
+      x: Math.round(Math.min(Math.max(pos.x, EDIT_BOUNDS.minX), editMaxX()) / 5) * 5,
       y: Math.round(Math.min(Math.max(pos.y, EDIT_BOUNDS.minY), editMaxY()) / 5) * 5,
     };
   }
@@ -3318,21 +3366,33 @@
   function moveFinish(pos) {
     const f = editor.finish;
     const half = f.width / 2;
-    f.x = Math.round(Math.min(Math.max(pos.x, half), WORLD.width - half) / 5) * 5;
+    f.x = Math.round(Math.min(Math.max(pos.x, half), editor.width - half) / 5) * 5;
     // 골인은 맵 하단까지 내려갈 수 있다 (바닥에서 조금 위까지)
     f.y = Math.round(Math.min(Math.max(pos.y, EDIT_BOUNDS.minY + 40), editor.height - 30) / 5) * 5;
   }
 
   /** 클릭 지점의 구성요소 인덱스 (겹치면 나중에 놓은 것 우선) */
+  /** 점이 실제 도형(원/사각, 회전 반영) 위에 있는가 — 약간의 여유(tol)만 허용 */
+  function pointInShape(px, py, cx, cy, s, tol = 6) {
+    const sx = cx + (s.x || 0);
+    const sy = cy + (s.y || 0);
+    if (s.kind === 'circle') return Math.hypot(px - sx, py - sy) <= s.r + tol;
+    // 사각형: 클릭점을 도형 로컬 좌표로 회전 변환해 안쪽인지 검사
+    const a = -(s.angle || 0);
+    const dx = px - sx;
+    const dy = py - sy;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a);
+    const ly = dx * Math.sin(a) + dy * Math.cos(a);
+    return Math.abs(lx) <= s.w / 2 + tol && Math.abs(ly) <= s.h / 2 + tol;
+  }
+
+  // 실제 도형 위를 클릭했을 때만 선택 (긴 막대가 근처 오브젝트 선택을 가리지 않도록)
   function hitTest(pos) {
     for (let i = editor.comps.length - 1; i >= 0; i--) {
       const comp = editor.comps[i];
-      let radius = 16;
       for (const s of comp.shapes) {
-        const off = Math.hypot(s.x, s.y);
-        radius = Math.max(radius, off + (s.kind === 'circle' ? s.r : Math.max(s.w, s.h) / 2));
+        if (pointInShape(pos.x, pos.y, comp.x, comp.y, s)) return i;
       }
-      if (Math.hypot(pos.x - comp.x, pos.y - comp.y) <= radius) return i;
     }
     return -1;
   }
@@ -3450,7 +3510,7 @@
       fetch('/api/admin/maps/update', {
         method: 'POST',
         headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height, finish }),
+        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height, width: editor.width, finish }),
       })
         .then((r) => r.json())
         .then((res) => {
@@ -3464,7 +3524,7 @@
       return;
     }
 
-    socket.emit('maps:save', { name, components, height: editor.height, finish }, (res) => {
+    socket.emit('maps:save', { name, components, height: editor.height, width: editor.width, finish }, (res) => {
       if (!res.ok) return (msg.textContent = res.error || '저장 실패');
       // 방장이면 방금 만든 맵을 바로 선택
       if (room && room.hostId === myId) socket.emit('room:setMap', { mapId: res.id });
@@ -3490,21 +3550,22 @@
 
     // 배치 불가 구역 표시
     const maxY = editMaxY();
+    const eW = editor.width;
     eCtx.fillStyle = 'rgba(212,175,55,0.05)';
-    eCtx.fillRect(0, 0, WORLD.width, EDIT_BOUNDS.minY - 20);
+    eCtx.fillRect(0, 0, eW, EDIT_BOUNDS.minY - 20);
     eCtx.fillStyle = 'rgba(212,175,55,0.07)';
-    eCtx.fillRect(0, maxY + 20, WORLD.width, editor.height - maxY - 20);
+    eCtx.fillRect(0, maxY + 20, eW, editor.height - maxY - 20);
     eCtx.font = '13px sans-serif';
     eCtx.textAlign = 'center';
     eCtx.fillStyle = 'rgba(212,175,55,0.55)';
-    eCtx.fillText('⬇ 공 시작 구역', WORLD.width / 2, 60);
+    eCtx.fillText('⬇ 공 시작 구역', eW / 2, 60);
 
     // 맵 바닥 경계선
     eCtx.strokeStyle = 'rgba(212,175,55,0.4)';
     eCtx.lineWidth = 2;
     eCtx.beginPath();
     eCtx.moveTo(0, editor.height);
-    eCtx.lineTo(WORLD.width, editor.height);
+    eCtx.lineTo(eW, editor.height);
     eCtx.stroke();
 
     // 🏁 골인 존 (드래그로 이동·크기조절) — 실제 게임과 동일한 모양으로 미리보기
@@ -3576,6 +3637,7 @@
 
     // 에디터 미니맵
     drawMinimap(eMinimap, {
+      width: editor.width,
       height: editor.height,
       components: editor.comps,
       camY,
@@ -3589,8 +3651,8 @@
 
   // 창 크기 변경 시 미니맵 표시 크기 다시 계산
   window.addEventListener('resize', () => {
-    if (game) setupMinimapCanvas(minimap, game.board.world.height);
-    if (editor.active) setupMinimapCanvas(eMinimap, editor.height);
+    if (game) setupCanvas();
+    if (editor.active) setupEditorCanvas();
   });
 
   function escapeHtml(s) {

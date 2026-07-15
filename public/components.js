@@ -30,8 +30,13 @@
   const DEG = Math.PI / 180;
 
   // 월드(보드) 크기 — 서버 물리와 클라이언트 렌더링/에디터가 공유
-  // height 는 기본값이며, 맵마다 minHeight~maxHeight 범위에서 길이를 정할 수 있다
-  const WORLD = { width: 600, height: 4800, minHeight: 900, maxHeight: 12000 };
+  // width·height 는 기본값이며, 맵마다 min~max 범위에서 폭·길이를 정할 수 있다
+  const WORLD = { width: 600, minWidth: 600, maxWidth: 1400, height: 4800, minHeight: 900, maxHeight: 12000 };
+  /** 저장/전송된 맵 폭을 안전 범위(minWidth~maxWidth)로 정제 (없으면 기본 600) */
+  function clampWidth(w) {
+    const n = Math.round(Number(w));
+    return Number.isFinite(n) ? Math.min(Math.max(n, WORLD.minWidth), WORLD.maxWidth) : WORLD.width;
+  }
 
   /**
    * 곡선(호) 벽을 작은 사각형 조각들로 근사한다.
@@ -99,16 +104,16 @@
     v = Number(v);
     return Number.isFinite(v) ? Math.min(Math.max(v, min), max) : dflt;
   }
-  function defaultFinish(H) {
-    return { x: WORLD.width / 2, y: H - FINISH.margin, width: FINISH.defW, height: FINISH.defH };
+  function defaultFinish(H, W = WORLD.width) {
+    return { x: W / 2, y: H - FINISH.margin, width: FINISH.defW, height: FINISH.defH };
   }
-  /** 저장/전송된 finish 값을 맵 길이(H)에 맞게 안전 범위로 정제 */
-  function clampFinish(f, H) {
-    const d = defaultFinish(H);
+  /** 저장/전송된 finish 값을 맵 폭(W)·길이(H)에 맞게 안전 범위로 정제 */
+  function clampFinish(f, H, W = WORLD.width) {
+    const d = defaultFinish(H, W);
     if (!f || typeof f !== 'object') return d;
-    const width = clampNum(f.width, FINISH.minW, FINISH.maxW, d.width);
+    const width = clampNum(f.width, FINISH.minW, W, d.width);
     const height = clampNum(f.height, FINISH.minH, FINISH.maxH, d.height);
-    const x = clampNum(f.x, width / 2, WORLD.width - width / 2, d.x);
+    const x = clampNum(f.x, width / 2, W - width / 2, d.x);
     const y = clampNum(f.y, 220, H - 20, d.y);
     return {
       x: Math.round(x),
@@ -360,6 +365,7 @@
     FINISH,
     defaultFinish,
     clampFinish,
+    clampWidth,
     curvedWallShapes,
   };
 });
