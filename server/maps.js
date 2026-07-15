@@ -176,6 +176,17 @@ function wallPath(comps, points) {
   }
 }
 
+/** ◇ 다이아몬드(마름모) 외곽선 — 네 꼭짓점을 벽으로 이어 그린다 */
+function diamond(comps, x, y, d) {
+  wallPath(comps, [
+    [x, y - d],
+    [x + d, y],
+    [x, y + d],
+    [x - d, y],
+    [x, y - d],
+  ]);
+}
+
 // 🐍 지그재그 협곡: 좌우로 꺾이는 벽 코스 — 공이 직선으로 못 떨어진다
 function canyonComponents() {
   const comps = [];
@@ -655,6 +666,51 @@ function pinballComponents() {
   return [...comps, ...funnel(H)];
 }
 
+// 🏺 욕망의 항아리: 항아리(꽃병) 실루엣 + 시안 다이아 클러스터 + 빗살 바닥 (첨부 그림)
+function jarComponents() {
+  const H = 2800;
+  const comps = [];
+  const mir = (pts) => pts.map(([x, y]) => [600 - x, y]);
+
+  // 항아리 좌우 실루엣 — 위는 넓게 열어 모든 공을 받고, 허리에서 좁아졌다 아래 배로 불룩
+  const left = [
+    [32, 235], // 넓은 아가리 (공 시작 구역 전체를 받도록)
+    [70, 470], // 어깨
+    [92, 780], // 몸통 상부
+    [150, 1120], // 좁아지는 몸통
+    [210, 1330], // 허리(가장 좁음)
+    [95, 1660], // 아래 배 (불룩)
+    [120, 2080], // 배 하부
+    [210, 2370], // 배출구로 좁힘
+    [255, 2520],
+  ];
+  wallPath(comps, left);
+  wallPath(comps, mir(left));
+
+  // 상단 곡선 뚜껑선 (그림 맨 위의 곡선)
+  comps.push({ type: 'wall', x: 300, y: 250, props: { length: 130, angle: 0, curve: 70 } });
+
+  // ◇ 시안 다이아 클러스터 (그림의 다이아 4개 — 상·좌우·하)
+  diamond(comps, 300, 560, 44);
+  diamond(comps, 210, 800, 42);
+  diamond(comps, 390, 800, 42);
+  diamond(comps, 300, 1040, 44);
+
+  // 허리 관문: 중앙 회전 십자 — 좁은 목에서 순위가 뒤섞인다
+  comps.push({ type: 'cross', x: 300, y: 1235, props: { length: 104, speed: 3 } });
+
+  // 아래 배: 양옆 빗살(핀볼 스쿱 느낌) — 안쪽으로 뻗은 짧은 사선 벽. 가운데는 열어 배수
+  for (let i = 0; i < 6; i++) {
+    const y = 1760 + i * 105;
+    comps.push({ type: 'wall', x: 135, y, props: { length: 78, angle: 52 } });
+    comps.push({ type: 'wall', x: 465, y, props: { length: 78, angle: -52 } });
+  }
+  comps.push({ type: 'bumper', x: 300, y: 1850, props: { size: 16 } });
+  comps.push(peg(300, 2160, 8));
+
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   {
     id: 'classic',
@@ -679,6 +735,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 3200,
     components: pinballComponents(),
+  },
+  {
+    id: 'jar',
+    name: '🏺 욕망의 항아리',
+    author: '기본 맵',
+    builtin: true,
+    height: 2800,
+    components: jarComponents(),
   },
   // ── 미니맵 아트 맵: 미니맵으로 보면 그림, 게임에선 핀·범퍼·회전체·폭탄 ──
   {
