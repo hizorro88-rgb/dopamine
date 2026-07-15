@@ -181,7 +181,7 @@ const ITEMS = {
     emoji: '🕳️',
     desc: '상대방의 선두 공을 한참 위로 되돌려보냅니다.',
     target: 'opponent',
-    grade: 'normal',
+    grade: 'epic',
     duration: 0,
     apply(game, ball) {
       const H = game.height || 2400;
@@ -199,7 +199,7 @@ const ITEMS = {
     emoji: '⚡',
     desc: '3초간 나를 제외한 모든 공이 찌릿— 느려집니다.',
     target: 'self',
-    grade: 'epic',
+    grade: 'legend',
     duration: 3000,
     apply(game, ball) {
       const myPid = ball.plugin.playerId;
@@ -218,6 +218,94 @@ const ITEMS = {
     },
     expire(game, ball) {
       ball.plugin.slowed = false;
+    },
+  },
+
+  // ★ 레전드: 🌀 블랙홀 — 나를 제외한 모든 공을 한 점으로 빨아들였다 터뜨려 흩뿌린다
+  blackhole: {
+    id: 'blackhole',
+    name: '블랙홀',
+    emoji: '🌀',
+    desc: '나를 제외한 모든 공을 한 점으로 빨아들였다가 펑! 사방으로 흩뿌립니다.',
+    target: 'self',
+    grade: 'legend',
+    duration: 1300,
+    apply(game, ball, ctx) {
+      const cx = Math.min(540, Math.max(60, ball.position.x));
+      const cy = ball.position.y - 130; // 내 공보다 살짝 위에 특이점
+      ball.plugin.blackhole = { x: cx, y: cy, by: ctx && ctx.byPlayerId };
+      if (game.portalEffect) game.portalEffect(null, { x: cx, y: cy });
+    },
+    tick(game, ball) {
+      const bh = ball.plugin.blackhole;
+      if (!bh) return;
+      for (const b of game.balls.values()) {
+        if (b.plugin.done || b === ball || (bh.by && b.plugin.playerId === bh.by)) continue;
+        const dx = bh.x - b.position.x;
+        const dy = bh.y - b.position.y;
+        const d = Math.hypot(dx, dy) || 1;
+        Matter.Body.setVelocity(b, {
+          x: b.velocity.x * 0.55 + (dx / d) * 1.7,
+          y: b.velocity.y * 0.55 + (dy / d) * 1.7,
+        });
+      }
+    },
+    expire(game, ball) {
+      const bh = ball.plugin.blackhole;
+      ball.plugin.blackhole = null;
+      if (bh) game.explodeAt(bh.x, bh.y, 270, 21, bh.by); // 펑! 흩뿌리기 (시전자 제외)
+    },
+  },
+
+  // ★ 레전드: 👑 대역전 — 지금 골인에 가장 가까운(내 공 제외) 공을 최상단으로 추방
+  reversal: {
+    id: 'reversal',
+    name: '대역전',
+    emoji: '👑',
+    desc: '지금 골인에 가장 가까이 앞서가는 공(내 공 제외)을 맵 최상단으로 추방합니다.',
+    target: 'self',
+    grade: 'legend',
+    duration: 0,
+    apply(game, ball, ctx) {
+      const by = ctx && ctx.byPlayerId;
+      let leader = null;
+      for (const b of game.balls.values()) {
+        if (b.plugin.done || (by && b.plugin.playerId === by) || b === ball) continue;
+        if (!leader || b.position.y > leader.position.y) leader = b;
+      }
+      if (!leader) return;
+      const from = { x: leader.position.x, y: leader.position.y };
+      const nx = 60 + Math.random() * 480;
+      Matter.Body.setPosition(leader, { x: nx, y: 82 });
+      Matter.Body.setVelocity(leader, { x: 0, y: 0 });
+      leader.plugin.prevY = 82;
+      if (leader.plugin.frozenPos) leader.plugin.frozenPos = { x: nx, y: 82 };
+      if (game.portalEffect) game.portalEffect(from, { x: nx, y: 82 });
+    },
+  },
+
+  // ★ 레전드: ⏸️ 시간 정지 — 나를 제외한 모든 공을 2초간 완전히 멈춰 세운다
+  timestop: {
+    id: 'timestop',
+    name: '시간 정지',
+    emoji: '⏸️',
+    desc: '나를 제외한 모든 공을 2초간 완전히 멈춰 세웁니다.',
+    target: 'self',
+    grade: 'legend',
+    duration: 2000,
+    apply(game, ball, ctx) {
+      const by = ctx && ctx.byPlayerId;
+      for (const b of game.balls.values()) {
+        if (b.plugin.done || b === ball || (by && b.plugin.playerId === by)) continue;
+        b.plugin.frozen = true;
+        b.plugin.frozenPos = { x: b.position.x, y: b.position.y };
+        Matter.Body.setVelocity(b, { x: 0, y: 0 });
+        game.activeEffects.push({ itemId: 'timestop', ball: b, until: game.now() + this.duration });
+      }
+    },
+    expire(game, ball) {
+      ball.plugin.frozen = false;
+      ball.plugin.frozenPos = null;
     },
   },
 

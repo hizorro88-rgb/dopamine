@@ -291,10 +291,12 @@ class Game {
       this.playerItems.set(player.id, noItems ? [] : randomItems(ITEMS_PER_PLAYER));
     }
 
-    // 🎡 인생은 돌고돌아: 10% 확률로 단 한 명에게만 (2인 이상, 올랜덤·노템전 제외)
+    // ★ 레전드: 10% 확률로 단 한 명에게만 레전드 아이템 하나 지급 (2인 이상, 올랜덤·노템전 제외)
     if (!this.autoPilot && this.itemsEnabled && players.length >= 2 && Math.random() < KARMA_CHANCE) {
+      const legends = Object.keys(ITEMS).filter((id) => ITEMS[id].grade === 'legend');
+      const legendId = legends[Math.floor(Math.random() * legends.length)];
       const lucky = players[Math.floor(Math.random() * players.length)];
-      this.playerItems.get(lucky.id).push('karma');
+      this.playerItems.get(lucky.id).push(legendId);
     }
 
     // 첫 배치 패턴을 즉시 적용
