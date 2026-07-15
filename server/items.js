@@ -21,12 +21,19 @@
  *   expire(game, ball) : duration 경과 후 효과 해제 (즉발형이면 생략 가능)
  */
 
-// 아이템 등장 가중치 (레전드는 풀에서 제외)
-// 일반 4종 × 9 : 에픽 6종 × 2 = 36:12 → 에픽이 나올 확률 25%
-const NORMAL_WEIGHT = 9;
-const EPIC_WEIGHT = 2;
-
 const Matter = require('matter-js');
+
+// ── 등급 체계 (낮음 → 높음): 일반·희귀·영웅·전설·신화·유일 ──
+//  · 일반~전설: 인당 랜덤 뽑기 풀 (weight 로 확률, 등급 높을수록 희박)
+//  · 신화·유일(special): 뽑기 풀 제외 → 게임당 확률로 단 한 명에게만 지급(grantWeight)
+const GRADES = {
+  common: { label: '일반', weight: 22 },
+  rare: { label: '희귀', weight: 8 },
+  hero: { label: '영웅', weight: 2.6 },
+  legend: { label: '전설', weight: 0.7 },
+  mythic: { label: '신화', special: true, grantWeight: 3 },
+  unique: { label: '유일', special: true, grantWeight: 1 },
+};
 
 const ITEMS = {
   // 1번: 3초간 물리엔진(핀/다른 공) 무시하고 그대로 떨어지기
@@ -385,20 +392,29 @@ const ITEMS = {
   },
 };
 
+// ── 등급 배정 (개편) — 아래 표가 각 아이템의 최종 등급을 정한다 ──
+//   일반: 소소 / 희귀: 준수 / 영웅: 강력 단일 / 전설: 판 전체 / 신화·유일: 궁극(특별 지급)
+const GRADE_OF = {
+  rocket: 'common', gust: 'common', morph: 'common',
+  balloon: 'rare', portal: 'rare', ghost: 'rare',
+  freeze: 'hero', magnet: 'hero', shockwave: 'hero',
+  swap: 'legend', lightning: 'legend', blackhole: 'legend',
+  reversal: 'mythic', timestop: 'mythic',
+  clone: 'unique', karma: 'unique',
+};
+for (const id of Object.keys(GRADE_OF)) if (ITEMS[id]) ITEMS[id].grade = GRADE_OF[id];
+
 /** 클라이언트에 내려줄 메타데이터 (apply/expire 함수 제외) */
 function itemMeta(item) {
   const { id, name, emoji, desc, target, grade, duration } = item;
   return { id, name, emoji, desc, target, grade, duration };
 }
 
-/** 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 적용 — 레전드는 제외) */
+/** 랜덤 아이템 n개 뽑기 (중복 허용, 등급 가중치 — 신화·유일 등 special 은 제외) */
 function randomItems(n) {
   const pool = Object.values(ITEMS)
-    .filter((item) => item.grade !== 'legend')
-    .map((item) => ({
-      id: item.id,
-      weight: item.grade === 'epic' ? EPIC_WEIGHT : NORMAL_WEIGHT,
-    }));
+    .filter((item) => !(GRADES[item.grade] && GRADES[item.grade].special))
+    .map((item) => ({ id: item.id, weight: (GRADES[item.grade] && GRADES[item.grade].weight) || 1 }));
   const total = pool.reduce((sum, e) => sum + e.weight, 0);
   const picked = [];
   for (let i = 0; i < n; i++) {
@@ -416,4 +432,17 @@ function randomItems(n) {
   return picked;
 }
 
-module.exports = { ITEMS, itemMeta, randomItems };
+/** 특별 등급(신화·유일) 무작위 1종 — grantWeight 가중 (없으면 null) */
+function rollSpecialItem() {
+  const specials = Object.values(ITEMS).filter((it) => GRADES[it.grade] && GRADES[it.grade].special);
+  if (!specials.length) return null;
+  const total = specials.reduce((s, it) => s + (GRADES[it.grade].grantWeight || 1), 0);
+  let r = Math.random() * total;
+  for (const it of specials) {
+    r -= GRADES[it.grade].grantWeight || 1;
+    if (r <= 0) return it.id;
+  }
+  return specials[specials.length - 1].id;
+}
+
+module.exports = { ITEMS, itemMeta, randomItems, rollSpecialItem, GRADES };

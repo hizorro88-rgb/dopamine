@@ -13,7 +13,7 @@
  */
 
 const Matter = require('matter-js');
-const { ITEMS, itemMeta, randomItems } = require('./items');
+const { ITEMS, itemMeta, randomItems, rollSpecialItem } = require('./items');
 const {
   buildBoard,
   createBall,
@@ -25,7 +25,7 @@ const {
 } = require('./board');
 
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
-const KARMA_CHANCE = 0.1; // 🎡 인생은 돌고돌아: 게임당 이 확률로 단 한 명에게 부여
+const SPECIAL_CHANCE = 0.16; // 신화·유일 등급: 게임당 이 확률로 단 한 명에게 하나 지급
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
@@ -345,12 +345,13 @@ class Game {
       this.playerItems.set(player.id, noItems ? [] : randomItems(ITEMS_PER_PLAYER));
     }
 
-    // ★ 레전드: 10% 확률로 단 한 명에게만 레전드 아이템 하나 지급 (2인 이상, 올랜덤·노템전 제외)
-    if (!this.autoPilot && this.itemsEnabled && players.length >= 2 && Math.random() < KARMA_CHANCE) {
-      const legends = Object.keys(ITEMS).filter((id) => ITEMS[id].grade === 'legend');
-      const legendId = legends[Math.floor(Math.random() * legends.length)];
-      const lucky = players[Math.floor(Math.random() * players.length)];
-      this.playerItems.get(lucky.id).push(legendId);
+    // ★ 신화·유일 등급: 확률로 단 한 명에게만 하나 지급 (2인 이상, 올랜덤·노템전 제외)
+    if (!this.autoPilot && this.itemsEnabled && players.length >= 2 && Math.random() < SPECIAL_CHANCE) {
+      const specialId = rollSpecialItem();
+      if (specialId) {
+        const lucky = players[Math.floor(Math.random() * players.length)];
+        this.playerItems.get(lucky.id).push(specialId);
+      }
     }
 
     // 첫 배치 패턴을 즉시 적용

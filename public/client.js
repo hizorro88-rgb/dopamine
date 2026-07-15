@@ -765,29 +765,34 @@
   });
   $('btn-hall-close').addEventListener('click', () => $('hall-modal').classList.add('hidden'));
 
-  // ── 🎁 아이템 도감 (누구나 열람) ──
+  // ── 🎁 아이템 도감 (누구나 열람) ── 등급 체계: 일반·희귀·영웅·전설·신화·유일
+  const GRADE_ORDER = ['common', 'rare', 'hero', 'legend', 'mythic', 'unique'];
   const GRADE_META = {
-    normal: { label: '일반', cls: 'grade-normal' },
-    epic: { label: '에픽', cls: 'grade-epic' },
-    legend: { label: '레전드', cls: 'grade-legend' },
+    common: { label: '일반' },
+    rare: { label: '희귀' },
+    hero: { label: '영웅' },
+    legend: { label: '전설' },
+    mythic: { label: '신화' },
+    unique: { label: '유일' },
   };
+  const gradeLabel = (g) => (GRADE_META[g] ? GRADE_META[g].label : g);
   let itemsCache = null;
   function renderItemsGuide(items) {
     const list = $('items-list');
     list.innerHTML = '';
-    // 등급 순서(일반→에픽→레전드)로 정렬해 보기 좋게
-    const order = { normal: 0, epic: 1, legend: 2 };
-    const sorted = [...items].sort((a, b) => (order[a.grade] ?? 9) - (order[b.grade] ?? 9));
+    // 낮은 등급 → 높은 등급 순으로 정렬
+    const sorted = [...items].sort(
+      (a, b) => (GRADE_ORDER.indexOf(a.grade) + 100) % 100 - ((GRADE_ORDER.indexOf(b.grade) + 100) % 100)
+    );
     for (const it of sorted) {
-      const g = GRADE_META[it.grade] || { label: it.grade, cls: 'grade-normal' };
       const target = it.target === 'self' ? '내 공' : '상대 공';
       const dur = it.duration > 0 ? `${Math.round(it.duration / 1000)}초` : '즉시';
       const li = document.createElement('li');
-      li.className = 'item-guide-row';
+      li.className = `item-guide-row gcard gcard-${it.grade}`;
       li.innerHTML = `<span class="item-guide-emoji">${it.emoji}</span>
         <div class="item-guide-body">
           <div class="item-guide-head"><b>${escapeHtml(it.name)}</b>
-            <span class="grade-badge ${g.cls}">${g.label}</span>
+            <span class="grade-badge grade-${it.grade}">${gradeLabel(it.grade)}</span>
             <span class="item-guide-meta">${target} · ${dur}</span>
           </div>
           <div class="item-guide-desc">${escapeHtml(it.desc)}</div>
@@ -2084,16 +2089,14 @@
     slots.innerHTML = '';
     game.items.forEach((item, i) => {
       const div = document.createElement('div');
-      const gradeClass =
-        item && item.grade === 'legend' ? ' legend' : item && item.grade === 'epic' ? ' epic' : '';
-      div.className = 'item-slot' + (item ? gradeClass : ' used');
       if (item) {
-        div.title =
-          (item.grade === 'legend' ? '👑 레전드 · ' : item.grade === 'epic' ? '⭐ 에픽 · ' : '') +
-          item.desc;
-        div.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.name}</span>`;
+        div.className = `item-slot gcard gcard-${item.grade}`;
+        div.title = `[${gradeLabel(item.grade)}] ${item.desc}`;
+        div.innerHTML = `<span class="grade-tag grade-${item.grade}">${gradeLabel(item.grade)}</span>
+          <span class="emoji">${item.emoji}</span><span class="label">${item.name}</span>`;
         div.addEventListener('click', () => onItemClick(i));
       } else {
+        div.className = 'item-slot used';
         div.innerHTML = `<span class="emoji">✔️</span><span class="label">사용함</span>`;
       }
       slots.appendChild(div);
@@ -2113,15 +2116,12 @@
       $('intro-sub').textContent = '이번 판에 쓸 수 있는 아이템입니다. 타이밍을 노려 사용하세요!';
       items.forEach((item, i) => {
         const div = document.createElement('div');
-        const grade = item.grade === 'legend' ? ' legend' : item.grade === 'epic' ? ' epic' : '';
-        div.className = 'intro-card' + grade;
+        div.className = `intro-card gcard gcard-${item.grade}`;
         div.style.animationDelay = `${0.2 + i * 0.4}s`; // 한 장씩 차례로 공개
-        const badge =
-          item.grade === 'legend' ? '👑 레전드' : item.grade === 'epic' ? '⭐ 에픽' : '일반';
         div.innerHTML =
           `<div class="intro-emoji">${item.emoji}</div>` +
           `<div class="intro-name">${item.name}</div>` +
-          `<div class="intro-grade${grade}">${badge}</div>` +
+          `<div class="intro-grade grade-${item.grade}">${gradeLabel(item.grade)}</div>` +
           `<div class="intro-desc">${item.desc}</div>`;
         cards.appendChild(div);
       });

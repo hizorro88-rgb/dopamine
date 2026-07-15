@@ -15,6 +15,13 @@
   --danger: #c8374b;
   --line: #2c2820; /* 공통 구분선/보더 */
   --gold-grad: linear-gradient(135deg, #e8cd7c, #b8903a 55%, #8a6a24);
+  /* 아이템 등급 색 (낮음→높음): 일반 흰 · 희귀 파랑 · 영웅 빨강 · 전설 보라 · 신화 금 · 유일 청록 */
+  --g-common: #cfcfd8;
+  --g-rare: #4aa3ff;
+  --g-hero: #ff5a5a;
+  --g-legend: #b96bff;
+  --g-mythic: #ffcf3f;
+  --g-unique: #2fe6d6;
   /* 타이포 스케일 (일관된 위계) */
   --fs-title: 23px;
   --fs-h3: 16px;
@@ -776,8 +783,11 @@ textarea:focus {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 12px 4px;
-  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+  margin-bottom: 9px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel2);
   text-align: left;
 }
 .item-guide-emoji {
@@ -808,24 +818,90 @@ textarea:focus {
   font-size: var(--fs-sm);
   color: var(--muted);
 }
+/* ── 등급 뱃지/태그 (색만) ── */
 .grade-badge {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   padding: 2px 8px;
   border-radius: 20px;
   flex-shrink: 0;
+  letter-spacing: 0.5px;
 }
-.grade-normal {
-  background: rgba(120, 200, 140, 0.18);
-  color: #7fd6a0;
+.grade-common { background: rgba(207, 207, 216, 0.16); color: var(--g-common); }
+.grade-rare { background: rgba(74, 163, 255, 0.18); color: #7bbcff; }
+.grade-hero { background: rgba(255, 90, 90, 0.18); color: #ff8585; }
+.grade-legend { background: rgba(185, 107, 255, 0.2); color: #cf9dff; }
+.grade-mythic { background: rgba(255, 207, 63, 0.2); color: #ffdd72; }
+.grade-unique {
+  background: rgba(47, 230, 214, 0.2);
+  color: #66f0e4;
 }
-.grade-epic {
-  background: rgba(200, 120, 255, 0.18);
-  color: #c89aff;
+
+/* ── 등급 카드 공통 skin (도감 행 · 아이템 슬롯 · 소개 카드) — 등급 오를수록 화려하게 ── */
+.gcard {
+  position: relative;
+  overflow: hidden;
 }
-.grade-legend {
-  background: rgba(212, 175, 55, 0.2);
-  color: var(--accent2);
+/* 좌측 컬러 액센트 바 (모든 등급) */
+.gcard::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--gc, transparent);
+}
+.gcard-common { --gc: #6b6b74; }
+.gcard-rare {
+  --gc: var(--g-rare);
+  border-color: rgba(74, 163, 255, 0.55) !important;
+  box-shadow: 0 0 9px rgba(74, 163, 255, 0.22);
+}
+.gcard-hero {
+  --gc: var(--g-hero);
+  border-color: rgba(255, 90, 90, 0.6) !important;
+  box-shadow: 0 0 12px rgba(255, 90, 90, 0.3);
+}
+.gcard-legend {
+  --gc: var(--g-legend);
+  border-color: rgba(185, 107, 255, 0.7) !important;
+  box-shadow: 0 0 15px rgba(185, 107, 255, 0.4);
+  background-image: linear-gradient(160deg, rgba(185, 107, 255, 0.14), transparent 60%);
+}
+.gcard-mythic {
+  --gc: var(--g-mythic);
+  border-color: rgba(255, 207, 63, 0.85) !important;
+  box-shadow: 0 0 20px rgba(255, 207, 63, 0.5);
+  background-image: linear-gradient(160deg, rgba(255, 207, 63, 0.18), transparent 60%);
+}
+.gcard-unique {
+  --gc: var(--g-unique);
+  border-color: rgba(47, 230, 214, 0.9) !important;
+  box-shadow: 0 0 24px rgba(47, 230, 214, 0.55);
+  background-image: linear-gradient(135deg, rgba(47, 230, 214, 0.2), rgba(120, 90, 255, 0.14), transparent 70%);
+}
+/* 신화·유일: 빛이 카드 위를 훑고 지나가는 셔머 연출 */
+.gcard-mythic::before,
+.gcard-unique::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  animation: gcard-shimmer 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.gcard-unique::before {
+  background: linear-gradient(90deg, transparent, rgba(120, 255, 245, 0.4), transparent);
+  animation-duration: 2s;
+}
+@keyframes gcard-shimmer {
+  0% { left: -60%; }
+  55%, 100% { left: 130%; }
 }
 #donor-box {
   margin-top: 10px;
@@ -1170,20 +1246,17 @@ textarea:focus {
 }
 
 /* 에픽 아이템 슬롯 강조 */
-.item-slot.epic {
-  border-color: #ffd76a;
-  box-shadow: 0 0 10px rgba(255, 215, 106, 0.25);
-}
-
-/* 레전드 아이템 슬롯: 크림슨-골드 오라 */
-.item-slot.legend {
-  border-color: var(--danger);
-  box-shadow: 0 0 14px rgba(200, 55, 75, 0.45), 0 0 5px rgba(212, 175, 55, 0.5);
-  animation: legend-pulse 1.6s ease-in-out infinite;
-}
-@keyframes legend-pulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(200, 55, 75, 0.3), 0 0 4px rgba(212, 175, 55, 0.35); }
-  50% { box-shadow: 0 0 18px rgba(200, 55, 75, 0.6), 0 0 8px rgba(212, 175, 55, 0.6); }
+/* 아이템 슬롯 좌상단 등급 태그 */
+.item-slot .grade-tag {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 1;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
 }
 
 /* ── 맵 선택 ── */
@@ -1628,14 +1701,6 @@ textarea:focus {
     filter: brightness(1) blur(0);
   }
 }
-.intro-card.epic {
-  border-color: #c86bff;
-  box-shadow: 0 0 16px rgba(200, 107, 255, 0.3);
-}
-.intro-card.legend {
-  border-color: #ffd76a;
-  box-shadow: 0 0 18px rgba(255, 215, 106, 0.38);
-}
 .intro-emoji {
   font-size: 36px;
   line-height: 1.2;
@@ -1646,15 +1711,13 @@ textarea:focus {
   margin-top: 6px;
 }
 .intro-grade {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
-}
-.intro-grade.epic {
-  color: #c86bff;
-}
-.intro-grade.legend {
-  color: #ffd76a;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
 }
 .intro-desc {
   font-size: 11.5px;

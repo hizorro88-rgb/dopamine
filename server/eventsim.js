@@ -18,7 +18,7 @@ const {
   DEFAULT_MASK,
   BALL_RESTITUTION,
 } = require('./board');
-const { ITEMS, itemMeta } = require('./items');
+const { ITEMS, itemMeta, GRADES } = require('./items');
 const { HIT_ACTIONS } = require('./game');
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
@@ -128,7 +128,11 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
   }
 
   // 자동 아이템 발동 스케줄: 시뮬레이션 전체에 걸쳐 무작위 시점 (레전드 제외)
-  const itemIds = Object.keys(ITEMS).filter((id) => ITEMS[id].grade !== 'legend');
+  // 이벤트 자동발동은 흔한 등급만 (전설·신화·유일은 제외 — 너무 판을 흔든다)
+  const itemIds = Object.keys(ITEMS).filter((id) => {
+    const g = ITEMS[id].grade;
+    return g !== 'legend' && !(GRADES[g] && GRADES[g].special);
+  });
   const triggerCount = Math.min(MAX_AUTO_ITEMS, Math.max(4, Math.floor(participants.length / 4)));
   const triggers = Array.from({ length: triggerCount }, () => ({
     t: 2000 + Math.random() * 70000,
