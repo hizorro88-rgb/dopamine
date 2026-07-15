@@ -1689,6 +1689,7 @@
       overShown: false,
       camY: 0,
       explosions: [], // {x, y, radius, start} — 폭발 애니메이션
+      blackholes: [], // {x, y, radius, start, duration} — 🌀 블랙홀 흡입 범위
       celebrations: [], // {x, y, start, particles} — 🎉 우승 축포
       fxPops: [], // {x, y, emoji, label, color, start} — 아이템 발동 순간 팝
       fxSeen: new Map(), // ballKey -> 직전 상태 플래그 (발동 순간 감지용)
@@ -1788,6 +1789,13 @@
     if (!game) return;
     if (from) game.explosions.push({ x: from.x, y: from.y, radius: 55, start: performance.now(), color: '#35e0ff' });
     if (to) game.explosions.push({ x: to.x, y: to.y, radius: 55, start: performance.now(), color: '#35e0ff' });
+  });
+
+  // 🌀 블랙홀 발동: 흡입 범위를 소용돌이 장으로 표시
+  socket.on('game:blackhole', ({ x, y, radius, duration }) => {
+    if (!game) return;
+    game.blackholes.push({ x, y, radius, duration: duration || 1300, start: performance.now() });
+    game.shakeUntil = performance.now() + 300;
   });
 
   // 🎡 인생은 돌고돌아 발동: 골인 직전의 공이 원점으로
@@ -2495,6 +2503,61 @@
         else ox = off;
       }
       drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0, false, ox, oy);
+    }
+
+    // 🌀 블랙홀 흡입 범위 (공보다 먼저 그려 공이 위로 빨려드는 느낌을 살린다)
+    {
+      const nowB = performance.now();
+      game.blackholes = game.blackholes.filter((bh) => nowB - bh.start < bh.duration);
+      for (const bh of game.blackholes) {
+        const bt = (nowB - bh.start) / bh.duration; // 0..1
+        const R = bh.radius;
+        ctx.save();
+        // 인력장 (안쪽으로 갈수록 어두운 보라)
+        const grad = ctx.createRadialGradient(bh.x, bh.y, 0, bh.x, bh.y, R);
+        grad.addColorStop(0, 'rgba(18,6,36,0.6)');
+        grad.addColorStop(0.55, 'rgba(90,40,160,0.26)');
+        grad.addColorStop(1, 'rgba(90,40,160,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(bh.x, bh.y, R, 0, Math.PI * 2);
+        ctx.fill();
+        // 범위 경계 링 (전설 보라)
+        ctx.globalAlpha = 0.55 * (1 - bt) + 0.25;
+        ctx.strokeStyle = '#b96bff';
+        ctx.shadowColor = '#b96bff';
+        ctx.shadowBlur = 14;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(bh.x, bh.y, R, 0, Math.PI * 2);
+        ctx.stroke();
+        // 빨려드는 소용돌이 팔 (회전)
+        const rot = nowB / 240;
+        ctx.globalAlpha = 0.75;
+        ctx.strokeStyle = '#d9b3ff';
+        ctx.lineWidth = 2.4;
+        ctx.shadowBlur = 8;
+        for (let arm = 0; arm < 3; arm++) {
+          ctx.beginPath();
+          for (let s = 0; s <= 1.0001; s += 0.05) {
+            const ang = rot + arm * ((Math.PI * 2) / 3) + s * 6;
+            const rr = R * (1 - s);
+            const px = bh.x + Math.cos(ang) * rr;
+            const py = bh.y + Math.sin(ang) * rr;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+        // 중심 특이점
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 22;
+        ctx.fillStyle = '#08040f';
+        ctx.beginPath();
+        ctx.arc(bh.x, bh.y, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     // 공 (인원이 많으면 그림자/이름표 생략 — 선두와 내 공만 이름표)

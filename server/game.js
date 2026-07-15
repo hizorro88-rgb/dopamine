@@ -29,6 +29,7 @@ const SPECIAL_CHANCE = 0.16; // 신화·유일 등급: 게임당 이 확률로 �
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다
+const STUCK_SPEED = 2.2; // 이 속도보다 빠르게 움직이는 공은 갇힌 게 아님 (활발히 튀는 공 오구출 방지)
 const settings = require('./settings'); // 낙하배속·아이템소개·자동낙하 시간을 live 로 읽는다 (관리자 페이지에서 변경 가능)
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
@@ -265,6 +266,11 @@ class Game {
   /** 🌀 포탈/점프 이펙트를 방 전체에 알림 */
   portalEffect(from, to) {
     this.io.to(this.room.code).emit('game:portal', { from, to });
+  }
+
+  /** 🌀 블랙홀 흡입 범위 시각 효과 (지속 시간 동안 소용돌이 장 표시) */
+  blackholeEffect(x, y, radius, duration) {
+    this.io.to(this.room.code).emit('game:blackhole', { x, y, radius, duration });
   }
 
   /** 게임 시간(ms) — 낙하 후에는 실제 시간보다 TIME_SCALE 배 빠르게 흐른다.
@@ -606,17 +612,24 @@ class Game {
       }
     }
 
-    // 갇힘 구출: 게임 시간 5초 동안 하강 진전이 없으면 위쪽 랜덤 방향으로 살짝 튕겨준다
-    // (아트 맵의 오목한 그림·범퍼 사이 무한 바운스 대비 — 참고한 마블 룰렛의 STUCK_DELAY와 같은 발상)
+    // 갇힘 구출: 게임 시간 5초 동안 "하강 진전도 없고 거의 멈춰 있으면" 살짝 튕겨준다.
+    // (오목한 그림·범퍼 틈에 진짜로 낀 공만 대상 — 활발히 튀는 공은 건드리지 않아
+    //  "아무데도 안 부딪혔는데 뜬금없이 위로 튀는" 현상을 막는다.)
     for (const ball of this.balls.values()) {
       if (ball.plugin.done || ball.plugin.frozen) continue;
-      if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6) {
-        ball.plugin.progressY = ball.position.y;
+      const progressed =
+        ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6;
+      const speed = Math.hypot(ball.velocity.x, ball.velocity.y);
+      // 하강 중이거나(진전) 아직 충분히 움직이는 공은 갇힌 게 아니므로 타이머를 리셋
+      if (progressed || speed > STUCK_SPEED) {
+        if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY) {
+          ball.plugin.progressY = ball.position.y;
+        }
         ball.plugin.stuckSince = sim;
       } else if (sim - ball.plugin.stuckSince > STUCK_MS) {
         Matter.Body.setVelocity(ball, {
-          x: (Math.random() - 0.5) * 16,
-          y: -6 - Math.random() * 4,
+          x: (Math.random() - 0.5) * 11,
+          y: -5 - Math.random() * 3,
         });
         ball.plugin.stuckSince = sim;
       }

@@ -233,15 +233,17 @@ const ITEMS = {
     id: 'blackhole',
     name: '블랙홀',
     emoji: '🌀',
-    desc: '나를 제외한 모든 공을 한 점으로 빨아들였다가 펑! 사방으로 흩뿌립니다.',
+    desc: '내 가장 아래쪽 공 자리에 블랙홀이 생겨, 범위 안의 공만 한 점으로 빨아들였다가 펑! 사방으로 흩뿌립니다.',
     target: 'self',
     grade: 'legend',
     duration: 1300,
+    range: 260, // 빨아들이는 반경 — 이 안에 든 공만 끌려온다
     apply(game, ball, ctx) {
+      // 시전자의 가장 하단(골인에 가장 가까운) 공 위치에서 발동한다.
       const cx = Math.min(540, Math.max(60, ball.position.x));
-      const cy = ball.position.y - 130; // 내 공보다 살짝 위에 특이점
-      ball.plugin.blackhole = { x: cx, y: cy, by: ctx && ctx.byPlayerId };
-      if (game.portalEffect) game.portalEffect(null, { x: cx, y: cy });
+      const cy = ball.position.y;
+      ball.plugin.blackhole = { x: cx, y: cy, r: this.range, by: ctx && ctx.byPlayerId };
+      if (game.blackholeEffect) game.blackholeEffect(cx, cy, this.range, this.duration);
     },
     tick(game, ball) {
       const bh = ball.plugin.blackhole;
@@ -251,6 +253,7 @@ const ITEMS = {
         const dx = bh.x - b.position.x;
         const dy = bh.y - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
+        if (d > bh.r) continue; // 범위 밖의 공은 영향받지 않는다
         Matter.Body.setVelocity(b, {
           x: b.velocity.x * 0.55 + (dx / d) * 1.7,
           y: b.velocity.y * 0.55 + (dy / d) * 1.7,
@@ -260,7 +263,7 @@ const ITEMS = {
     expire(game, ball) {
       const bh = ball.plugin.blackhole;
       ball.plugin.blackhole = null;
-      if (bh) game.explodeAt(bh.x, bh.y, 270, 21, bh.by); // 펑! 흩뿌리기 (시전자 제외)
+      if (bh) game.explodeAt(bh.x, bh.y, bh.r, 21, bh.by); // 펑! 범위 안으로 흩뿌리기 (시전자 제외)
     },
   },
 

@@ -240,16 +240,21 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
-      // 갇힘 구출 (라이브 게임과 동일: 5초간 하강 진전 없으면 튕겨줌)
+      // 갇힘 구출 (라이브 게임과 동일: 하강 진전 없고 거의 멈춘 공만 튕겨줌)
       for (const ball of balls.values()) {
         if (ball.plugin.done || ball.plugin.frozen) continue;
-        if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6) {
-          ball.plugin.progressY = ball.position.y;
+        const progressed =
+          ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6;
+        const speed = Math.hypot(ball.velocity.x, ball.velocity.y);
+        if (progressed || speed > 2.2) {
+          if (ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY) {
+            ball.plugin.progressY = ball.position.y;
+          }
           ball.plugin.stuckSince = simNow;
         } else if (simNow - ball.plugin.stuckSince > 5000) {
           Matter.Body.setVelocity(ball, {
-            x: (Math.random() - 0.5) * 16,
-            y: -6 - Math.random() * 4,
+            x: (Math.random() - 0.5) * 11,
+            y: -5 - Math.random() * 3,
           });
           ball.plugin.stuckSince = simNow;
         }
