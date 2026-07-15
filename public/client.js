@@ -552,7 +552,7 @@
     const mineKey = lastRankingEvent ? myParticipantId : myId;
     $('board-title').textContent = '🏁 이번 판 순위';
     $('board-hint').innerHTML = lastRankingWinMode === 'last'
-      ? '🐢 늦게 골인 우승 — 늦게 도착할수록 높은 순위'
+      ? '🐢 늦게 골인 당첨 — 늦게 도착할수록 높은 순위'
       : '🥇 먼저 골인 우승 — 먼저 도착한 순서';
     const list = $('board-list');
     list.innerHTML = '';
@@ -1662,7 +1662,7 @@
     // 순위판 제목에 우승 조건 표시
     document.querySelector('#rank-board h3').textContent =
       (game.autoPilot ? '🎲 올랜덤 · ' : game.spectator ? '👁 관전 · ' : '') +
-      (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 우승' : '순위 · 🥇 먼저 골인 우승');
+      (game.winMode === 'last' ? '도착 순서 · 🐢 늦게 골인 당첨' : '순위 · 🥇 먼저 골인 우승');
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     // 아이템전 시작 시 잠깐 아이템 소개 시간을 가진다 (서버가 그동안 셔플·낙하를 멈춘다)
@@ -1782,7 +1782,7 @@
     } else if (data.rank === 1) {
       toast(
         game.winMode === 'last'
-          ? `⚡ ${data.name}님이 가장 먼저 도착... 늦게 골인이 우승인데요!`
+          ? `⚡ ${data.name}님이 가장 먼저 도착... 늦게 골인이 당첨인데요!`
           : `🏆 ${data.name}님이 1등으로 도착!`
       );
     }
