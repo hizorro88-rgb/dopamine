@@ -1249,15 +1249,33 @@ textarea:focus {
 /* 아이템 슬롯 좌상단 등급 태그 */
 .item-slot .grade-tag {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 4px;
+  left: 4px;
   z-index: 1;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
-  padding: 1px 5px;
+  padding: 1.5px 6px;
   border-radius: 6px;
   letter-spacing: 0.3px;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
+/* 슬롯 안에서는 등급을 한눈에 알아보도록 '꽉 찬' 색 배지로 표시 */
+.item-slot .grade-tag.grade-common { background: #6b6b74; }
+.item-slot .grade-tag.grade-rare { background: #2f7fd6; }
+.item-slot .grade-tag.grade-hero { background: #d63b3b; }
+.item-slot .grade-tag.grade-legend { background: #8b46d6; }
+.item-slot .grade-tag.grade-mythic { background: #e0a91e; color: #2a1e00; }
+.item-slot .grade-tag.grade-unique { background: #16b9a9; }
+/* 좌측 액센트 바를 슬롯에서는 조금 더 굵게 */
+.item-slot.gcard::after { width: 4px; }
+/* 아이템 이름도 등급 색으로 물들여 색만 봐도 등급을 알 수 있게 */
+.item-slot.gcard-common .label { color: #d6d6de; }
+.item-slot.gcard-rare .label { color: #8ac4ff; }
+.item-slot.gcard-hero .label { color: #ff9090; }
+.item-slot.gcard-legend .label { color: #d3a6ff; }
+.item-slot.gcard-mythic .label { color: #ffdd72; }
+.item-slot.gcard-unique .label { color: #6ff2e6; }
 
 /* ── 맵 선택 ── */
 .map-box {
