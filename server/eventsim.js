@@ -23,6 +23,7 @@ const { HIT_ACTIONS } = require('./game');
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
+const PHYSICS_SUBSTEPS = 4; // 물리 미세 분할 (라이브 게임과 동일: 터널링 방지)
 // 재생은 게임 시간을 TIME_SCALE 배속으로 압축해 실제 20Hz 로 녹화
 const FRAME_EVERY = 3 * TIME_SCALE;
 const SIM_MAX_MS = 180000; // 시뮬레이션 최대 게임시간
@@ -259,7 +260,8 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
       }
 
-      Matter.Engine.update(engine, TICK_MS);
+      const subDt = TICK_MS / PHYSICS_SUBSTEPS;
+      for (let k = 0; k < PHYSICS_SUBSTEPS; k++) Matter.Engine.update(engine, subDt);
 
       // 도착/굴레 판정
       for (const [pid, ball] of balls) {

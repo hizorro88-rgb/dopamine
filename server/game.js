@@ -34,6 +34,11 @@ const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
+// 물리 미세 분할: 한 스텝(16.67ms)을 여러 번에 나눠 적분한다.
+// 빠른 공이 한 스텝에 최대 38px 이동 → 두께 12~14px 벽을 그냥 통과(터널링)하던 버그 방지.
+// 4분할이면 충돌 검사 사이 이동이 ≤9.5px로 가장 얇은 벽보다 짧아 공이 오브젝트를 뚫지 못한다.
+// 시뮬 시간 총량은 동일하므로 낙하 속도·궤적 느낌은 그대로 유지된다.
+const PHYSICS_SUBSTEPS = 4;
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -622,7 +627,9 @@ class Game {
       if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
     }
 
-    Matter.Engine.update(this.engine, TICK_MS);
+    // 물리 적분을 미세 분할해 터널링(공이 얇은 벽을 뚫는 현상)을 막는다.
+    const subDt = TICK_MS / PHYSICS_SUBSTEPS;
+    for (let k = 0; k < PHYSICS_SUBSTEPS; k++) Matter.Engine.update(this.engine, subDt);
 
     // 도착/굴레 판정
     for (const [key, ball] of this.balls) {
