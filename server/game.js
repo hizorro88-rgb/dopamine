@@ -13,7 +13,7 @@
  */
 
 const Matter = require('matter-js');
-const { ITEMS, itemMeta, randomItems, rollSpecialItem } = require('./items');
+const { ITEMS, itemMeta, randomItems, rollSpecialItem, SPECIAL_CHANCE } = require('./items');
 const {
   buildBoard,
   createBall,
@@ -25,7 +25,7 @@ const {
 } = require('./board');
 
 const ITEMS_PER_PLAYER = 2; // 인당 랜덤 아이템 개수
-const SPECIAL_CHANCE = 0.16; // 신화·유일 등급: 게임당 이 확률로 단 한 명에게 하나 지급
+// SPECIAL_CHANCE(신화·유일 게임당 지급 확률)는 items.js 에서 가져온다 — 도감 표시 확률과 일치시키기 위함
 const MAX_BALLS_PER_PLAYER = 5; // 인당 공 개수 상한
 const GAME_TIMEOUT_MS = 180000; // 낙하 후 제한시간 (넘으면 현재 위치로 순위 결정)
 const STUCK_MS = 5000; // 이 게임 시간 동안 하강 진전이 없으면 갇힌 것으로 보고 튕겨준다

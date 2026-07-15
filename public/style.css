@@ -846,6 +846,21 @@ textarea:focus {
   font-size: var(--fs-xs);
   color: var(--muted);
 }
+/* 등장 확률 배지 */
+.chance-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  background: rgba(120, 200, 140, 0.15);
+  color: #86e0a3;
+  letter-spacing: 0.2px;
+}
+.chance-tag.chance-special {
+  background: rgba(255, 207, 63, 0.16);
+  color: #ffd977;
+}
 .item-guide-desc {
   margin-top: 3px;
   font-size: var(--fs-sm);

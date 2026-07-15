@@ -435,6 +435,36 @@ function randomItems(n) {
   return picked;
 }
 
+// 게임당 특별 등급(신화·유일) 1종이 무작위 한 명에게 부여될 확률 (game.js 가 이 값을 사용)
+const SPECIAL_CHANCE = 0.16;
+
+/**
+ * 각 아이템의 등장 확률 (아이템 도감 표시용).
+ *   일반 뽑기 대상 → kind:'draw',    chance = 한 번 뽑을 때 이 아이템이 나올 확률
+ *   특별 지급(신화·유일) → kind:'special', chance = 한 판에 이 아이템이 등장할 확률
+ * 반환: { [id]: { kind, chance } }
+ */
+function itemChances() {
+  const all = Object.values(ITEMS);
+  const isSpecial = (it) => GRADES[it.grade] && GRADES[it.grade].special;
+  const drawTotal = all
+    .filter((it) => !isSpecial(it))
+    .reduce((s, it) => s + ((GRADES[it.grade] && GRADES[it.grade].weight) || 1), 0);
+  const specialTotal = all
+    .filter(isSpecial)
+    .reduce((s, it) => s + (GRADES[it.grade].grantWeight || 1), 0);
+  const out = {};
+  for (const it of all) {
+    const g = GRADES[it.grade];
+    if (isSpecial(it)) {
+      out[it.id] = { kind: 'special', chance: SPECIAL_CHANCE * ((g.grantWeight || 1) / specialTotal) };
+    } else {
+      out[it.id] = { kind: 'draw', chance: ((g && g.weight) || 1) / drawTotal };
+    }
+  }
+  return out;
+}
+
 /** 특별 등급(신화·유일) 무작위 1종 — grantWeight 가중 (없으면 null) */
 function rollSpecialItem() {
   const specials = Object.values(ITEMS).filter((it) => GRADES[it.grade] && GRADES[it.grade].special);
@@ -448,4 +478,4 @@ function rollSpecialItem() {
   return specials[specials.length - 1].id;
 }
 
-module.exports = { ITEMS, itemMeta, randomItems, rollSpecialItem, GRADES };
+module.exports = { ITEMS, itemMeta, randomItems, rollSpecialItem, itemChances, GRADES, SPECIAL_CHANCE };

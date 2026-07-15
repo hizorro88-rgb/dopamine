@@ -794,11 +794,23 @@
           <div class="item-guide-head"><b>${escapeHtml(it.name)}</b>
             <span class="grade-badge grade-${it.grade}">${gradeLabel(it.grade)}</span>
             <span class="item-guide-meta">${target} · ${dur}</span>
+            ${chanceTag(it)}
           </div>
           <div class="item-guide-desc">${escapeHtml(it.desc)}</div>
         </div>`;
       list.appendChild(li);
     }
+  }
+  /** 등장 확률 배지 — 일반 뽑기(뽑을 때 확률) / 특별 지급(한 판 등장 확률) 구분 */
+  function chanceTag(it) {
+    if (typeof it.chance !== 'number') return '';
+    const pct = it.chance * 100;
+    const txt = pct >= 10 ? pct.toFixed(0) : pct.toFixed(1);
+    const isSpecial = it.kind === 'special';
+    const label = isSpecial ? '특별 등장' : '뽑기 확률';
+    return `<span class="chance-tag${isSpecial ? ' chance-special' : ''}" title="${
+      isSpecial ? '뽑기 풀에서 제외 — 한 판당 이 아이템이 등장할 확률' : '아이템 한 칸을 뽑을 때 이 아이템이 나올 확률'
+    }">${label} ${txt}%</span>`;
   }
   function openItemsGuide() {
     $('items-modal').classList.remove('hidden');
