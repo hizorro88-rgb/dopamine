@@ -309,6 +309,23 @@ const ITEMS = {
     },
   },
 
+  // ★ 레전드: ✨ 분신 — 내 공이 잠깐 여러 갈래로 갈라져 길을 탐색하고 가장 앞선 위치로 합쳐진다
+  clone: {
+    id: 'clone',
+    name: '분신',
+    emoji: '✨',
+    desc: '내 공이 잠깐 여러 갈래로 분신해 서로 다른 길을 탐색하고, 가장 앞선 위치로 합쳐집니다.',
+    target: 'self',
+    grade: 'legend',
+    duration: 2200,
+    apply(game, ball, ctx) {
+      if (game.spawnClones) game.spawnClones(ball, 2, (ctx && ctx.byPlayerId) || ball.plugin.playerId);
+    },
+    expire(game, ball) {
+      if (game.mergeClones) game.mergeClones(ball);
+    },
+  },
+
   // ★ 레전드: 인생은 돌고돌아 — 저주받은 공은 골인하는 순간 원점으로
   karma: {
     id: 'karma',

@@ -2506,6 +2506,21 @@
     for (const b of balls) {
       const p = game.players.get(b.p);
       const color = p ? p.color : '#888';
+
+      // ✨ 분신(clone): 반투명한 잔상 구슬로만 표시 (이름표·이펙트·트레일 없음)
+      if (b.cl) {
+        ctx.save();
+        ctx.globalAlpha = 0.42;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 9;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, r * 0.92, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
       const radius = b.b ? r * 1.6 : r;
       const key = b.k || b.p + ':' + (b.i || 0);
 

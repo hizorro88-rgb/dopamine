@@ -169,6 +169,7 @@ class Game {
     this.engine.velocityIterations = 8;
 
     this.balls = new Map(); // ballKey(playerId:idx) -> Matter body
+    this.clones = []; // ✨ 분신: 임시 분신 바디들 (순위/도착에는 포함되지 않음)
     this.playerItems = new Map(); // playerId -> [itemId | null, ...]
     this.finished = []; // 도착 순서대로 ballKey
     this.finishTimes = new Map(); // ballKey -> 낙하 시작 후 완주 시간(ms)
@@ -272,6 +273,59 @@ class Game {
     return [...this.balls.values()].filter(
       (b) => b.plugin.playerId === playerId && !b.plugin.done
     );
+  }
+
+  /** ✨ 분신: leadBall 위치에서 n개의 임시 분신을 만든다 (순위·도착 대상 아님) */
+  spawnClones(leadBall, n, playerId) {
+    if (!leadBall || leadBall.plugin.done) return;
+    for (let i = 0; i < n; i++) {
+      const c = createBall(leadBall.position.x, leadBall.position.y);
+      c.plugin = {
+        clone: true,
+        playerId,
+        ownerKey: leadBall.plugin.key,
+        key: `${leadBall.plugin.key}:c${i}`,
+      };
+      // 좌우로 살짝 벌려 서로 다른 길을 탐색
+      Matter.Body.setVelocity(c, {
+        x: leadBall.velocity.x + (i % 2 === 0 ? -3.5 : 3.5) - 1 + i,
+        y: leadBall.velocity.y,
+      });
+      this.clones.push(c);
+      Matter.Composite.add(this.engine.world, c);
+    }
+  }
+
+  /** ✨ 분신 종료: 실제 공 + 분신 중 가장 유리한 위치로 실제 공을 합치고 분신 제거 */
+  mergeClones(leadBall) {
+    if (!leadBall) return;
+    const key = leadBall.plugin.key;
+    const mine = this.clones.filter((c) => c.plugin.ownerKey === key && c.position.y < this.height);
+    let best = leadBall;
+    for (const b of [leadBall, ...mine]) {
+      // 먼저 골인=골인에 가까운(y 큰) / 늦게 골인=골인에서 먼(y 작은) 쪽이 유리
+      const better = this.winMode === 'last' ? b.position.y < best.position.y : b.position.y > best.position.y;
+      if (better) best = b;
+    }
+    if (best !== leadBall && !leadBall.plugin.done) {
+      const ny = this.winMode === 'last' ? best.position.y : Math.min(best.position.y, this.goalY - 20);
+      Matter.Body.setPosition(leadBall, { x: best.position.x, y: ny });
+      Matter.Body.setVelocity(leadBall, { x: best.velocity.x, y: best.velocity.y });
+      leadBall.plugin.prevY = ny;
+      if (leadBall.plugin.frozenPos) leadBall.plugin.frozenPos = { x: best.position.x, y: ny };
+    }
+    this.clones = this.clones.filter((c) => {
+      if (c.plugin.ownerKey === key) {
+        Matter.Composite.remove(this.engine.world, c);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  clearClones() {
+    for (const c of this.clones) Matter.Composite.remove(this.engine.world, c);
+    this.clones = [];
   }
 
   /** 게임 시작: 공 생성(인당 N개), 아이템 배정, 셔플 단계 진입 */
@@ -618,6 +672,17 @@ class Game {
       }
     }
 
+    // ✨ 분신 중 맵 밖으로 떨어진 것은 정리 (합쳐질 후보에서도 자연 제외)
+    if (this.clones.length) {
+      this.clones = this.clones.filter((c) => {
+        if (c.position.y > this.height + 60) {
+          Matter.Composite.remove(this.engine.world, c);
+          return false;
+        }
+        return true;
+      });
+    }
+
     // 종료 판정: 전 공 도착 or 낙하 후 제한시간(게임 시간) 초과
     const allDone = [...this.balls.values()].every((b) => b.plugin.done);
     if (allDone || sim - this.dropSimMs > GAME_TIMEOUT_MS) {
@@ -641,6 +706,16 @@ class Game {
         m: ball.plugin.magnet ? 1 : 0,
         s: ball.plugin.slowed ? 1 : 0,
         o: ball.plugin.morph || 0, // 🎭 변신 도형 (0=없음, 1~5)
+      });
+    }
+    // ✨ 분신은 반투명 잔상으로만 표시 (도착·순위 대상 아님)
+    for (const c of this.clones) {
+      balls.push({
+        k: c.plugin.key,
+        p: c.plugin.playerId,
+        x: Math.round(c.position.x * 10) / 10,
+        y: Math.round(c.position.y * 10) / 10,
+        cl: 1,
       });
     }
     // 현재 터져 있는(숨겨진) 반응형 구성요소 인덱스
@@ -725,6 +800,7 @@ class Game {
     if (this.over) return;
     this.over = true;
     clearInterval(this.interval);
+    this.clearClones();
 
     // 공 단위 순서 계산 (기존 우승 조건 로직)
     const remaining = [...this.balls.entries()].filter(([, b]) => !b.plugin.done);
@@ -775,6 +851,7 @@ class Game {
   stop() {
     this.over = true;
     clearInterval(this.interval);
+    this.clearClones();
   }
 }
 
