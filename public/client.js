@@ -825,8 +825,9 @@
       })
       .catch(() => ($('items-list').innerHTML = '<li class="error">불러오기 실패</li>'));
   }
-  // 🎁 아이템전 버튼 옆의 ⓘ 인포 버튼(들) → 아이템 도감 열기
+  // 🎁 아이템전 버튼 옆의 ⓘ 인포 버튼(들) + 홈 하단 링크 → 아이템 도감 열기
   document.querySelectorAll('.items-info-btn').forEach((b) => b.addEventListener('click', openItemsGuide));
+  $('btn-items-home').addEventListener('click', openItemsGuide);
   $('btn-items-close').addEventListener('click', () => $('items-modal').classList.add('hidden'));
 
   // ── ✍️ 개선 요청 / 개발자에게 한마디 ──
@@ -869,59 +870,26 @@
       });
   });
 
-  // ── 우승 조건 선택 (방 만들기) ──
-  let homeWinMode = localStorage.getItem('pinball-winmode') || 'first';
-  function renderHomeWinMode() {
-    $('home-wm-first').classList.toggle('selected', homeWinMode === 'first');
-    $('home-wm-last').classList.toggle('selected', homeWinMode === 'last');
-  }
-  renderHomeWinMode();
-  for (const id of ['home-wm-first', 'home-wm-last']) {
-    $(id).addEventListener('click', (e) => {
-      homeWinMode = e.currentTarget.dataset.mode;
-      localStorage.setItem('pinball-winmode', homeWinMode);
-      renderHomeWinMode();
-    });
-  }
-
-  // ── 아이템전 / 노템전 선택 (방 만들기) ──
-  let homeItems = localStorage.getItem('pinball-items') !== '0'; // 기본 아이템전
-  function renderHomeItems() {
-    $('home-item-on').classList.toggle('selected', homeItems);
-    $('home-item-off').classList.toggle('selected', !homeItems);
-  }
-  renderHomeItems();
-  for (const id of ['home-item-on', 'home-item-off']) {
-    $(id).addEventListener('click', (e) => {
-      homeItems = e.currentTarget.dataset.items === '1';
-      localStorage.setItem('pinball-items', homeItems ? '1' : '0');
-      renderHomeItems();
-    });
-  }
-
-  // 인당 공 개수 (방 만들기)
-  const homeBallCount = $('home-ball-count');
-  homeBallCount.value = localStorage.getItem('pinball-balls') || '1';
-  homeBallCount.addEventListener('change', () =>
-    localStorage.setItem('pinball-balls', homeBallCount.value)
-  );
-
-  const homeRoundCount = $('home-round-count');
-  homeRoundCount.value = localStorage.getItem('pinball-rounds') || '1';
-  homeRoundCount.addEventListener('change', () =>
-    localStorage.setItem('pinball-rounds', homeRoundCount.value)
-  );
+  // 방 세부 설정은 대기실에서 정한다. 방 만들기는 지난번 선택(로컬 저장)이나
+  // 기본값으로 방을 열고, 방장이 대기실에서 우승조건·아이템·공개수·판수·맵을 조절한다.
+  const roomDefaults = () => ({
+    winMode: localStorage.getItem('pinball-winmode') === 'last' ? 'last' : 'first',
+    itemsEnabled: localStorage.getItem('pinball-items') !== '0',
+    ballsPerPlayer: Number(localStorage.getItem('pinball-balls')) || 1,
+    rounds: Number(localStorage.getItem('pinball-rounds')) || 1,
+  });
 
   $('btn-create').addEventListener('click', () => {
+    const d = roomDefaults();
     socket.emit(
       'room:create',
       {
         name: myName(),
         donorCode: myDonorCode(),
-        winMode: homeWinMode,
-        ballsPerPlayer: Number(homeBallCount.value),
-        itemsEnabled: homeItems,
-        rounds: Number(homeRoundCount.value),
+        winMode: d.winMode,
+        ballsPerPlayer: d.ballsPerPlayer,
+        itemsEnabled: d.itemsEnabled,
+        rounds: d.rounds,
         password: $('input-room-pw').value,
       },
       (res) => {
@@ -1386,6 +1354,9 @@
     $('lobby-item-off').classList.toggle('selected', !itemsOn);
     $('lobby-item-on').disabled = !isHost;
     $('lobby-item-off').disabled = !isHost;
+    // 아이템전이면 ⓘ 도감 아이콘을 반짝여 자연스럽게 도감 확인을 유도
+    const lobbyInfo = document.querySelector('#lobby-items .items-info-btn');
+    if (lobbyInfo) lobbyInfo.classList.toggle('pulse', itemsOn);
 
     // 인당 공 개수 (방장만 변경 가능)
     $('lobby-ball-count').value = String(room.ballsPerPlayer || 1);

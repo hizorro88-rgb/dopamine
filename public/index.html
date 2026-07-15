@@ -32,40 +32,7 @@
           </svg>
         </button>
       </div>
-      <div class="winmode-row">
-        <button id="home-wm-first" class="winmode-btn selected" data-mode="first">🥇 먼저 골인 우승</button>
-        <button id="home-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 당첨</button>
-      </div>
-      <div class="winmode-row">
-        <button id="home-item-on" class="winmode-btn selected" data-items="1">🎁 아이템전</button>
-        <button id="home-item-off" class="winmode-btn" data-items="0">🚫 노템전</button>
-        <button class="items-info-btn" type="button" title="아이템 도감 보기" aria-label="아이템 도감 보기">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7.5" x2="12" y2="13"/><circle cx="12" cy="16.5" r="1.1" fill="currentColor" stroke="none"/></svg>
-        </button>
-      </div>
-      <div class="balls-row">
-        <span>⚪ 인당 공 개수</span>
-        <select id="home-ball-count">
-          <option value="1">1개</option>
-          <option value="2">2개</option>
-          <option value="3">3개</option>
-          <option value="4">4개</option>
-          <option value="5">5개</option>
-        </select>
-      </div>
-      <div class="balls-row">
-        <span>🔁 진행할 판 수</span>
-        <select id="home-round-count">
-          <option value="1">1판 (단판)</option>
-          <option value="2">2판</option>
-          <option value="3">3판</option>
-          <option value="4">4판</option>
-          <option value="5">5판</option>
-          <option value="6">6판</option>
-          <option value="7">7판</option>
-          <option value="10">10판</option>
-        </select>
-      </div>
+      <p class="hint" style="margin:2px 0 -2px">세부 설정(우승 조건·아이템·공 개수·판 수·맵)은 방을 만든 뒤 대기실에서 정할 수 있어요.</p>
       <div class="join-row" id="home-pw-row">
         <input id="input-room-pw" type="text" maxlength="20" placeholder="🔒 방 비밀번호 (선택 — 비우면 공개방)" autocomplete="off" />
       </div>
@@ -87,6 +54,9 @@
       </div>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
       <div class="home-links">
+        <button id="btn-items-home" class="link-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7.5" x2="12" y2="13"/><circle cx="12" cy="16.5" r="1.1" fill="currentColor" stroke="none"/></svg>아이템 도감
+        </button>
         <button id="btn-board" class="link-btn">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>전체 순위
         </button>
@@ -252,7 +222,6 @@
         </div>
         <div class="invite-qr">
           <div id="lobby-qr"></div>
-          <div class="qr-hint">📱 찍으면 바로 입장</div>
         </div>
       </div>
       <ul id="lobby-players" class="player-list"></ul>
