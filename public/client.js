@@ -3100,10 +3100,12 @@
 
   function rebuildComp(comp) {
     const built = buildShapes(comp.type, comp.props);
+    if (!built) return false; // 알 수 없는(제거된) 구성요소 타입 — 건너뛰게 한다
     comp.shapes = built.shapes;
     comp.spin = built.spin;
     comp.hit = built.hit || null;
     comp.move = built.move || null;
+    return true;
   }
 
   /**
@@ -3126,12 +3128,11 @@
     // 🏁 골인 존: 불러온 맵에 있으면 그대로, 없으면 기본(바닥 중앙)
     editor.finish = clampFinish(opts.map && opts.map.finish, editor.height, editor.width);
 
-    // 맵 불러오기 (구경 모드)
+    // 맵 불러오기 (구경 모드) — 알 수 없는(제거된) 타입 요소는 건너뛴다
     if (opts.map) {
       for (const c of opts.map.components) {
         const comp = { type: c.type, x: c.x, y: c.y, props: { ...c.props } };
-        rebuildComp(comp);
-        editor.comps.push(comp);
+        if (rebuildComp(comp)) editor.comps.push(comp);
       }
     }
 
