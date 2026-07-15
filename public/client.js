@@ -1342,7 +1342,9 @@
   /** 맵 옵션 라벨: 평점이 있으면 ★ 표시 (목록은 서버가 평점순으로 정렬) */
   function mapOptionLabel(m) {
     const stars = m.reviews > 0 ? ` ★${m.rating}` : '';
-    return `${m.builtin ? '⭐' : '🛠'} ${m.name}${stars} — ${m.author}`;
+    // 기본 맵은 '— 기본 맵' 꼬리표를 붙이지 않는다 (유저 맵만 제작자 표시)
+    const by = m.builtin ? '' : ` — ${m.author}`;
+    return `${m.builtin ? '⭐' : '🛠'} ${m.name}${stars}${by}`;
   }
 
   function refreshMaps() {
