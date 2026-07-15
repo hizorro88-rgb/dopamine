@@ -103,35 +103,39 @@
         <button id="btn-admin-open" class="btn primary" style="width:100%;margin-top:8px">열기</button>
       </div>
       <div id="admin-panel" class="hidden">
-        <h3 class="admin-h">⚙️ 서버 설정</h3>
-        <div class="admin-settings">
-          <label><span>후원 링크 (끄려면 <code>off</code>)</span>
-            <input id="set-donationUrl" type="text" autocomplete="off" />
-          </label>
-          <label>후원 버튼 문구
-            <input id="set-donationLabel" type="text" autocomplete="off" />
-          </label>
-          <label>낙하 배속 (1~20, 클수록 빠름)
-            <input id="set-timeScale" type="number" min="1" max="20" />
-          </label>
-          <label>아이템 소개 시간 (ms, 0=생략)
-            <input id="set-itemIntroMs" type="number" min="0" max="30000" step="500" />
-          </label>
-          <label>자동 낙하 시간 (ms)
-            <input id="set-shuffleAutoDropMs" type="number" min="1000" max="30000" step="500" />
-          </label>
-          <label>하루 맵 생성 제한 (IP당, 0=무제한)
-            <input id="set-mapDailyLimit" type="number" min="0" max="1000" />
-          </label>
-          <button id="btn-admin-save-settings" class="btn primary">⚙️ 설정 저장</button>
-          <p class="hint" id="admin-settings-msg"></p>
+        <div class="admin-col">
+          <h3 class="admin-h">⚙️ 서버 설정</h3>
+          <div class="admin-settings">
+            <label><span>후원 링크 (끄려면 <code>off</code>)</span>
+              <input id="set-donationUrl" type="text" autocomplete="off" />
+            </label>
+            <label>후원 버튼 문구
+              <input id="set-donationLabel" type="text" autocomplete="off" />
+            </label>
+            <label>낙하 배속 (1~20, 클수록 빠름)
+              <input id="set-timeScale" type="number" min="1" max="20" />
+            </label>
+            <label>아이템 소개 시간 (ms, 0=생략)
+              <input id="set-itemIntroMs" type="number" min="0" max="30000" step="500" />
+            </label>
+            <label>자동 낙하 시간 (ms)
+              <input id="set-shuffleAutoDropMs" type="number" min="1000" max="30000" step="500" />
+            </label>
+            <label>하루 맵 생성 제한 (IP당, 0=무제한)
+              <input id="set-mapDailyLimit" type="number" min="0" max="1000" />
+            </label>
+            <button id="btn-admin-save-settings" class="btn primary">⚙️ 설정 저장</button>
+            <p class="hint" id="admin-settings-msg"></p>
+          </div>
         </div>
-        <h3 class="admin-h" style="margin-top:18px">🗺 맵 관리</h3>
-        <p class="hint" id="admin-summary"></p>
-        <ol id="admin-map-list"></ol>
-        <h3 class="admin-h" style="margin-top:18px">✍️ 개선 요청 · 개발자에게 한마디</h3>
-        <p class="hint" id="admin-feedback-summary"></p>
-        <ol id="admin-feedback-list"></ol>
+        <div class="admin-col">
+          <h3 class="admin-h">🗺 맵 관리</h3>
+          <p class="hint" id="admin-summary"></p>
+          <ol id="admin-map-list"></ol>
+          <h3 class="admin-h" style="margin-top:18px">✍️ 개선 요청 · 개발자에게 한마디</h3>
+          <p class="hint" id="admin-feedback-summary"></p>
+          <ol id="admin-feedback-list"></ol>
+        </div>
       </div>
       <p class="error" id="admin-msg"></p>
     </div>

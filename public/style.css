@@ -68,10 +68,29 @@ body {
   overflow-x: hidden;
 }
 
-/* 관리자 전용 페이지 — 목록이 길 수 있어 넓게 */
-.admin-card {
-  width: min(560px, 94vw);
+/* 관리자 전용 페이지 — PC에서는 넓게(2단), 모바일은 좁게(1단) */
+.card.admin-card {
+  width: min(1120px, 96vw);
   text-align: left;
+}
+/* 로그인 상태에선 비밀번호 칸만 있으니 카드가 넓어도 입력은 컴팩트하게 */
+#admin-login {
+  max-width: 360px;
+}
+#admin-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 26px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .card.admin-card {
+    width: 94vw;
+  }
+  #admin-panel {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 
 .card {
