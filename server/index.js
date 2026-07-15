@@ -97,6 +97,12 @@ app.get('/api/donors', (_req, res) => {
   res.json({ donors: donors.list() });
 });
 
+// 아이템 도감 (공개) — 모든 아이템 메타데이터를 누구나 볼 수 있게
+const { ITEMS, itemMeta } = require('./items');
+app.get('/api/items', (_req, res) => {
+  res.json({ items: Object.values(ITEMS).map(itemMeta) });
+});
+
 // 개선 요청 / 개발자에게 한마디 — 제출은 공개(레이트리밋), 열람은 관리자만
 const { FeedbackStore } = require('./feedback');
 const feedback = new FeedbackStore();

@@ -71,6 +71,9 @@
       </div>
       <a class="donate-link hidden" target="_blank" rel="noopener"></a>
       <div class="home-links">
+        <button id="btn-items" class="link-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 12 20 21 4 21 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="21" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>아이템 도감
+        </button>
         <button id="btn-board" class="link-btn">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>전체 순위
         </button>
@@ -189,6 +192,16 @@
       <p class="hint">관전은 비밀번호 없이 언제든 가능해요.</p>
       <p class="error" id="join-pw-msg"></p>
       <button id="btn-join-pw-close" class="btn small">취소</button>
+    </div>
+  </div>
+
+  <!-- 🎁 아이템 도감 (누구나 열람) -->
+  <div id="items-modal" class="modal top-modal hidden">
+    <div class="modal-card">
+      <h2>🎁 아이템 도감</h2>
+      <p class="hint" style="margin-top:0">게임에 등장하는 모든 아이템이에요. 아이템전에서 각자 랜덤으로 2개씩 받습니다.</p>
+      <ol id="items-list"></ol>
+      <button id="btn-items-close" class="btn small">닫기</button>
     </div>
   </div>
 

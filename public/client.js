@@ -765,6 +765,50 @@
   });
   $('btn-hall-close').addEventListener('click', () => $('hall-modal').classList.add('hidden'));
 
+  // ── 🎁 아이템 도감 (누구나 열람) ──
+  const GRADE_META = {
+    normal: { label: '일반', cls: 'grade-normal' },
+    epic: { label: '에픽', cls: 'grade-epic' },
+    legend: { label: '레전드', cls: 'grade-legend' },
+  };
+  let itemsCache = null;
+  function renderItemsGuide(items) {
+    const list = $('items-list');
+    list.innerHTML = '';
+    // 등급 순서(일반→에픽→레전드)로 정렬해 보기 좋게
+    const order = { normal: 0, epic: 1, legend: 2 };
+    const sorted = [...items].sort((a, b) => (order[a.grade] ?? 9) - (order[b.grade] ?? 9));
+    for (const it of sorted) {
+      const g = GRADE_META[it.grade] || { label: it.grade, cls: 'grade-normal' };
+      const target = it.target === 'self' ? '내 공' : '상대 공';
+      const dur = it.duration > 0 ? `${Math.round(it.duration / 1000)}초` : '즉시';
+      const li = document.createElement('li');
+      li.className = 'item-guide-row';
+      li.innerHTML = `<span class="item-guide-emoji">${it.emoji}</span>
+        <div class="item-guide-body">
+          <div class="item-guide-head"><b>${escapeHtml(it.name)}</b>
+            <span class="grade-badge ${g.cls}">${g.label}</span>
+            <span class="item-guide-meta">${target} · ${dur}</span>
+          </div>
+          <div class="item-guide-desc">${escapeHtml(it.desc)}</div>
+        </div>`;
+      list.appendChild(li);
+    }
+  }
+  $('btn-items').addEventListener('click', () => {
+    $('items-modal').classList.remove('hidden');
+    if (itemsCache) return renderItemsGuide(itemsCache);
+    $('items-list').innerHTML = '<li class="hint" style="text-align:center">불러오는 중…</li>';
+    fetch('/api/items')
+      .then((r) => r.json())
+      .then(({ items }) => {
+        itemsCache = items || [];
+        renderItemsGuide(itemsCache);
+      })
+      .catch(() => ($('items-list').innerHTML = '<li class="error">불러오기 실패</li>'));
+  });
+  $('btn-items-close').addEventListener('click', () => $('items-modal').classList.add('hidden'));
+
   // ── ✍️ 개선 요청 / 개발자에게 한마디 ──
   $('btn-feedback').addEventListener('click', () => {
     $('feedback-msg').textContent = '';
