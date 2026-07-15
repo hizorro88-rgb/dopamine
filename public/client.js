@@ -1412,7 +1412,45 @@
       select.value = room.map ? room.map.id : 'classic';
       select.disabled = room.hostId !== myId;
       updateMapInfo();
+      renderRoundMaps();
     });
+  }
+
+  /** 시리즈(여러 판): 판마다 다른 맵을 고르는 UI. 단판이면 단일 맵 박스만 보인다. */
+  function renderRoundMaps() {
+    const isSeries = room && (room.rounds || 1) > 1 && Array.isArray(room.roundMaps);
+    $('map-box-single').classList.toggle('hidden', !!isSeries);
+    $('map-box-rounds').classList.toggle('hidden', !isSeries);
+    if (!isSeries) return;
+    const isHost = room.hostId === myId;
+    const list = $('round-maps-list');
+    list.innerHTML = '';
+    for (const rm of room.roundMaps) {
+      const li = document.createElement('li');
+      li.className = 'round-map-row';
+      const canvas = document.createElement('canvas');
+      canvas.className = 'map-thumb';
+      const sel = document.createElement('select');
+      sel.disabled = !isHost;
+      for (const m of mapList) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = mapOptionLabel(m);
+        sel.appendChild(opt);
+      }
+      sel.value = rm.mapId;
+      sel.addEventListener('change', (e) =>
+        socket.emit('room:setRoundMap', { round: rm.round, mapId: e.target.value })
+      );
+      const label = document.createElement('span');
+      label.className = 'round-map-no';
+      label.textContent = `${rm.round}판`;
+      li.appendChild(label);
+      li.appendChild(canvas);
+      li.appendChild(sel);
+      list.appendChild(li);
+      loadMapThumb(canvas, rm.mapId);
+    }
   }
 
   function updateMapInfo() {
@@ -1930,7 +1968,7 @@
   }
 
   /** 라운드 사이 인터스티셜: 방금 판 순위 + 누적 순위 + 카운트다운 */
-  socket.on('series:next', ({ round, total, standings, startInMs }) => {
+  socket.on('series:next', ({ round, total, standings, startInMs, mapName }) => {
     if (!game && !room) return;
     $('result-modal').classList.add('hidden');
     const title = $('series-title');
@@ -1938,6 +1976,7 @@
     const foot = $('series-foot');
     title.textContent = `🔁 ${round - 1}판 종료 — 곧 ${round}/${total}판 시작!`;
     let html = '';
+    if (mapName) html += `<div class="series-nextmap">🗺 다음 맵 · <b>${escapeHtml(mapName)}</b></div>`;
     if (seriesLastRound) {
       html += `<div class="series-section-label">방금 판 순위</div>`;
       html += `<ol class="series-standings compact">${seriesLastRound.ranking

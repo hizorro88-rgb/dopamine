@@ -103,6 +103,7 @@ class RoomManager {
         spectators: new Map(), // 관전자 (공·아이템 없음, 인원 제한 없음)
         game: null,
         mapId: 'classic',
+        roundMaps: [], // 시리즈: 판마다 다른 맵 (mapId 배열, 비면 mapId 사용)
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
         itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
@@ -311,12 +312,26 @@ class RoomManager {
       if (typeof cb === 'function') cb(result);
     });
 
-    // 방장이 대기실에서 맵 선택
+    // 방장이 대기실에서 맵 선택 (단판 또는 시리즈 1판)
     socket.on('room:setMap', ({ mapId } = {}) => {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
       if (!this.maps.get(mapId)) return;
       room.mapId = mapId;
+      if (room.roundMaps.length) room.roundMaps[0] = mapId; // 시리즈 1판도 함께
+      this.broadcastRoom(room);
+    });
+
+    // 방장이 대기실에서 특정 판(round)의 맵 선택 (시리즈)
+    socket.on('room:setRoundMap', ({ round, mapId } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      if (!this.maps.get(mapId)) return;
+      const idx = Math.round(Number(round)) - 1;
+      if (!Number.isInteger(idx) || idx < 0 || idx >= (room.rounds || 1)) return;
+      this._ensureRoundMaps(room);
+      room.roundMaps[idx] = mapId;
+      if (idx === 0) room.mapId = mapId; // 1판은 단일 맵 필드와 동기화
       this.broadcastRoom(room);
     });
 
@@ -350,6 +365,7 @@ class RoomManager {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
       room.rounds = sanitizeRounds(rounds);
+      this._ensureRoundMaps(room); // 판 수에 맞춰 판별 맵 배열 크기 조정
       this.broadcastRoom(room);
     });
 
@@ -439,6 +455,22 @@ class RoomManager {
     return code ? this.rooms.get(code) : null;
   }
 
+  /** roundMaps 배열을 rounds 길이에 맞춘다 (빈 칸은 mapId 로 채움) */
+  _ensureRoundMaps(room) {
+    const n = room.rounds || 1;
+    if (!Array.isArray(room.roundMaps)) room.roundMaps = [];
+    if (n <= 1) {
+      room.roundMaps = [];
+      return;
+    }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const id = room.roundMaps[i];
+      out.push(this.maps.get(id) ? id : room.mapId);
+    }
+    room.roundMaps = out;
+  }
+
   launchGame(room, { autoPilot }) {
     if (room.players.size < 1) return;
     // 여러 판 시리즈: 일반 게임에서 rounds>1 이고 아직 시리즈가 시작 안 됐으면 준비
@@ -449,9 +481,13 @@ class RoomManager {
         scores.set(p.id, 0);
         meta.set(p.id, { name: p.name, color: p.color });
       }
+      this._ensureRoundMaps(room); // 판별 맵 확정
       room.series = { total: room.rounds, roundNo: 1, scores, meta, roundResults: [] };
     }
-    const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
+    // 이번 판에 쓸 맵: 시리즈면 판별 맵, 아니면 단일 맵
+    const roundIdx = room.series ? room.series.roundNo - 1 : 0;
+    const mapId = (room.roundMaps && room.roundMaps[roundIdx]) || room.mapId;
+    const mapDef = this.maps.get(mapId) || this.maps.get('classic');
     room.state = 'playing';
     room.game = new Game(
       room,
@@ -490,11 +526,13 @@ class RoomManager {
       const nextNo = series.roundNo + 1;
       series.roundNo = nextNo;
       const startInMs = 6000;
+      const nextMapDef = this.maps.get((room.roundMaps && room.roundMaps[nextNo - 1]) || room.mapId);
       this.io.to(room.code).emit('series:next', {
         round: nextNo,
         total: series.total,
         standings: this.seriesStandings(series),
         startInMs,
+        mapName: nextMapDef ? nextMapDef.name : null,
       });
       if (room.seriesTimer) clearTimeout(room.seriesTimer);
       room.seriesTimer = setTimeout(() => {
@@ -529,6 +567,15 @@ class RoomManager {
 
   broadcastRoom(room) {
     const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
+    // 시리즈: 판별 맵 목록 (이름 포함) — 판 수>1 일 때만
+    let roundMaps = null;
+    if ((room.rounds || 1) > 1) {
+      this._ensureRoundMaps(room);
+      roundMaps = room.roundMaps.map((id, i) => {
+        const m = this.maps.get(id) || mapDef;
+        return { round: i + 1, mapId: m.id, mapName: m.name };
+      });
+    }
     this.io.to(room.code).emit('room:update', {
       code: room.code,
       hostId: room.hostId,
@@ -541,6 +588,7 @@ class RoomManager {
       ballsPerPlayer: room.ballsPerPlayer || 1,
       itemsEnabled: room.itemsEnabled !== false,
       rounds: room.rounds || 1, // 진행할 판 수 (시리즈)
+      roundMaps, // 시리즈: 판별 맵 [{round, mapId, mapName}] (단판이면 null)
       // 시리즈 진행 중이면 현재 판/총 판 (대기실·게임 화면 표시용)
       series: room.series ? { roundNo: room.series.roundNo, total: room.series.total } : null,
       locked: !!room.password, // 🔒 비밀방 여부
