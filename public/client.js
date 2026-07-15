@@ -800,7 +800,7 @@
       list.appendChild(li);
     }
   }
-  $('btn-items').addEventListener('click', () => {
+  function openItemsGuide() {
     $('items-modal').classList.remove('hidden');
     if (itemsCache) return renderItemsGuide(itemsCache);
     $('items-list').innerHTML = '<li class="hint" style="text-align:center">불러오는 중…</li>';
@@ -811,7 +811,9 @@
         renderItemsGuide(itemsCache);
       })
       .catch(() => ($('items-list').innerHTML = '<li class="error">불러오기 실패</li>'));
-  });
+  }
+  // 🎁 아이템전 버튼 옆의 ⓘ 인포 버튼(들) → 아이템 도감 열기
+  document.querySelectorAll('.items-info-btn').forEach((b) => b.addEventListener('click', openItemsGuide));
   $('btn-items-close').addEventListener('click', () => $('items-modal').classList.add('hidden'));
 
   // ── ✍️ 개선 요청 / 개발자에게 한마디 ──

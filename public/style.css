@@ -528,6 +528,39 @@ textarea:focus {
   cursor: default;
   opacity: 0.75;
 }
+/* ⓘ 아이템전 옆 인포 버튼 → 아이템 도감 열기 */
+.items-info-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s, transform 0.08s;
+}
+.items-info-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.items-info-btn:hover {
+  color: var(--accent2);
+  background: rgba(212, 175, 55, 0.16);
+}
+.items-info-btn:active {
+  transform: scale(0.9);
+}
 
 /* ── 인당 공 개수 선택 ── */
 .balls-row {
