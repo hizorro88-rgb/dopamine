@@ -822,13 +822,24 @@ textarea:focus {
 /* ── 명예의 전당 / 후원자 코드 ── */
 .home-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* 전체순위·명예의전당·후원자코드 세 링크를 한 줄에 */
   justify-content: center;
-  gap: 8px 16px;
+  align-items: center;
+  gap: 8px;
   margin-top: 16px;
+}
+.home-links .link-btn {
+  font-size: 11.5px;
+  padding: 4px 0;
+  gap: 4px;
+}
+.home-links .link-btn svg {
+  width: 13px;
+  height: 13px;
 }
 /* 개선 요청은 긴 문구라 아랫줄에 따로 두어 위 링크들을 밀지 않게 */
 .home-links-sub {
+  flex-wrap: wrap;
   margin-top: 8px;
 }
 .link-btn {
