@@ -474,12 +474,36 @@ textarea:focus {
   text-align: center;
 }
 .invite-code {
+  display: inline-block;
   font-family: 'Cinzel', serif;
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 8px;
   color: var(--accent2);
+  margin: 0 auto 6px;
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px dashed rgba(212, 175, 55, 0.4);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.08s;
+}
+.invite-code:hover {
+  background: rgba(212, 175, 55, 0.12);
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.3);
+}
+.invite-code:active {
+  transform: scale(0.97);
+}
+.invite-copy-hint {
+  font-size: 11px;
+  color: var(--muted);
   margin-bottom: 10px;
+  transition: color 0.15s;
+}
+.invite-copy-hint.copied {
+  color: #86e0a3;
+  font-weight: 600;
 }
 
 .player-list {

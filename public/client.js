@@ -1667,14 +1667,21 @@
   });
   $('btn-new-map').addEventListener('click', () => openEditor({ from: 'maps' }));
 
-  $('btn-copy').addEventListener('click', async () => {
+  // 방 코드를 클릭하면 초대 링크 복사
+  $('lobby-code').addEventListener('click', async () => {
+    if (!room) return;
     const url = `${location.origin}${location.pathname}?room=${room.code}`;
+    const hint = $('lobby-copy-hint');
     if (await copyText(url)) {
-      $('btn-copy').textContent = '✅ 복사 완료!';
+      hint.textContent = '✅ 초대 링크가 복사됐어요!';
+      hint.classList.add('copied');
     } else {
       prompt('아래 링크를 복사해서 친구에게 보내주세요:', url);
     }
-    setTimeout(() => ($('btn-copy').textContent = '🔗 초대 링크 복사'), 1500);
+    setTimeout(() => {
+      hint.textContent = '🔗 코드를 클릭하면 초대 링크 복사';
+      hint.classList.remove('copied');
+    }, 1600);
   });
 
   $('btn-start').addEventListener('click', () => socket.emit('game:start'));
