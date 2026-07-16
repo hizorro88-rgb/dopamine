@@ -533,6 +533,42 @@ textarea:focus {
   font-size: 12px;
   color: #ffd76a;
 }
+/* 내 이름: 클릭하면 인라인 편집 */
+.player-name-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.player-name-btn:hover {
+  background: rgba(212, 175, 55, 0.14);
+}
+.name-edit-pencil {
+  font-size: 12px;
+  opacity: 0.6;
+}
+.player-list li.me-editing {
+  gap: 8px;
+}
+.inline-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent2);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+.inline-name-save {
+  flex-shrink: 0;
+}
 
 /* ── 후원 링크 ── */
 .donate-link {

@@ -825,9 +825,8 @@
       })
       .catch(() => ($('items-list').innerHTML = '<li class="error">불러오기 실패</li>'));
   }
-  // 🎁 아이템전 버튼 옆의 ⓘ 인포 버튼(들) + 홈 하단 링크 → 아이템 도감 열기
+  // 🎁 아이템전 버튼 옆의 ⓘ 인포 버튼(들) → 아이템 도감 열기 (대기실에서 접근)
   document.querySelectorAll('.items-info-btn').forEach((b) => b.addEventListener('click', openItemsGuide));
-  $('btn-items-home').addEventListener('click', openItemsGuide);
   $('btn-items-close').addEventListener('click', () => $('items-modal').classList.add('hidden'));
 
   // ── ✍️ 개선 요청 / 개발자에게 한마디 ──
@@ -1289,6 +1288,21 @@
     }
   });
 
+  // 내 이름 인라인 편집 상태 (플레이어 목록에서 내 이름 클릭 시)
+  const nameEdit = { active: false, value: '' };
+  function submitInlineName() {
+    const name = (nameEdit.value || '').trim();
+    if (!name) return toast('⚠️ 닉네임을 입력해주세요.');
+    socket.emit('room:rename', { name }, (res) => {
+      if (!res || !res.ok) return toast(`⚠️ ${(res && res.error) || '변경 실패'}`);
+      sessionStorage.setItem('pinball-name', res.name);
+      localStorage.setItem('pinball-name-manual', res.name);
+      nameEdit.active = false;
+      toast(`✅ "${res.name}"(으)로 변경했어요.`);
+      renderLobby();
+    });
+  }
+
   function renderLobby() {
     $('lobby-code').textContent = room.code;
     // 가까이 있는 사람은 QR을 찍어서 바로 입장 (같은 코드면 다시 그리지 않음)
@@ -1309,20 +1323,46 @@
     list.innerHTML = '';
     for (const p of room.players) {
       const li = document.createElement('li');
-      li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>
-        <span>${p.isDonor ? '💖 ' : ''}${escapeHtml(p.name)}${p.id === myId ? ' (나)' : ''}</span>
-        ${p.id === room.hostId ? '<span class="host-badge">👑 방장</span>' : ''}`;
+      const isMe = p.id === myId && !spectating;
+      const hostBadge = p.id === room.hostId ? '<span class="host-badge">👑 방장</span>' : '';
+      if (isMe && nameEdit.active) {
+        // 내 이름 인라인 편집: 입력창 + 변경 버튼
+        li.className = 'me-editing';
+        li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>
+          <input class="inline-name-input" type="text" maxlength="12" autocomplete="off" />
+          <button class="btn small inline-name-save">변경</button>`;
+        const input = li.querySelector('.inline-name-input');
+        input.value = nameEdit.value;
+        input.addEventListener('input', () => (nameEdit.value = input.value));
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') submitInlineName();
+          else if (e.key === 'Escape') { nameEdit.active = false; renderLobby(); }
+        });
+        li.querySelector('.inline-name-save').addEventListener('click', submitInlineName);
+      } else {
+        const nameHtml = `${p.isDonor ? '💖 ' : ''}${escapeHtml(p.name)}${p.id === myId ? ' (나)' : ''}`;
+        li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>
+          ${isMe
+            ? `<button class="player-name-btn" title="클릭해서 이름 변경">${nameHtml} <span class="name-edit-pencil">✏️</span></button>`
+            : `<span>${nameHtml}</span>`}
+          ${hostBadge}`;
+        if (isMe) {
+          li.querySelector('.player-name-btn').addEventListener('click', () => {
+            nameEdit.active = true;
+            nameEdit.value = p.name;
+            renderLobby();
+          });
+        }
+      }
       list.appendChild(li);
     }
-    // 내 닉네임 변경 행 — 플레이어만(관전자 제외), 편집 중이 아니면 현재 이름으로 채움
-    const me = room.players.find((p) => p.id === myId);
-    const renameRow = $('lobby-rename-row');
-    if (me && !spectating) {
-      renameRow.style.display = '';
-      const nameInput = $('input-lobby-name');
-      if (document.activeElement !== nameInput) nameInput.value = me.name;
-    } else {
-      renameRow.style.display = 'none';
+    // 편집 중이면 입력창에 포커스 + 커서 끝으로
+    if (nameEdit.active) {
+      const input = list.querySelector('.inline-name-input');
+      if (input && document.activeElement !== input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
     }
     const isHost = room.hostId === myId;
     const startBtn = $('btn-start');
@@ -1694,28 +1734,6 @@
   });
 
   // 대기실에서 내 닉네임 변경
-  function submitLobbyRename() {
-    const name = $('input-lobby-name').value.trim();
-    const msg = $('lobby-rename-msg');
-    if (!name) return (msg.textContent = '닉네임을 입력해주세요.');
-    socket.emit('room:rename', { name }, (res) => {
-      if (!res || !res.ok) {
-        msg.style.color = 'var(--danger)';
-        return (msg.textContent = (res && res.error) || '변경 실패');
-      }
-      // 이 탭·다음 방문용으로도 기억 (홈 입력과 동일 규칙)
-      sessionStorage.setItem('pinball-name', res.name);
-      localStorage.setItem('pinball-name-manual', res.name);
-      msg.style.color = '#6fdfa0';
-      msg.textContent = `✅ "${res.name}"(으)로 변경했어요.`;
-      $('input-lobby-name').value = res.name;
-    });
-  }
-  $('btn-lobby-rename').addEventListener('click', submitLobbyRename);
-  $('input-lobby-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitLobbyRename();
-  });
-
   // ── 게임 시작 ─────────────────────────────────────────
   // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
   function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished, introMs }) {
