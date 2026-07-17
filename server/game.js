@@ -34,7 +34,7 @@ const settings = require('./settings'); // 낙하배속·아이템소개·자동
 const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
-const SNAPSHOT_EVERY = 2; // 스냅샷 30Hz
+const SNAPSHOT_EVERY = 1; // 스냅샷 60Hz — 보간 구간이 절반(16.7ms)이라 더 부드럽고 지연도 낮출 수 있다
 // 물리 미세 분할: 한 스텝(16.67ms)을 여러 번에 나눠 적분한다.
 // 빠른 공이 한 스텝에 최대 38px 이동 → 두께 12~14px 벽을 그냥 통과(터널링)하던 버그 방지.
 // 4분할이면 충돌 검사 사이 이동이 ≤9.5px로 가장 얇은 벽보다 짧아 공이 오브젝트를 뚫지 못한다.
@@ -731,19 +731,22 @@ class Game {
     const balls = [];
     for (const ball of this.balls.values()) {
       if (ball.plugin.done) continue;
-      balls.push({
-        k: ball.plugin.key,
-        p: ball.plugin.playerId,
-        i: ball.plugin.idx,
+      const bp = ball.plugin;
+      // 60Hz 전송을 가볍게: 0인 플래그는 생략(클라는 truthy 검사) — 대부분의 공은 x/y만 전송
+      const e = {
+        k: bp.key,
+        p: bp.playerId,
+        i: bp.idx,
         x: Math.round(ball.position.x * 10) / 10,
         y: Math.round(ball.position.y * 10) / 10,
-        g: ball.plugin.ghost ? 1 : 0,
-        f: ball.plugin.frozen ? 1 : 0,
-        b: ball.plugin.balloon ? 1 : 0,
-        m: ball.plugin.magnet ? 1 : 0,
-        s: ball.plugin.slowed ? 1 : 0,
-        o: ball.plugin.morph || 0, // 🎭 변신 도형 (0=없음, 1~5)
-      });
+      };
+      if (bp.ghost) e.g = 1;
+      if (bp.frozen) e.f = 1;
+      if (bp.balloon) e.b = 1;
+      if (bp.magnet) e.m = 1;
+      if (bp.slowed) e.s = 1;
+      if (bp.morph) e.o = bp.morph; // 🎭 변신 도형 (1~5)
+      balls.push(e);
     }
     // ✨ 분신은 반투명 잔상으로만 표시 (도착·순위 대상 아님)
     for (const c of this.clones) {
