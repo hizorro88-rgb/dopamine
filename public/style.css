@@ -2066,7 +2066,7 @@ textarea:focus {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 5; /* 결과 카드 위에서 폭죽이 터지도록 (클릭은 통과) */
 }
 
 /* ── 🔁 시리즈(여러 판) 화면 ── */
@@ -2081,7 +2081,7 @@ textarea:focus {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 5; /* 결과 카드 위에서 폭죽이 터지도록 (클릭은 통과) */
 }
 .series-section-label {
   text-align: left;
