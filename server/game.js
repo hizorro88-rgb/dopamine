@@ -200,6 +200,7 @@ class Game {
     this.introUntil = 0;
     this.introDone = false;
     this.tickCount = 0;
+    this.lastSubCount = 1; // 적응형 물리 분할: 직전 스텝의 분할 수
     this.interval = null;
     this.over = false;
 
@@ -642,13 +643,22 @@ class Game {
     }
 
     // 🏁 골인 통과 판정을 위해 업데이트 직전 y를 기록 (틱 사이 선 통과 감지)
+    // + 가장 빠른 공의 속도를 함께 구해 이번 스텝의 미세 분할 수를 정한다(적응형).
+    let maxSpeed = 0;
     for (const ball of this.balls.values()) {
-      if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
+      if (ball.plugin.done) continue;
+      ball.plugin.prevY = ball.position.y;
+      if (ball.speed > maxSpeed) maxSpeed = ball.speed;
     }
 
-    // 물리 적분을 미세 분할해 터널링(공이 얇은 벽을 뚫는 현상)을 막는다.
-    const subDt = TICK_MS / PHYSICS_SUBSTEPS;
-    for (let k = 0; k < PHYSICS_SUBSTEPS; k++) Matter.Engine.update(this.engine, subDt);
+    // 적응형 미세 분할: 느린 공(대부분)은 1스텝, 빠른 공만 잘게 나눠 터널링 방지.
+    // 직전 스텝의 분할 수로 '한 스텝당 이동량'을 환산 → 검사 간 이동 ≤19px 유지.
+    // (충돌 감지 밴드 ≈26px, 19px/검사면 얇은 12~14px 벽도 확실히 잡힘 — 실측 0/40 통과)
+    const fullDisp = maxSpeed * (this.lastSubCount || 1);
+    const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
+    this.lastSubCount = sub;
+    const subDt = TICK_MS / sub;
+    for (let k = 0; k < sub; k++) Matter.Engine.update(this.engine, subDt);
 
     // 도착/굴레 판정
     for (const [key, ball] of this.balls) {

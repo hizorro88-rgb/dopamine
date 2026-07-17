@@ -2467,9 +2467,11 @@
     const alpha = span > 0 ? Math.min(Math.max((renderT - a.t) / span, 0), 1) : 1;
 
     // 공 매칭 키: 멀티볼은 k(playerId:idx), 리플레이는 p
-    const keyOf = (x) => x.k || x.p;
+    // a 스냅샷을 Map 으로 색인해 매 프레임 O(n²) find 를 O(n) 조회로
+    const aByKey = new Map();
+    for (const x of a.balls) aByKey.set(x.k || x.p, x);
     return b.balls.map((bb) => {
-      const ab = a.balls.find((x) => keyOf(x) === keyOf(bb));
+      const ab = aByKey.get(bb.k || bb.p);
       if (!ab) return bb;
       // 순간이동(굴레·원점·포탈)으로 위치가 크게 튀면 보간/트레일 없이 스냅 — 화면을 가로지르는 잔상 방지
       const dx = bb.x - ab.x;

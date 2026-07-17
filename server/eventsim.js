@@ -177,6 +177,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
   let step = 0;
   let triggerIdx = 0;
   const maxSteps = Math.ceil(SIM_MAX_MS / TICK_MS);
+  let lastSubCount = 1; // 적응형 물리 분할: 직전 스텝의 분할 수
 
   while (step < maxSteps) {
     const chunkEnd = Math.min(step + STEPS_PER_CHUNK, maxSteps);
@@ -260,13 +261,20 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
-      // 🏁 골인 통과 판정을 위해 업데이트 직전 y 기록
+      // 🏁 골인 통과 판정을 위해 업데이트 직전 y 기록 + 최고 속도(적응형 분할용)
+      let maxSpeed = 0;
       for (const ball of balls.values()) {
-        if (!ball.plugin.done) ball.plugin.prevY = ball.position.y;
+        if (ball.plugin.done) continue;
+        ball.plugin.prevY = ball.position.y;
+        if (ball.speed > maxSpeed) maxSpeed = ball.speed;
       }
 
-      const subDt = TICK_MS / PHYSICS_SUBSTEPS;
-      for (let k = 0; k < PHYSICS_SUBSTEPS; k++) Matter.Engine.update(engine, subDt);
+      // 적응형 미세 분할 (라이브 게임과 동일: 검사 간 이동 ≤19px)
+      const fullDisp = maxSpeed * lastSubCount;
+      const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
+      lastSubCount = sub;
+      const subDt = TICK_MS / sub;
+      for (let k = 0; k < sub; k++) Matter.Engine.update(engine, subDt);
 
       // 도착/굴레 판정
       for (const [pid, ball] of balls) {
