@@ -1216,6 +1216,7 @@
       overShown: false,
       camY: 0,
       explosions: [],
+      blackholes: [], // 🌀 renderFrame 이 매 프레임 참조 — 없으면 크래시(리플레이도 필수)
       celebrations: [], // 🎉 우승 축포 (renderFrame 이 매 프레임 참조 — 없으면 크래시)
       fxPops: [], // 아이템 발동 순간 팝
       fxSeen: new Map(), // ballKey -> 직전 상태 플래그
@@ -2813,6 +2814,9 @@
 
       // 아이템 발동 순간 감지 → 팝 이펙트 (내가 쓰거나 당했을 때 확실히 보이게)
       detectEffectPops(b, key, b.p === mineKey);
+
+      // 화면 밖 공은 그리지 않는다 — 500명 이벤트에서 대부분의 공은 카메라 밖이라 큰 절약
+      if (b.y < camY - 80 || b.y > camY + VIEW.height + 80) continue;
 
       // 🧊 얼음: 으슬으슬 떠는 지터 / 🎈 풍선: 말랑말랑 흔들림
       const ph = key.length + (b.i || 0) * 3;

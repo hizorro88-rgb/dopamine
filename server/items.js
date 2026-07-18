@@ -136,7 +136,7 @@ const ITEMS = {
     tick(game, ball) {
       if (!ball.plugin.magnet) return;
       // 골인 지점(x) 쪽으로 끌어당긴다 — 맵 폭에 따라 골인 위치가 달라도 정확
-      const targetX = game.finishZone ? game.finishZone.x : game.width / 2;
+      const targetX = game.finishZone ? game.finishZone.x : (game.width || 600) / 2;
       const pullX = (targetX - ball.position.x) * 0.004;
       Matter.Body.setVelocity(ball, {
         x: ball.velocity.x * 0.92 + pullX,

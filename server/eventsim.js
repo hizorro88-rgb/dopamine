@@ -62,7 +62,9 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     BALL_RESTITUTION,
     balls,
     height,
+    width: built.board.world.width, // 🧲 자석 등 폭 인식 아이템용
     goalY,
+    finishZone: finish, // 🧲 자석이 골인 x로 끌어당길 때 참조
     activeEffects,
     reactive: built.reactive,
     now: () => simNow,
