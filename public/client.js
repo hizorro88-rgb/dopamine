@@ -2151,12 +2151,17 @@
   const CONFETTI_COLORS = ['#d4af37', '#e8d48b', '#b23a48', '#f0ead6', '#c0c0c8', '#8a6d4a'];
   const FIREWORK_COLORS = ['#ff5c7a', '#ffd12e', '#35e0ff', '#9bec00', '#c86bff', '#ff9d2e', '#fff3b0'];
   function startSeriesConfetti() {
-    startConfetti('series-confetti', 'series-modal');
+    startConfetti('series-confetti', 'series-confetti-front', 'series-modal');
   }
-  function startConfetti(canvasId = 'confetti', modalId = 'result-modal') {
-    const c = $(canvasId);
+  // 색종이(back 캔버스, 카드 뒤) + 폭죽(front 캔버스, 카드 앞)을 각각 그린다.
+  function startConfetti(backId = 'confetti', frontId = 'confetti-front', modalId = 'result-modal') {
+    const c = $(backId);
+    const cxf = $(frontId).getContext('2d');
+    const cFront = $(frontId);
     c.width = c.clientWidth;
     c.height = c.clientHeight;
+    cFront.width = c.width;
+    cFront.height = c.height;
     const cx = c.getContext('2d');
     // 색종이 비 (배경에 은은하게 계속)
     const parts = Array.from({ length: 110 }, () => ({
@@ -2205,6 +2210,7 @@
     const step = (now) => {
       if ($(modalId).classList.contains('hidden')) {
         cx.clearRect(0, 0, c.width, c.height);
+        cxf.clearRect(0, 0, c.width, c.height);
         return; // 화면 닫히면 종료
       }
       const dt = Math.min(48, now - last);
@@ -2218,9 +2224,8 @@
         }
       }
 
+      // ── 뒤(back) 캔버스: 색종이 비 — 카드 뒤에서 흩날림 ──
       cx.clearRect(0, 0, c.width, c.height);
-
-      // 색종이 비
       for (const p of parts) {
         p.x += p.vx;
         p.y += p.vy;
@@ -2237,9 +2242,10 @@
         cx.restore();
       }
 
-      // 폭죽 불꽃 (중력 + 페이드 + 글로우)
-      cx.save();
-      cx.globalCompositeOperation = 'lighter';
+      // ── 앞(front) 캔버스: 폭죽 불꽃 — 결과 카드 앞에서 터짐 ──
+      cxf.clearRect(0, 0, c.width, c.height);
+      cxf.save();
+      cxf.globalCompositeOperation = 'lighter';
       for (let i = sparks.length - 1; i >= 0; i--) {
         const s = sparks[i];
         s.life += dt;
@@ -2254,15 +2260,15 @@
         s.vx *= 0.985;
         s.vy *= 0.985;
         const alpha = 1 - s.life / s.ttl;
-        cx.globalAlpha = alpha;
-        cx.fillStyle = s.color;
-        cx.shadowColor = s.color;
-        cx.shadowBlur = 8;
-        cx.beginPath();
-        cx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        cx.fill();
+        cxf.globalAlpha = alpha;
+        cxf.fillStyle = s.color;
+        cxf.shadowColor = s.color;
+        cxf.shadowBlur = 8;
+        cxf.beginPath();
+        cxf.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        cxf.fill();
       }
-      cx.restore();
+      cxf.restore();
 
       requestAnimationFrame(step);
     };

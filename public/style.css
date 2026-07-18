@@ -2060,13 +2060,24 @@ textarea:focus {
   position: relative;
   z-index: 2;
 }
-#confetti {
+/* 색종이(뒤에서 흩날림) / 폭죽(카드 앞에서 터짐) 2겹 */
+#confetti,
+#confetti-front,
+#series-confetti,
+#series-confetti-front {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 5; /* 결과 카드 위에서 폭죽이 터지도록 (클릭은 통과) */
+}
+#confetti,
+#series-confetti {
+  z-index: 1; /* 색종이 비 — 카드 뒤 */
+}
+#confetti-front,
+#series-confetti-front {
+  z-index: 5; /* 폭죽 — 카드 앞 (클릭은 pointer-events:none 으로 통과) */
 }
 
 /* ── 🔁 시리즈(여러 판) 화면 ── */
@@ -2074,14 +2085,6 @@ textarea:focus {
   width: min(440px, 94vw);
   position: relative;
   z-index: 2;
-}
-#series-confetti {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 5; /* 결과 카드 위에서 폭죽이 터지도록 (클릭은 통과) */
 }
 .series-section-label {
   text-align: left;
