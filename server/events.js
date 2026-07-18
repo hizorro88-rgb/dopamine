@@ -13,7 +13,9 @@ const zlib = require('zlib');
 const { simulateEvent } = require('./eventsim');
 const { RateLimiter } = require('./security');
 
-const MAX_PARTICIPANTS = 500; // 공(참가자) 상한 — 시뮬레이션 성능 기준
+// 공(참가자) 상한 — 아이템 없는 순수 낙하라 1000명까지 클라 60fps 실측 확인.
+// 서버 시뮬 시간은 인원에 초선형으로 늘어(사양 낮으면 더 오래) 환경변수로 조절 가능.
+const MAX_PARTICIPANTS = Math.min(3000, Math.max(2, Number(process.env.EVENT_MAX_PARTICIPANTS) || 1000));
 const MAX_EVENTS = 1000; // 동시 이벤트 총량 (스팸/메모리 고갈 방지)
 const PLAYBACK_DELAY_MS = 8000; // 리플레이 다운로드 여유 시간
 const RECENT_NAMES = 30;

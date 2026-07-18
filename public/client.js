@@ -1044,7 +1044,7 @@
         if (evQr.parentElement) evQr.parentElement.style.display = 'none';
       }
     }
-    $('event-participant-count').textContent = `참가 ${ev.participantCount || 0}/${ev.maxParticipants || 500}명`;
+    $('event-participant-count').textContent = `참가 ${ev.participantCount || 0}/${ev.maxParticipants || 1000}명`;
     $('event-viewers').textContent = `시청 ${ev.viewers || 0}명`;
 
     const names = $('event-names');
