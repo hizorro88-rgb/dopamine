@@ -18,8 +18,7 @@ const {
   DEFAULT_MASK,
   BALL_RESTITUTION,
 } = require('./board');
-const { ITEMS, itemMeta, GRADES } = require('./items');
-const { HIT_ACTIONS } = require('./game');
+const { HIT_ACTIONS } = require('./game'); // 폭탄·점프패드 등 반응형 구성요소 동작 (아이템 아님)
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
@@ -27,7 +26,6 @@ const PHYSICS_SUBSTEPS = 4; // 물리 미세 분할 (라이브 게임과 동일:
 // 재생은 게임 시간을 TIME_SCALE 배속으로 압축해 실제 20Hz 로 녹화
 const FRAME_EVERY = 3 * TIME_SCALE;
 const SIM_MAX_MS = 180000; // 시뮬레이션 최대 게임시간
-const MAX_AUTO_ITEMS = 40; // 자동 아이템 발동 최대 횟수 (토스트 도배 방지)
 const STEPS_PER_CHUNK = 240; // 이벤트 루프를 막지 않도록 청크 단위로 실행
 
 /**
@@ -130,45 +128,8 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     if (action) action(sim, inst, ballBody);
   }
 
-  // 자동 아이템 발동 스케줄: 시뮬레이션 전체에 걸쳐 무작위 시점 (레전드 제외)
-  // 이벤트 자동발동은 흔한 등급만 (전설·신화·유일은 제외 — 너무 판을 흔든다)
-  const itemIds = Object.keys(ITEMS).filter((id) => {
-    const g = ITEMS[id].grade;
-    return g !== 'legend' && !(GRADES[g] && GRADES[g].special);
-  });
-  const triggerCount = Math.min(MAX_AUTO_ITEMS, Math.max(4, Math.floor(participants.length / 4)));
-  const triggers = Array.from({ length: triggerCount }, () => ({
-    t: 2000 + Math.random() * 70000,
-    itemId: itemIds[Math.floor(Math.random() * itemIds.length)],
-    fired: false,
-  })).sort((a, b) => a.t - b.t);
-
-  function fireTrigger(trigger) {
-    const alive = [...balls.entries()].filter(([, b]) => !b.plugin.done);
-    if (alive.length === 0) return;
-    const item = ITEMS[trigger.itemId];
-    const [byId] = alive[Math.floor(Math.random() * alive.length)];
-    let targetId = byId;
-    if (item.target === 'opponent') {
-      const others = alive.filter(([pid]) => pid !== byId);
-      if (others.length === 0) return;
-      targetId = others[Math.floor(Math.random() * others.length)][0];
-    }
-    const ball = balls.get(targetId);
-    item.apply(sim, ball);
-    if (item.duration > 0) {
-      activeEffects.push({ itemId: item.id, ball, until: simNow + item.duration });
-    }
-    const byName = nameOf(byId);
-    events.push({
-      t: Math.round(simNow / TIME_SCALE),
-      type: 'item',
-      by: byName,
-      target: nameOf(targetId),
-      self: item.target === 'self',
-      item: itemMeta(item),
-    });
-  }
+  // 🎪 이벤트 추첨은 아이템 없이 진행한다 (수백 명 규모라 부하·변수를 줄이고
+  //    순수 낙하 경쟁으로 단순화). 아이템 자동 발동·지속효과 로직을 두지 않는다.
 
   const nameOf = (pid) => {
     const p = participants.find((x) => x.id === pid);
@@ -177,7 +138,6 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
 
   // ── 시뮬레이션 루프 (청크 단위로 이벤트 루프 양보) ──
   let step = 0;
-  let triggerIdx = 0;
   const maxSteps = Math.ceil(SIM_MAX_MS / TICK_MS);
   let lastSubCount = 1; // 적응형 물리 분할: 직전 스텝의 분할 수
 
@@ -213,39 +173,11 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
-      // 지속형 아이템 효과 만료
-      for (let i = activeEffects.length - 1; i >= 0; i--) {
-        const fx = activeEffects[i];
-        if (simNow >= fx.until) {
-          const item = ITEMS[fx.itemId];
-          if (item.expire && !fx.ball.plugin.done) item.expire(sim, fx.ball);
-          activeEffects.splice(i, 1);
-        }
-      }
-
-      // 지속형 아이템 매 틱 효과 (자석, 번개 등)
-      for (const fx of activeEffects) {
-        const item = ITEMS[fx.itemId];
-        if (item.tick && !fx.ball.plugin.done) item.tick(sim, fx.ball);
-      }
-
-      // 자동 아이템 발동
-      while (triggerIdx < triggers.length && triggers[triggerIdx].t <= simNow) {
-        fireTrigger(triggers[triggerIdx]);
-        triggerIdx++;
-      }
-
-      // 얼린 공 고정
-      for (const ball of balls.values()) {
-        if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
-          Matter.Body.setVelocity(ball, { x: 0, y: 0 });
-          Matter.Body.setPosition(ball, ball.plugin.frozenPos);
-        }
-      }
+      // (이벤트는 아이템 없음 — 지속효과·자동발동·얼림 로직 없음)
 
       // 갇힘 구출 (라이브 게임과 동일: 하강 진전 없고 거의 멈춘 공만 튕겨줌)
       for (const ball of balls.values()) {
-        if (ball.plugin.done || ball.plugin.frozen) continue;
+        if (ball.plugin.done) continue;
         const progressed =
           ball.plugin.progressY === undefined || ball.position.y > ball.plugin.progressY + 6;
         const speed = Math.hypot(ball.velocity.x, ball.velocity.y);
