@@ -3951,6 +3951,21 @@
     if (editor.viewOnly) return; // 구경 모드: 스크롤만 가능
     const pos = eventToWorld(e);
     const hit = hitTest(pos);
+    const additive = e.ctrlKey || e.metaKey; // Ctrl(⌘) 누른 채 클릭 = 그룹에 추가/제거
+
+    // Ctrl+클릭: 클릭한 요소를 그룹에 넣거나 뺀다 (드래그 없이 선택만 토글).
+    // 여러 개를 Ctrl+클릭으로 모은 뒤, 그중 하나를 그냥 드래그하면 함께 움직인다.
+    if (additive) {
+      if (hit >= 0) {
+        const comp = editor.comps[hit];
+        if (editor.selComps.has(comp)) editor.selComps.delete(comp);
+        else editor.selComps.add(comp);
+        editor.selFinish = false;
+        editor.selected = editor.selComps.size === 1 ? editor.comps.indexOf([...editor.selComps][0]) : -1;
+        renderPropsPanel();
+      }
+      return; // Ctrl+빈곳은 아무 것도 하지 않음(실수 배치 방지)
+    }
 
     // 🔲 선택 도구: 요소 위면 (그룹)이동, 빈 곳이면 마퀴 드래그로 다중 선택
     if (editor.tool === 'select') {
@@ -3981,7 +3996,10 @@
 
     // 일반 배치 도구
     if (hit >= 0) {
-      selectOne(editor.comps[hit]);
+      const comp = editor.comps[hit];
+      // 이미 그룹에 포함된 요소를 잡으면 그룹째 이동, 아니면 그것만 선택해 이동
+      if (!editor.selComps.has(comp)) selectOne(comp);
+      else editor.selected = editor.comps.indexOf(comp);
       beginMove(pos, false);
     } else if (finishHitTest(pos)) {
       editor.selFinish = true;
