@@ -593,14 +593,23 @@ class Game {
     }
 
     // 지속형 아이템 효과 만료 처리 (게임 시간 기준)
-    this.activeEffects = this.activeEffects.filter((fx) => {
-      if (sim >= fx.until) {
-        const item = ITEMS[fx.itemId];
-        if (item.expire && !fx.ball.plugin.done) item.expire(this, fx.ball);
-        return false;
+    // 대부분의 스텝은 만료가 없으므로 새 배열 생성 없이 만료가 있을 때만 걸러낸다(GC 절감)
+    if (this.activeEffects.length) {
+      let anyExpired = false;
+      for (const fx of this.activeEffects) {
+        if (sim >= fx.until) { anyExpired = true; break; }
       }
-      return true;
-    });
+      if (anyExpired) {
+        this.activeEffects = this.activeEffects.filter((fx) => {
+          if (sim >= fx.until) {
+            const item = ITEMS[fx.itemId];
+            if (item.expire && !fx.ball.plugin.done) item.expire(this, fx.ball);
+            return false;
+          }
+          return true;
+        });
+      }
+    }
 
     // 지속형 아이템 매 스텝 효과 (자석 끌림, 번개 감속 등)
     for (const fx of this.activeEffects) {
@@ -704,8 +713,7 @@ class Game {
         const player = this.room.players.get(ball.plugin.playerId);
         const name = player ? player.name : '?';
         // 🎉 축포: 먼저 골인 우승 → 첫 골인 / 늦게 골인 우승 → 마지막 골인 순간
-        const allDoneNow = [...this.balls.values()].every((b) => b.plugin.done);
-        const celebrate = this.winMode === 'last' ? allDoneNow : this.finished.length === 1;
+        const celebrate = this.winMode === 'last' ? this.allBallsDone() : this.finished.length === 1;
         this.io.to(this.room.code).emit('game:ballFinished', {
           playerId: ball.plugin.playerId,
           ballIndex: ball.plugin.idx,
@@ -730,10 +738,17 @@ class Game {
     }
 
     // 종료 판정: 전 공 도착 or 낙하 후 제한시간(게임 시간) 초과
-    const allDone = [...this.balls.values()].every((b) => b.plugin.done);
-    if (allDone || sim - this.dropSimMs > GAME_TIMEOUT_MS) {
+    if (this.allBallsDone() || sim - this.dropSimMs > GAME_TIMEOUT_MS) {
       this.finish();
     }
+  }
+
+  /** 모든 공이 도착했는지 — 배열 생성 없이 조기 종료 (substep 마다 호출되는 핫패스) */
+  allBallsDone() {
+    for (const b of this.balls.values()) {
+      if (!b.plugin.done) return false;
+    }
+    return true;
   }
 
   broadcastSnapshot() {

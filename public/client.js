@@ -292,7 +292,7 @@
 
   function drawMinimap(
     mCanvas,
-    { width = WORLD.width, height, components, balls, camY, elapsed, selected, hidden, explosions, dynamic }
+    { width = WORLD.width, height, components, balls, players, selfId, camY, elapsed, selected, hidden, hiddenV, explosions, dynamic }
   ) {
     const mctx = mCanvas.getContext('2d');
     const s = mCanvas.width / width;
@@ -311,9 +311,9 @@
       }
     } else {
       // 게임: 회전하지 않는 구성요소는 정적 레이어로 캐시 (숨김 상태가 바뀌면 갱신)
+      // 숨김 집합 직렬화(정렬+join) 대신 버전 정수로 캐시 무효화 — 매 프레임 할당 제거
       const key =
-        mCanvas.width + ':' + height + ':' + components.length + ':' +
-        (hidden ? [...hidden].sort().join(',') : '');
+        mCanvas.width + ':' + height + ':' + components.length + ':' + (hiddenV || 0);
       if (!miniStatic || miniStatic.key !== key) {
         const cache = document.createElement('canvas');
         cache.width = mCanvas.width;
@@ -365,14 +365,16 @@
       mctx.stroke();
     }
 
-    // 공 (미니맵에서 보이도록 확대)
+    // 공 (미니맵에서 보이도록 확대) — 색·본인 여부는 여기서 해석(매 프레임 배열 생성 제거)
     if (balls) {
       for (const b of balls) {
+        const mine = players ? b.p === selfId : b.mine;
+        const p = players ? players.get(b.p) : null;
         mctx.beginPath();
-        mctx.arc(b.x, b.y, b.mine ? 34 : 26, 0, Math.PI * 2);
-        mctx.fillStyle = b.color;
+        mctx.arc(b.x, b.y, mine ? 34 : 26, 0, Math.PI * 2);
+        mctx.fillStyle = players ? (p ? p.color : '#888') : b.color;
         mctx.fill();
-        if (b.mine) {
+        if (mine) {
           mctx.strokeStyle = '#ffffff';
           mctx.lineWidth = 10;
           mctx.stroke();
@@ -1943,8 +1945,26 @@
       toast('🎲 낙하 시작!');
     }
     game.shuffling = !!snap.sh;
-    game.hiddenComps = new Set(snap.off || []);
+    updateHiddenComps(snap.off);
   });
+
+  // 숨김 구성요소 집합을 재사용 Set 으로 갱신하고, 실제로 바뀐 경우에만 버전을 올린다
+  // (버전이 바뀔 때만 미니맵 정적 캐시가 재생성되므로 무의미한 재생성 방지)
+  function sameOff(prev, next) {
+    const a = prev || [];
+    const b = next || [];
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; // 서버가 인덱스 순으로 보냄
+    return true;
+  }
+  function updateHiddenComps(off) {
+    off = off || [];
+    if (sameOff(game._offPrev, off)) return;
+    game.hiddenComps.clear();
+    for (const i of off) game.hiddenComps.add(i);
+    game._offPrev = off; // 파싱된 메시지의 배열 참조 보관 (다음 비교용)
+    game.hiddenVersion = (game.hiddenVersion || 0) + 1;
+  }
 
   $('btn-drop').addEventListener('click', () => {
     socket.emit('game:drop');
@@ -2633,9 +2653,12 @@
   }
 
   /** renderT 시각을 감싸는 두 스냅샷 사이를 보간 */
+  // 🚀 매 프레임 재사용하는 보간 버퍼·색인 (GC 끊김 방지 — new Map/배열/객체 매프레임 생성 제거)
+  const _interpMap = new Map();
+  let _interpBuf = [];
   function interpolatedBalls(renderT) {
     const snaps = game.snapshots;
-    if (snaps.length === 0) return [];
+    if (snaps.length === 0) return _EMPTY;
     if (snaps.length === 1) return snaps[0].balls;
 
     let ai = 0;
@@ -2651,27 +2674,37 @@
     const alpha = span > 0 ? Math.min(Math.max((renderT - a.t) / span, 0), 1) : 1;
 
     // 공 매칭 키: 멀티볼은 k(playerId:idx), 리플레이는 p
-    // a 스냅샷을 Map 으로 색인해 매 프레임 O(n²) find 를 O(n) 조회로
-    const aByKey = new Map();
-    for (const x of a.balls) aByKey.set(x.k || x.p, x);
-    return b.balls.map((bb) => {
-      const ab = aByKey.get(bb.k || bb.p);
-      if (!ab) return bb;
-      // 순간이동(굴레·원점·포탈)으로 위치가 크게 튀면 보간/트레일 없이 스냅 — 화면을 가로지르는 잔상 방지
-      const dx = bb.x - ab.x;
-      const dy = bb.y - ab.y;
-      if (dx * dx + dy * dy > 360 * 360) {
-        return { ...bb, px: bb.x, py: bb.y };
+    // a 스냅샷을 재사용 Map 으로 색인해 매 프레임 O(n²) find 를 O(n) 조회로
+    _interpMap.clear();
+    for (const x of a.balls) _interpMap.set(x.k || x.p, x);
+    const src = b.balls;
+    const out = _interpBuf;
+    let n = 0;
+    for (let i = 0; i < src.length; i++) {
+      const bb = src[i];
+      let o = out[n];
+      if (!o) o = out[n] = {};
+      // 식별·플래그 복사 (서버 broadcastSnapshot 의 공 필드와 동기 유지)
+      o.k = bb.k; o.p = bb.p; o.i = bb.i;
+      o.g = bb.g; o.f = bb.f; o.b = bb.b; o.m = bb.m; o.s = bb.s; o.o = bb.o; o.cl = bb.cl;
+      const ab = _interpMap.get(bb.k || bb.p);
+      const dx = ab ? bb.x - ab.x : 0;
+      const dy = ab ? bb.y - ab.y : 0;
+      // 매칭 없음 / 순간이동(굴레·원점·포탈)으로 크게 튀면 보간·트레일 없이 스냅 — 잔상 방지
+      if (!ab || dx * dx + dy * dy > 360 * 360) {
+        o.x = bb.x; o.y = bb.y; o.px = bb.x; o.py = bb.y;
+      } else {
+        o.x = ab.x + dx * alpha;
+        o.y = ab.y + dy * alpha;
+        o.px = ab.x; // 모션 트레일용 직전 위치
+        o.py = ab.y;
       }
-      return {
-        ...bb,
-        x: ab.x + dx * alpha,
-        y: ab.y + dy * alpha,
-        px: ab.x, // 모션 트레일용 직전 위치
-        py: ab.y,
-      };
-    });
+      n++;
+    }
+    out.length = n; // 이번 프레임 공 개수로 길이만 맞춤 (버퍼 자체는 재사용)
+    return out;
   }
+  const _EMPTY = [];
 
   /** 회전 구성요소의 현재 각도 계산용 게임 시간(초) — 렌더 시각과 동기.
    *  게임 시간은 낙하 후 실제 시간보다 빠르게 흐르므로(TIME_SCALE)
@@ -2846,7 +2879,7 @@
             })),
           });
           if (game.snapshots.length > 12) game.snapshots.shift();
-          game.hiddenComps = new Set(f.off || []);
+          updateHiddenComps(f.off);
         }
         while (rp.ei < rp.events.length && rp.events[rp.ei].t <= playT) {
           dispatchReplayEvent(rp.events[rp.ei++]);
@@ -2910,7 +2943,7 @@
     // 🌀 블랙홀 흡입 범위 (공보다 먼저 그려 공이 위로 빨려드는 느낌을 살린다)
     {
       const nowB = performance.now();
-      game.blackholes = game.blackholes.filter((bh) => nowB - bh.start < bh.duration);
+      if (game.blackholes.length) game.blackholes = game.blackholes.filter((bh) => nowB - bh.start < bh.duration);
       for (const bh of game.blackholes) {
         const bt = (nowB - bh.start) / bh.duration; // 0..1
         const R = bh.radius;
@@ -3096,7 +3129,7 @@
 
     // 폭발 이펙트 (확장 링 + 화염 + 파편)
     const nowMs = performance.now();
-    game.explosions = game.explosions.filter((ex) => nowMs - ex.start < 600);
+    if (game.explosions.length) game.explosions = game.explosions.filter((ex) => nowMs - ex.start < 600);
     for (const ex of game.explosions) {
       const t = (nowMs - ex.start) / 600;
       const ease = 1 - Math.pow(1 - t, 3);
@@ -3131,7 +3164,7 @@
 
     // 🎉 우승 축포 컨페티 (골인 지점, 월드 좌표)
     const CELEB_LIFE = 1900;
-    game.celebrations = game.celebrations.filter((c) => nowMs - c.start < CELEB_LIFE);
+    if (game.celebrations.length) game.celebrations = game.celebrations.filter((c) => nowMs - c.start < CELEB_LIFE);
     for (const c of game.celebrations) {
       const age = nowMs - c.start;
       // 초반 섬광 링 ("펑!")
@@ -3165,7 +3198,7 @@
 
     // ✨ 아이템 발동 순간 팝 (떠오르는 이모지 + 팽창 링 + 라벨) — 월드 좌표
     const POP_LIFE = 950;
-    game.fxPops = game.fxPops.filter((f) => nowMs - f.start < POP_LIFE);
+    if (game.fxPops.length) game.fxPops = game.fxPops.filter((f) => nowMs - f.start < POP_LIFE);
     for (const f of game.fxPops) {
       const t = (nowMs - f.start) / POP_LIFE;
       const yy = f.y - t * 26;
@@ -3226,11 +3259,11 @@
       height: mapH,
       components: board.components,
       hidden: game.hiddenComps,
+      hiddenV: game.hiddenVersion,
       explosions: game.explosions,
-      balls: balls.map((b) => {
-        const p = game.players.get(b.p);
-        return { x: b.x, y: b.y, color: p ? p.color : '#888', mine: b.p === myId };
-      }),
+      balls, // 보간 결과를 그대로 전달 (색·본인 여부는 drawMinimap 이 해석)
+      players: game.players,
+      selfId: myId,
       camY,
       elapsed,
     });
