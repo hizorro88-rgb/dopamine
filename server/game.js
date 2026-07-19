@@ -209,6 +209,23 @@ class Game {
     this.spinners = built.spinners;
     this.movers = built.movers; // ↔️ 움직이는 벽
     this.reactive = built.reactive;
+    // 회전 막대/십자의 '끝단 속도'와 움직이는 벽의 최대 속도(px/s) — 적응형 서브스텝이
+    // 공뿐 아니라 장애물의 이동량도 고려해 통과(터널링)를 막도록 미리 계산해둔다.
+    this.obstacleTipSpeed = 0;
+    for (const s of this.spinners) {
+      let reach = 0;
+      // 십자(cross)처럼 여러 파트로 된 복합 바디도 모든 파트의 꼭짓점까지 고려
+      const parts = s.body.parts || [s.body];
+      for (const part of parts) {
+        for (const v of part.vertices) {
+          reach = Math.max(reach, Math.hypot(v.x - s.pivot.x, v.y - s.pivot.y));
+        }
+      }
+      this.obstacleTipSpeed = Math.max(this.obstacleTipSpeed, Math.abs(s.spin) * reach);
+    }
+    for (const m of this.movers || []) {
+      this.obstacleTipSpeed = Math.max(this.obstacleTipSpeed, Math.abs(m.speed) * m.range);
+    }
     this.height = built.height;
     this.width = built.board.world.width; // 맵 폭 (기본 600, 맵마다 가변)
     this.goalY = built.goalY;
@@ -557,7 +574,11 @@ class Game {
   }
 
   rotateSpinners() {
-    const target = this.simMs / 1000;
+    this.rotateSpinnersTo(this.simMs / 1000);
+  }
+
+  /** 회전체·움직이는 벽을 지정한 게임시간(초)의 자세로 맞춘다 (서브스텝 안에서 증분 호출) */
+  rotateSpinnersTo(target) {
     for (const s of this.spinners) {
       Matter.Body.rotate(s.body, s.spin * target - s.angle, s.pivot);
       s.angle = s.spin * target;
@@ -581,8 +602,8 @@ class Game {
   substep() {
     this.simMs += TICK_MS;
     const sim = this.simMs;
-
-    this.rotateSpinners();
+    // 회전체·움직이는 벽은 아래 서브스텝 루프 안에서 증분 회전한다(한 번에 큰 각도로
+    // 순간이동시키면 공을 그냥 지나쳐 통과하므로). 여기서 미리 돌리지 않는다.
 
     // 터진 반응형 구성요소 재생성 (게임 시간 기준)
     for (const inst of this.reactive.values()) {
@@ -672,11 +693,20 @@ class Game {
     // 적응형 미세 분할: 느린 공(대부분)은 1스텝, 빠른 공만 잘게 나눠 터널링 방지.
     // 직전 스텝의 분할 수로 '한 스텝당 이동량'을 환산 → 검사 간 이동 ≤19px 유지.
     // (충돌 감지 밴드 ≈26px, 19px/검사면 얇은 12~14px 벽도 확실히 잡힘 — 실측 0/40 통과)
-    const fullDisp = maxSpeed * (this.lastSubCount || 1);
+    // 회전 막대/십자의 '끝단 이동량'도 함께 반영해, 빠른·긴 회전체가 공을 지나쳐
+    // 통과하는 것도 막는다(한 스텝당 끝단 이동을 여러 번으로 쪼갬).
+    const ballDisp = maxSpeed * (this.lastSubCount || 1);
+    const obstacleDisp = this.obstacleTipSpeed * (TICK_MS / 1000);
+    const fullDisp = Math.max(ballDisp, obstacleDisp);
     const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
     this.lastSubCount = sub;
     const subDt = TICK_MS / sub;
-    for (let k = 0; k < sub; k++) Matter.Engine.update(this.engine, subDt);
+    const stepStart = sim - TICK_MS;
+    for (let k = 0; k < sub; k++) {
+      // 이 서브스텝이 끝나는 게임시간의 자세로 회전체·움직이는 벽을 먼저 맞추고 물리 갱신
+      this.rotateSpinnersTo((stepStart + subDt * (k + 1)) / 1000);
+      Matter.Engine.update(this.engine, subDt);
+    }
 
     // 도착/굴레 판정
     for (const [key, ball] of this.balls) {

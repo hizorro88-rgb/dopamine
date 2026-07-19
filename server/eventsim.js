@@ -136,6 +136,39 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     return p ? p.name : '?';
   };
 
+  // 회전체·움직이는 벽을 지정한 게임시간(초) 자세로 맞춘다 (서브스텝 안에서 증분 호출)
+  function setObstaclesTo(tSec) {
+    for (const s of built.spinners) {
+      const target = s.spin * tSec;
+      Matter.Body.rotate(s.body, target - s.angle, s.pivot);
+      s.angle = target;
+    }
+    for (const m of built.movers) {
+      const off = Math.sin(tSec * m.speed) * m.range;
+      Matter.Body.setPosition(m.body, {
+        x: m.base.x + (m.axis === 'x' ? off : 0),
+        y: m.base.y + (m.axis === 'y' ? off : 0),
+      });
+    }
+  }
+
+  // 회전 막대/십자 끝단·움직이는 벽의 최대 속도(px/s) — 적응형 서브스텝이 장애물
+  // 이동량도 고려해 공을 지나쳐 통과하는 것을 막도록 미리 계산 (라이브 게임과 동일)
+  let obstacleTipSpeed = 0;
+  for (const s of built.spinners) {
+    let reach = 0;
+    const parts = s.body.parts || [s.body];
+    for (const part of parts) {
+      for (const v of part.vertices) {
+        reach = Math.max(reach, Math.hypot(v.x - s.pivot.x, v.y - s.pivot.y));
+      }
+    }
+    obstacleTipSpeed = Math.max(obstacleTipSpeed, Math.abs(s.spin) * reach);
+  }
+  for (const m of built.movers) {
+    obstacleTipSpeed = Math.max(obstacleTipSpeed, Math.abs(m.speed) * m.range);
+  }
+
   // ── 시뮬레이션 루프 (청크 단위로 이벤트 루프 양보) ──
   let step = 0;
   const maxSteps = Math.ceil(SIM_MAX_MS / TICK_MS);
@@ -145,25 +178,8 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     const chunkEnd = Math.min(step + STEPS_PER_CHUNK, maxSteps);
     for (; step < chunkEnd; step++) {
       simNow = step * TICK_MS;
-
-      // 회전 구성요소
-      for (const s of built.spinners) {
-        const target = s.spin * (simNow / 1000);
-        Matter.Body.rotate(s.body, target - s.angle, s.pivot);
-        s.angle = target;
-      }
-
-      // ↔️ 움직이는 벽 (game.js 와 동일 파형)
-      if (built.movers.length) {
-        const tt = simNow / 1000;
-        for (const m of built.movers) {
-          const off = Math.sin(tt * m.speed) * m.range;
-          Matter.Body.setPosition(m.body, {
-            x: m.base.x + (m.axis === 'x' ? off : 0),
-            y: m.base.y + (m.axis === 'y' ? off : 0),
-          });
-        }
-      }
+      // 회전체·움직이는 벽은 아래 서브스텝 루프 안에서 증분 이동한다(큰 각도 순간이동 시
+      // 공을 그냥 지나쳐 통과하므로).
 
       // 폭탄 재생성
       for (const inst of built.reactive.values()) {
@@ -203,12 +219,17 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         if (ball.speed > maxSpeed) maxSpeed = ball.speed;
       }
 
-      // 적응형 미세 분할 (라이브 게임과 동일: 검사 간 이동 ≤19px)
-      const fullDisp = maxSpeed * lastSubCount;
+      // 적응형 미세 분할 (라이브 게임과 동일: 검사 간 이동 ≤19px) — 공·장애물 이동량 모두 반영
+      const ballDisp = maxSpeed * lastSubCount;
+      const obstacleDisp = obstacleTipSpeed * (TICK_MS / 1000);
+      const fullDisp = Math.max(ballDisp, obstacleDisp);
       const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
       lastSubCount = sub;
       const subDt = TICK_MS / sub;
-      for (let k = 0; k < sub; k++) Matter.Engine.update(engine, subDt);
+      for (let k = 0; k < sub; k++) {
+        setObstaclesTo((simNow + subDt * (k + 1)) / 1000);
+        Matter.Engine.update(engine, subDt);
+      }
 
       // 도착/굴레 판정
       for (const [pid, ball] of balls) {

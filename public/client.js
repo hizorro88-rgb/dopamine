@@ -2706,17 +2706,23 @@
   }
   const _EMPTY = [];
 
-  /** 회전 구성요소의 현재 각도 계산용 게임 시간(초) — 렌더 시각과 동기.
-   *  게임 시간은 낙하 후 실제 시간보다 빠르게 흐르므로(TIME_SCALE)
-   *  최근 두 스냅샷에서 진행 속도를 추정해 보외한다. */
+  /** 회전 구성요소의 현재 각도 계산용 게임 시간(초) — 공 보간과 '같은 타임라인'으로 맞춘다.
+   *  이전엔 최근 두 스냅샷의 속도로 보외했는데, 네트워크 지터로 rate 가 프레임마다
+   *  출렁여 회전이 버벅였다. 이제 공과 동일하게 renderT 를 감싸는 두 스냅샷 사이를
+   *  같은 alpha 로 보간 → 회전이 공만큼 매끄럽게 흐른다. */
   function gameElapsedSec(renderT) {
     const snaps = game.snapshots;
     if (snaps.length === 0) return 0;
-    const b = snaps[snaps.length - 1];
-    if (snaps.length === 1) return b.elapsed / 1000;
-    const a = snaps[snaps.length - 2];
-    const rate = (b.elapsed - a.elapsed) / Math.max(b.t - a.t, 1);
-    return Math.max(0, (b.elapsed + (renderT - b.t) * rate) / 1000);
+    if (snaps.length === 1) return snaps[0].elapsed / 1000;
+    let ai = 0;
+    for (let i = snaps.length - 1; i >= 0; i--) {
+      if (snaps[i].t <= renderT) { ai = i; break; }
+    }
+    const a = snaps[ai];
+    const b = snaps[Math.min(ai + 1, snaps.length - 1)];
+    const span = b.t - a.t;
+    const alpha = span > 0 ? Math.min(Math.max((renderT - a.t) / span, 0), 1) : 1;
+    return (a.elapsed + (b.elapsed - a.elapsed) * alpha) / 1000;
   }
 
   // ── 아이템 상태 시각화 (과장된 이펙트) ──────────────────
