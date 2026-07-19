@@ -144,7 +144,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
       s.angle = target;
     }
     for (const m of built.movers) {
-      const off = Math.sin(tSec * m.speed) * m.range;
+      const off = Math.sin(tSec * m.speed + (m.phase || 0)) * m.range;
       Matter.Body.setPosition(m.body, {
         x: m.base.x + (m.axis === 'x' ? off : 0),
         y: m.base.y + (m.axis === 'y' ? off : 0),

@@ -190,6 +190,7 @@
         { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 5, default: 0 },
         { key: 'range', label: '이동 거리', min: 30, max: 240, step: 10, default: 120 },
         { key: 'movespeed', label: '이동 속도', min: 0.5, max: 4, step: 0.5, default: 1.5 },
+        { key: 'phase', label: '시작 위치(위상 °)', min: 0, max: 360, step: 15, default: 0 },
         { key: 'vertical', label: '세로 이동(0=좌우,1=위아래)', min: 0, max: 1, step: 1, default: 0 },
       ],
       build(p) {
@@ -200,7 +201,8 @@
           ],
           spin: 0,
           restitution: 0.3,
-          move: { axis: p.vertical ? 'y' : 'x', range: p.range, speed: p.movespeed },
+          // phase(위상)로 시작 위치를 어긋나게 해 벽마다 다른 타이밍으로 움직이게 한다
+          move: { axis: p.vertical ? 'y' : 'x', range: p.range, speed: p.movespeed, phase: (p.phase || 0) * DEG },
         };
       },
     },

@@ -3082,7 +3082,7 @@
       let ox = 0;
       let oy = 0;
       if (comp.move) {
-        const off = Math.sin(elapsed * comp.move.speed) * comp.move.range;
+        const off = Math.sin(elapsed * comp.move.speed + (comp.move.phase || 0)) * comp.move.range;
         if (comp.move.axis === 'y') oy = off;
         else ox = off;
       }
@@ -4311,6 +4311,16 @@
               eCtx.lineTo(comp.x + rng, comp.y);
             }
             eCtx.stroke();
+            eCtx.setLineDash([]);
+            // ▶ 시작 위치 표시 (위상 오프셋) — 이 지점에서 왕복을 시작한다
+            const startOff = Math.sin(comp.move.phase || 0) * rng;
+            const sx = comp.move.axis === 'y' ? comp.x : comp.x + startOff;
+            const sy = comp.move.axis === 'y' ? comp.y + startOff : comp.y;
+            eCtx.fillStyle = '#e8d6ff';
+            eCtx.beginPath();
+            eCtx.arc(sx, sy, 6, 0, Math.PI * 2);
+            eCtx.fill();
+            eCtx.setLineDash([6, 4]);
           }
         }
         eCtx.setLineDash([]);

@@ -590,7 +590,7 @@ class Game {
   moveMovers(target = this.simMs / 1000) {
     if (!this.movers || !this.movers.length) return;
     for (const m of this.movers) {
-      const off = Math.sin(target * m.speed) * m.range;
+      const off = Math.sin(target * m.speed + (m.phase || 0)) * m.range;
       Matter.Body.setPosition(m.body, {
         x: m.base.x + (m.axis === 'x' ? off : 0),
         y: m.base.y + (m.axis === 'y' ? off : 0),

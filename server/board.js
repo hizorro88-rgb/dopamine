@@ -100,6 +100,7 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
         axis: built.move.axis === 'y' ? 'y' : 'x',
         range: built.move.range,
         speed: built.move.speed,
+        phase: built.move.phase || 0, // 시작 위치(위상) 오프셋
       });
     }
     if (built.hit) {
