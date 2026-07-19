@@ -1934,9 +1934,17 @@
   socket.on('game:snapshot', (snap) => {
     if (!game || game.replay) return;
     snap.recv = performance.now();
-    // 서버 시계 추정: 지연이 가장 적었던 패킷 기준 (지터에 흔들리지 않도록 슬라이딩 최대값)
+    // 서버 시계 추정: 지연이 가장 적었던 패킷 기준(지터에 흔들리지 않도록 슬라이딩 최대값).
+    // 위로 튈 때도 한 번에 크게 당기지 않고 최대 6ms/스냅으로 완만히 따라가, 유난히 빨리 온
+    // 패킷 하나가 renderT 를 순간 이동시켜 화면 전체가 한 프레임 튀는 것을 막는다.
     const inst = snap.t - snap.recv;
-    game.clockOffset = game.clockOffset == null ? inst : Math.max(inst, game.clockOffset - 4);
+    if (game.clockOffset == null) {
+      game.clockOffset = inst;
+    } else {
+      const target = Math.max(inst, game.clockOffset - 4); // 아래로는 4ms/스냅 감쇠(기존)
+      const delta = target - game.clockOffset;
+      game.clockOffset += delta > 6 ? 6 : delta; // 위로는 최대 6ms/스냅
+    }
     game.snapshots.push(snap);
     if (game.snapshots.length > 12) game.snapshots.shift();
     game.countdown = snap.countdown;
@@ -2693,11 +2701,13 @@
       // 매칭 없음 / 순간이동(굴레·원점·포탈)으로 크게 튀면 보간·트레일 없이 스냅 — 잔상 방지
       if (!ab || dx * dx + dy * dy > 360 * 360) {
         o.x = bb.x; o.y = bb.y; o.px = bb.x; o.py = bb.y;
+        o.snap = 1; // 이번 프레임 순간이동 — 카메라 포커스에서 제외(카메라 튐 방지)
       } else {
         o.x = ab.x + dx * alpha;
         o.y = ab.y + dy * alpha;
         o.px = ab.x; // 모션 트레일용 직전 위치
         o.py = ab.y;
+        o.snap = 0;
       }
       n++;
     }
@@ -2902,13 +2912,31 @@
     const balls = interpolatedBalls(renderT);
     const elapsed = gameElapsedSec(renderT);
 
-    // 카메라: 항상 선두(골인에 가장 가까운) 공을 따라간다 — 경주의 최전선을 비춘다
+    // 프레임 간 실제 경과시간 — 카메라 감쇠를 화면 주사율과 무관하게(60·120·144Hz 동일 체감)
+    const nowFrame = performance.now();
+    const dtMs = game._lastFrameMs ? Math.min(64, nowFrame - game._lastFrameMs) : 16.7;
+    game._lastFrameMs = nowFrame;
+
+    // 카메라: 골인에 가장 가까운(최대 y) 공을 따라간다 — 경주의 최전선을 비춘다.
+    // 순간이동(포탈·굴레) 공과 분신(clone)은 포커스에서 제외해 카메라가 튀지 않게 하고,
+    // 근소한 순위 뒤집힘엔 기존 포커스를 유지(히스테리시스)해 1프레임 흔들림을 막는다.
     const mapH = board.world.height;
-    const focus = balls.reduce((a, b) => (!a || b.y > a.y ? b : a), null);
+    let best = null;
+    let prevFocus = null;
+    for (const b of balls) {
+      if (b.cl || b.snap) continue;
+      if (!best || b.y > best.y) best = b;
+      if (game._focusKey != null && (b.k || b.p) === game._focusKey) prevFocus = b;
+    }
+    let focus = best;
+    if (prevFocus && best && best.y - prevFocus.y < 60) focus = prevFocus; // 근소한 차이면 유지
     if (focus) {
+      game._focusKey = focus.k != null ? focus.k : focus.p;
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
-      // 부드럽게 따라가되, 빠른 공에도 절대 뒤처지지 않도록 하드 클램프
-      game.camY += (target - game.camY) * 0.22;
+      // 프레임레이트 독립 감쇠 (60fps에서 0.22와 동일한 체감)
+      const k = 1 - Math.pow(1 - 0.22, dtMs / 16.7);
+      game.camY += (target - game.camY) * k;
+      // 빠른 공에도 뒤처지지 않도록 하드 클램프 (앞 130 / 뒤 320px)
       if (target - game.camY > 130) game.camY = target - 130;
       else if (game.camY - target > 320) game.camY = target + 320;
     }
