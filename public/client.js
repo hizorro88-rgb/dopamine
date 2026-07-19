@@ -677,6 +677,7 @@
         $('admin-msg').textContent = ''; // '확인 중…' 지우기
         $('admin-login').classList.add('hidden');
         $('admin-panel').classList.remove('hidden');
+        document.querySelector('.admin-card').classList.add('admin-wide'); // 로그인 후 넓은 레이아웃
         for (const k of SETTING_KEYS) {
           const el = $('set-' + k);
           if (el) el.value = settings[k] != null ? settings[k] : '';
