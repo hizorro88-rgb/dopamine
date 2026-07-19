@@ -3782,6 +3782,26 @@
     return -1;
   }
 
+  // 🧱 가장자리 자동 킥커 미리보기 — 서버 board.js 와 동일 규칙으로 계산.
+  // 공이 양옆 벽을 타고 미끄러지지 않게 자동 배치되는 사선 벽(근처에 직접 벽을 두면 생략).
+  function computeAutoKickers() {
+    const W = editor.width;
+    const goalY = editor.finish ? editor.finish.y : editor.height - 55;
+    const walls = editor.comps.filter((c) => c.type === 'wall');
+    const nearWall = (x, y) => walls.some((w) => Math.abs(w.x - x) < 110 && Math.abs(w.y - y) < 300);
+    const kickers = [];
+    for (let y = 520; y < goalY - 380; y += 560) {
+      if (!nearWall(32, y)) kickers.push({ x: 32, y, props: { length: 90, angle: 58 } });
+      const ry = y + 280;
+      if (ry < goalY - 380 && !nearWall(W - 32, ry)) kickers.push({ x: W - 32, y: ry, props: { length: 90, angle: -58 } });
+    }
+    for (const k of kickers) {
+      const built = buildShapes('wall', k.props);
+      k.shapes = built ? built.shapes : [];
+    }
+    return kickers;
+  }
+
   // 격자·경계 보정(반올림 없이 클램프만) — 그룹 이동 시 상대 간격 보존용
   function clampPos(x, y) {
     return {
@@ -4089,6 +4109,28 @@
             eCtx.fillRect(hx - 3, hy - 3, 6, 6);
           }
         }
+      }
+    }
+
+    // 🧱 자동 킥커 미리보기 (반투명 + 점선 테두리로 "자동/편집불가"임을 표시)
+    for (const k of computeAutoKickers()) {
+      if (k.y < camY - 300 || k.y > camY + VIEW.height + 300) continue;
+      eCtx.save();
+      eCtx.globalAlpha = 0.4;
+      drawComponent(eCtx, { x: k.x, y: k.y, shapes: k.shapes, type: 'wall' }, 0);
+      eCtx.restore();
+      // 점선 테두리 (사선 막대 윤곽)
+      const s = k.shapes[0];
+      if (s) {
+        eCtx.save();
+        eCtx.translate(k.x + (s.x || 0), k.y + (s.y || 0));
+        eCtx.rotate(s.angle || 0);
+        eCtx.strokeStyle = 'rgba(120,200,255,0.55)';
+        eCtx.lineWidth = 1.5;
+        eCtx.setLineDash([5, 4]);
+        eCtx.strokeRect(-s.w / 2, -s.h / 2, s.w, s.h);
+        eCtx.setLineDash([]);
+        eCtx.restore();
       }
     }
 
