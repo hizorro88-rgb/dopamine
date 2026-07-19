@@ -897,7 +897,7 @@ class MapStore {
   }
 
   /** 이름·길이·구성요소 검증 후 정제된 값을 반환 (save/update 공용) */
-  _validate({ name, components, height, width, finish }, maxComp = MAX_COMPONENTS) {
+  _validate({ name, components, height, width, finish, autoKickers }, maxComp = MAX_COMPONENTS) {
     const cleanName = String(name || '').trim().slice(0, 20);
     if (!cleanName) return { ok: false, error: '맵 이름을 입력해주세요.' };
     if (!Array.isArray(components) || components.length === 0)
@@ -932,7 +932,9 @@ class MapStore {
       }
       validated.push({ type: def.id, x: Math.round(x), y: Math.round(y), props });
     }
-    return { ok: true, cleanName, cleanHeight, cleanWidth, validated, cleanFinish };
+    // 킥커를 맵이 직접 관리하는지 (false = 자동 생성 끔). 명시적으로 false 일 때만 저장.
+    const cleanAutoKickers = autoKickers === false ? false : undefined;
+    return { ok: true, cleanName, cleanHeight, cleanWidth, validated, cleanFinish, cleanAutoKickers };
   }
 
   /**
@@ -940,7 +942,7 @@ class MapStore {
    * @param creatorKey 생성자 식별키(IP 등) — 하루 제한 집계용
    * @returns {{ok: true, id: string} | {ok: false, error: string}}
    */
-  save({ name, author, components, height, width, finish } = {}, creatorKey = null) {
+  save({ name, author, components, height, width, finish, autoKickers } = {}, creatorKey = null) {
     if (this.custom.size >= MAX_CUSTOM_MAPS)
       return { ok: false, error: '서버에 저장된 맵이 너무 많습니다.' };
 
@@ -952,7 +954,7 @@ class MapStore {
         return { ok: false, error: `맵은 하루에 ${dailyLimit}개까지 만들 수 있어요. 내일 다시 시도해주세요.` };
     }
 
-    const v = this._validate({ name, components, height, width, finish });
+    const v = this._validate({ name, components, height, width, finish, autoKickers });
     if (!v.ok) return v;
 
     const id = 'm' + Math.random().toString(36).slice(2, 10);
@@ -964,6 +966,7 @@ class MapStore {
       ...(v.cleanWidth !== WORLD.width ? { width: v.cleanWidth } : {}),
       components: v.validated,
       ...(v.cleanFinish ? { finish: v.cleanFinish } : {}),
+      ...(v.cleanAutoKickers === false ? { autoKickers: false } : {}),
       createdAt: Date.now(),
     });
     this.persist();
@@ -980,8 +983,8 @@ class MapStore {
 
   /** 관리자: 맵 재편집 — 유저 맵은 덮어쓰기, 기본 맵은 편집본(override) 저장.
    *  기본 맵은 구성요소가 많을 수 있어(예: 클래식 600+) 관리자 편집은 상한을 넉넉히 둔다. */
-  update(id, { name, components, height, width, finish } = {}) {
-    const v = this._validate({ name, components, height, width, finish }, MAX_COMPONENTS_ADMIN);
+  update(id, { name, components, height, width, finish, autoKickers } = {}) {
+    const v = this._validate({ name, components, height, width, finish, autoKickers }, MAX_COMPONENTS_ADMIN);
     if (!v.ok) return v;
 
     if (this.custom.has(id)) {
@@ -993,6 +996,8 @@ class MapStore {
       existing.components = v.validated;
       if (v.cleanFinish) existing.finish = v.cleanFinish;
       else delete existing.finish;
+      if (v.cleanAutoKickers === false) existing.autoKickers = false;
+      else delete existing.autoKickers;
       existing.updatedAt = Date.now();
       this.persist();
       return { ok: true, id };
@@ -1008,6 +1013,7 @@ class MapStore {
         ...(v.cleanWidth !== WORLD.width ? { width: v.cleanWidth } : {}),
         components: v.validated,
         ...(v.cleanFinish ? { finish: v.cleanFinish } : {}),
+        ...(v.cleanAutoKickers === false ? { autoKickers: false } : {}),
         updatedAt: Date.now(),
       });
       this.persistOverrides();

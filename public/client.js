@@ -3476,6 +3476,17 @@
       }
     }
 
+    // 🧱 자동 킥커: 이미 맵이 직접 관리(autoKickers:false)면 comps 에 들어있으니 그대로.
+    // 아니면(신규·기존 자동 맵) 편집 시 실제 벽 요소로 변환해 옮기거나 지울 수 있게 한다.
+    editor.autoKickers = opts.map && opts.map.autoKickers === false ? false : true;
+    if (!editor.viewOnly && editor.autoKickers !== false) {
+      for (const k of computeAutoKickers()) {
+        const comp = { type: 'wall', x: k.x, y: k.y, props: { ...k.props } };
+        if (rebuildComp(comp)) editor.comps.push(comp);
+      }
+      editor.autoKickers = false; // 이제부터 맵이 직접 관리 (저장 시 자동 생성 끔)
+    }
+
     // 편집 컨트롤 표시/숨김
     const editControls = ['palette', 'editor-props', 'btn-comp-delete', 'input-map-name', 'btn-map-save', 'map-length-row', 'map-width-row', 'editor-hint'];
     for (const id of editControls) {
@@ -4031,7 +4042,7 @@
       fetch('/api/admin/maps/update', {
         method: 'POST',
         headers: { 'x-admin-key': adminKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height, width: editor.width, finish }),
+        body: JSON.stringify({ id: editor.adminEditId, name, components, height: editor.height, width: editor.width, finish, autoKickers: editor.autoKickers }),
       })
         .then((r) => r.json())
         .then((res) => {
@@ -4045,7 +4056,7 @@
       return;
     }
 
-    socket.emit('maps:save', { name, components, height: editor.height, width: editor.width, finish }, (res) => {
+    socket.emit('maps:save', { name, components, height: editor.height, width: editor.width, finish, autoKickers: editor.autoKickers }, (res) => {
       if (!res.ok) return (msg.textContent = res.error || '저장 실패');
       // 방장이면 방금 만든 맵을 바로 선택
       if (room && room.hostId === myId) socket.emit('room:setMap', { mapId: res.id });
@@ -4112,8 +4123,9 @@
       }
     }
 
-    // 🧱 자동 킥커 미리보기 (반투명 + 점선 테두리로 "자동/편집불가"임을 표시)
-    for (const k of computeAutoKickers()) {
+    // 🧱 자동 킥커 미리보기 — 구경 모드의 옛 맵(autoKickers 미변환)에서만 표시.
+    // 편집 모드에선 실제 벽 요소로 변환돼 comps 에 들어있으므로 미리보기를 그리지 않는다.
+    for (const k of editor.autoKickers !== false ? computeAutoKickers() : []) {
       if (k.y < camY - 300 || k.y > camY + VIEW.height + 300) continue;
       eCtx.save();
       eCtx.globalAlpha = 0.4;

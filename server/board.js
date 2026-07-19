@@ -52,17 +52,20 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
   // 가장자리 킥커: 양옆 벽을 타고 그냥 미끄러져 내려가지 못하도록
   // 일정 간격마다 안쪽으로 쳐내는 사선 벽을 모든 맵에 자동 배치한다.
   // 단, 맵이 이미 그 근처에 벽(통로·장벽)을 두고 있다면 설계를 존중해 건너뛴다.
-  const mapWalls = (mapDef.components || []).filter((c) => c.type === 'wall');
-  const nearWall = (x, y) =>
-    mapWalls.some((w) => Math.abs(w.x - x) < 110 && Math.abs(w.y - y) < 300);
+  // 맵이 킥커를 직접 관리(에디터에서 실제 요소로 변환)하면 autoKickers:false → 자동 생성 생략
   const kickers = [];
-  for (let y = 520; y < goalY - 380; y += 560) {
-    if (!nearWall(32, y)) {
-      kickers.push({ type: 'wall', x: 32, y, props: { length: 90, angle: 58 } });
-    }
-    const ry = y + 280;
-    if (ry < goalY - 380 && !nearWall(W - 32, ry)) {
-      kickers.push({ type: 'wall', x: W - 32, y: ry, props: { length: 90, angle: -58 } });
+  if (mapDef.autoKickers !== false) {
+    const mapWalls = (mapDef.components || []).filter((c) => c.type === 'wall');
+    const nearWall = (x, y) =>
+      mapWalls.some((w) => Math.abs(w.x - x) < 110 && Math.abs(w.y - y) < 300);
+    for (let y = 520; y < goalY - 380; y += 560) {
+      if (!nearWall(32, y)) {
+        kickers.push({ type: 'wall', x: 32, y, props: { length: 90, angle: 58 } });
+      }
+      const ry = y + 280;
+      if (ry < goalY - 380 && !nearWall(W - 32, ry)) {
+        kickers.push({ type: 'wall', x: W - 32, y: ry, props: { length: 90, angle: -58 } });
+      }
     }
   }
   const allComponents = [...(mapDef.components || []), ...kickers];

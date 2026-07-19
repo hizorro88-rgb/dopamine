@@ -188,8 +188,8 @@ app.post('/api/admin/maps/delete', (req, res) => {
 });
 app.post('/api/admin/maps/update', (req, res) => {
   if (!requireAdmin(req, res)) return;
-  const { id, name, components, height, width, finish } = req.body || {};
-  res.json(rooms.maps.update(id, { name, components, height, width, finish }));
+  const { id, name, components, height, width, finish, autoKickers } = req.body || {};
+  res.json(rooms.maps.update(id, { name, components, height, width, finish, autoKickers }));
 });
 
 // ── 관리자: 런타임 설정 (후원 링크·낙하 배속·아이템 소개·하루 맵 제한 등) ──
