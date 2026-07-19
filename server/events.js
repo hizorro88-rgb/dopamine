@@ -19,6 +19,8 @@ const MAX_PARTICIPANTS = Math.min(3000, Math.max(2, Number(process.env.EVENT_MAX
 const MAX_EVENTS = 1000; // 동시 이벤트 총량 (스팸/메모리 고갈 방지)
 const PLAYBACK_DELAY_MS = 8000; // 리플레이 다운로드 여유 시간
 const RECENT_NAMES = 30;
+const GC_SWEEP_MS = 60000; // 유휴 이벤트 청소 주기
+const EVENT_IDLE_MS = 60 * 60 * 1000; // 1시간 활동 없으면 폐기 (리플레이 메모리 회수)
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -31,6 +33,18 @@ function generateCode(existing) {
     }
   } while (existing.has(code));
   return code;
+}
+
+/** 동명이인이면 뒤에 (2), (3)… 을 붙여 유일화 (12자 넘으면 이름을 줄여 맞춤) */
+function dedupeName(name, participants) {
+  const taken = new Set(participants.map((p) => p.name));
+  if (!taken.has(name)) return name;
+  for (let n = 2; ; n++) {
+    const suffix = `(${n})`;
+    const base = name.slice(0, Math.max(1, 12 - suffix.length));
+    const candidate = base + suffix;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 function participantColor(i) {
@@ -48,6 +62,21 @@ class EventManager {
       create: new RateLimiter(60000, 20),
       register: new RateLimiter(60000, 30),
     };
+    // 🧹 유휴/고아 이벤트 청소 — 리플레이 버퍼 메모리 회수 (테스트에서 프로세스 안 붙잡게 unref)
+    this.gcTimer = setInterval(() => this.sweep(), GC_SWEEP_MS);
+    if (this.gcTimer.unref) this.gcTimer.unref();
+  }
+
+  /** 접속자 없거나 오래 방치된 이벤트 정리 */
+  sweep() {
+    const now = Date.now();
+    for (const [code, ev] of this.events) {
+      if (ev.state === 'simulating') continue; // 시뮬 완료 로직이 처리
+      const sockets = this.io.sockets.adapter.rooms.get(this.roomKey(ev));
+      const empty = !sockets || sockets.size === 0;
+      const idle = now - (ev.lastActivity || 0) > EVENT_IDLE_MS;
+      if (empty || idle) this.events.delete(code);
+    }
   }
 
   handleConnection(socket) {
@@ -68,6 +97,8 @@ class EventManager {
         registeredSockets: new Set(), // 중복 등록 방지
         replayGz: null,
         replayMeta: null, // { startAt, durationMs }
+        replayVersion: 0, // 재추첨마다 +1 → 리플레이 URL 캐시 무효화
+        lastActivity: Date.now(),
       };
       this.events.set(code, ev);
       this.joinSocket(socket, ev);
@@ -103,7 +134,9 @@ class EventManager {
       if (!cleanName) return cb({ ok: false, error: '이름을 입력해주세요.' });
 
       const id = ev.participants.length;
-      ev.participants.push({ id, name: cleanName, color: participantColor(id) });
+      // 동명이인 구분 — 추첨 결과에서 누가 당첨됐는지 헷갈리지 않게 (2), (3) 부여
+      const uniqueName = dedupeName(cleanName, ev.participants);
+      ev.participants.push({ id, name: uniqueName, color: participantColor(id) });
       ev.registeredSockets.add(socket.id);
       cb({ ok: true, participantId: id });
       this.broadcast(ev);
@@ -133,6 +166,14 @@ class EventManager {
         const replay = await simulateEvent(mapDef, ev.participants, (pct) => {
           this.io.to(this.roomKey(ev)).emit('event:simprogress', { pct });
         });
+        // 시뮬 도중 전원이 나갔으면 무거운 리플레이를 만들지 않고 이벤트 폐기 (누수 방지)
+        if (!this.events.has(ev.code)) return;
+        const stillHere = this.io.sockets.adapter.rooms.get(this.roomKey(ev));
+        if (!stillHere || stillHere.size === 0) {
+          this.events.delete(ev.code);
+          return;
+        }
+        ev.replayVersion += 1; // 캐시 무효화용 버전 증가
         ev.replayGz = zlib.gzipSync(Buffer.from(JSON.stringify(replay)));
         ev.replayMeta = {
           startAt: Date.now() + PLAYBACK_DELAY_MS,
@@ -203,8 +244,9 @@ class EventManager {
       const next = roomSockets ? [...roomSockets][0] : null;
       if (next) ev.hostId = next;
     }
+    // 아무도 안 남았으면 정리 (시뮬 중이면 완료 후 정리 로직이 처리)
     const roomSockets = this.io.sockets.adapter.rooms.get(this.roomKey(ev));
-    if ((!roomSockets || roomSockets.size === 0) && ev.state === 'lobby') {
+    if ((!roomSockets || roomSockets.size === 0) && ev.state !== 'simulating') {
       this.events.delete(ev.code);
     }
   }
@@ -221,7 +263,8 @@ class EventManager {
   replayInfo(ev) {
     if (!ev.replayMeta) return null;
     return {
-      replayUrl: `/api/replay/${ev.code}`,
+      // ?v= 로 재추첨마다 URL을 바꿔 브라우저·프록시 캐시가 옛 리플레이를 주지 않게 함
+      replayUrl: `/api/replay/${ev.code}?v=${ev.replayVersion}`,
       startAt: ev.replayMeta.startAt,
       durationMs: ev.replayMeta.durationMs,
       serverNow: Date.now(),
@@ -244,6 +287,7 @@ class EventManager {
   }
 
   broadcast(ev) {
+    ev.lastActivity = Date.now(); // 활동 갱신 (유휴 GC 기준)
     this.io.to(this.roomKey(ev)).emit('event:update', this.summary(ev));
   }
 

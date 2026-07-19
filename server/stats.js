@@ -14,6 +14,9 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'stats.json');
 
 const MAX_LIST = 100;
+// 저장 항목 상한 — 닉네임은 무한히 생기므로(임의 입력) 상위 점수만 남기고 정리.
+// 리더보드(MAX_LIST)보다 넉넉히 잡아 잠깐 밀렸다 복귀하는 상위권을 보존.
+const MAX_ENTRIES = 5000;
 
 class StatsStore {
   constructor() {
@@ -27,9 +30,27 @@ class StatsStore {
     } catch {
       this.byName = {};
     }
+    this.evict(); // 예전에 상한 없이 쌓인 파일도 로드 시 정리
+  }
+
+  /** 항목이 상한을 넘으면 하위 점수부터 잘라내 메모리·디스크 무한 증가 방지 */
+  evict() {
+    const keys = Object.keys(this.byName);
+    if (keys.length <= MAX_ENTRIES) return;
+    const kept = keys
+      .sort((a, b) => {
+        const sa = this.byName[a];
+        const sb = this.byName[b];
+        return sb.points - sa.points || sb.wins - sa.wins || sb.plays - sa.plays;
+      })
+      .slice(0, MAX_ENTRIES);
+    const next = {};
+    for (const k of kept) next[k] = this.byName[k];
+    this.byName = next;
   }
 
   persist() {
+    this.evict();
     atomicWriteJSON(DATA_FILE, this.byName);
   }
 

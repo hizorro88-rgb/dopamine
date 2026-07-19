@@ -60,6 +60,10 @@ function sanitizeBallCount(v) {
 // 🔌 재접속 유예: 끊긴 뒤 이 시간 안에 같은 토큰으로 돌아오면 자리를 되살린다
 const GRACE_MS = 30000;
 
+// 🧹 유휴 방 청소: 아무도 연결돼 있지 않은 방을 주기적으로 회수 (고아 방 방지)
+const ROOM_GC_SWEEP_MS = 60000;
+const ROOM_IDLE_MS = 3 * 60 * 60 * 1000; // 3시간 활동 없으면 폐기(절대 상한)
+
 // 이어서 진행할 판 수 (1~10). 여러 판을 이어 최종 승자/벌칙자를 가린다.
 const MAX_ROUNDS = 10;
 function sanitizeRounds(v) {
@@ -83,6 +87,28 @@ class RoomManager {
       review: new RateLimiter(60000, 30), // 후기
       donor: new RateLimiter(60000, 20), // 후원자 코드 확인(브루트포스 방지)
     };
+    // 🧹 고아 방 청소 — 연결이 하나도 없는 방 회수 (테스트에서 프로세스 안 붙잡게 unref)
+    this.gcTimer = setInterval(() => this.sweepRooms(), ROOM_GC_SWEEP_MS);
+    if (this.gcTimer.unref) this.gcTimer.unref();
+  }
+
+  /** 접속 소켓이 하나도 없거나 오래 방치된 방 정리 (유예 타이머 없는 고아 방 회수) */
+  sweepRooms() {
+    const now = Date.now();
+    for (const [code, room] of this.rooms) {
+      const sockets = this.io.sockets.adapter.rooms.get(code);
+      const connected = sockets ? sockets.size : 0;
+      const idle = now - (room.lastActivity || 0) > ROOM_IDLE_MS;
+      // 접속자 0 + 대기 중 유예 타이머도 없으면 고아 → 정리. 오래 방치돼도 정리.
+      if ((connected === 0 && room.grace.size === 0) || idle) {
+        if (room.game) room.game.stop();
+        if (room.seriesTimer) clearTimeout(room.seriesTimer);
+        for (const t of room.grace.values()) clearTimeout(t);
+        room.grace.clear();
+        this.rooms.delete(code);
+        this.io.to(code).emit('room:closed');
+      }
+    }
   }
 
   isDonor(donorCode) {
@@ -116,6 +142,7 @@ class RoomManager {
         seriesTimer: null, // 다음 판 자동 시작 타이머
         // 🔒 비밀방: 입장은 비번을 아는 사람만, 관전은 누구나. 서버 메모리에만 보관(클라 전송 X)
         password: String(password || '').trim().slice(0, 20) || null,
+        lastActivity: Date.now(), // 🧹 유휴 GC 기준
       };
       this.rooms.set(code, room);
       this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode), token);
@@ -648,6 +675,7 @@ class RoomManager {
   }
 
   broadcastRoom(room) {
+    room.lastActivity = Date.now(); // 🧹 유휴 GC 기준 갱신
     const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
     // 시리즈: 판별 맵 목록 (이름 포함) — 판 수>1 일 때만
     let roundMaps = null;
