@@ -1691,6 +1691,16 @@ textarea:focus {
   height: 34px;
   margin: 0 auto 4px;
 }
+/* 🔲 선택 도구 아이콘 (실제 배치 요소가 아니라 모드) */
+.palette-btn .palette-select-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 4px;
+  font-size: 22px;
+}
 .palette-btn .palette-label {
   display: block;
 }

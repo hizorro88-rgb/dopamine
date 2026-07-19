@@ -3349,15 +3349,59 @@
   const editor = {
     active: false,
     comps: [], // [{type, x, y, props, shapes, spin}]
-    tool: 'peg', // 팔레트에서 선택된 구성요소 타입
-    selected: -1, // 선택된 comps 인덱스
+    tool: 'peg', // 팔레트에서 선택된 구성요소 타입 ('select' = 다중선택 모드)
+    selected: -1, // 대표로 선택된 comps 인덱스 (속성 패널용)
+    selComps: new Set(), // 🔲 다중 선택된 comp 객체들 (그룹 이동·복사·삭제)
     selFinish: false, // 🏁 골인 존을 선택 중인가
     dragging: false,
+    dragMode: null, // 'single' | 'group' | 'marquee' | 'finish' | 'place'
+    dragStart: null, // 드래그 시작 월드 좌표
+    dragOrig: null, // Map(comp -> {x,y}) 드래그 시작 시 원위치
+    marquee: null, // {x0,y0,x1,y1} 선택 사각형(월드 좌표)
+    clipboard: null, // 📋 복사한 comp 정의 배열
+    history: [], // ↩️ 되돌리기 스냅샷 스택
     camY: 0,
     height: WORLD.height, // 이 맵의 길이 (슬라이더로 조절)
     width: WORLD.width, // 이 맵의 폭 (슬라이더로 조절)
     finish: null, // 🏁 골인 존 {x,y,width,height}
   };
+
+  // ── 다중선택·되돌리기 헬퍼 ────────────────────────────
+  const HISTORY_MAX = 60;
+  function snapshotEditor() {
+    return {
+      comps: editor.comps.map((c) => ({ type: c.type, x: c.x, y: c.y, props: { ...c.props } })),
+      finish: editor.finish ? { ...editor.finish } : null,
+    };
+  }
+  function pushHistory() {
+    editor.history.push(snapshotEditor());
+    if (editor.history.length > HISTORY_MAX) editor.history.shift();
+  }
+  function restoreSnapshot(snap) {
+    editor.comps = [];
+    for (const c of snap.comps) {
+      const comp = { type: c.type, x: c.x, y: c.y, props: { ...c.props } };
+      if (rebuildComp(comp)) editor.comps.push(comp);
+    }
+    editor.finish = snap.finish ? { ...snap.finish } : null;
+    clearSelection();
+  }
+  function undoEditor() {
+    if (!editor.history.length) return;
+    restoreSnapshot(editor.history.pop());
+    renderPropsPanel();
+  }
+  function clearSelection() {
+    editor.selected = -1;
+    editor.selComps.clear();
+    editor.selFinish = false;
+  }
+  function selectOne(comp) {
+    editor.selected = editor.comps.indexOf(comp);
+    editor.selComps = new Set([comp]);
+    editor.selFinish = false;
+  }
 
   const editMaxY = () => editor.height - 100;
   const editMaxX = () => editor.width - EDIT_BOUNDS.minX;
@@ -3412,7 +3456,11 @@
     editor.adminEditId = opts.adminEditId || null; // 관리자 재편집 대상 맵 id
     editor.comps = [];
     editor.selected = -1;
+    editor.selComps = new Set();
     editor.selFinish = false;
+    editor.marquee = null;
+    editor.history = [];
+    editor.clipboard = null;
     editor.tool = 'peg';
     editor.camY = 0;
     editor.height = opts.map ? opts.map.height : WORLD.height;
@@ -3521,6 +3569,27 @@
   function renderPalette() {
     const palette = $('palette');
     palette.innerHTML = '';
+    // 🔲 다중 선택 도구 (실제 배치 요소가 아니라 선택 모드) — 팔레트 맨 앞
+    {
+      const btn = document.createElement('button');
+      btn.className = 'palette-btn' + (editor.tool === 'select' ? ' selected' : '');
+      btn.title = '드래그로 여러 요소를 한꺼번에 선택해 묶음 이동 (Ctrl+C 복사 · Del 삭제)';
+      const icon = document.createElement('div');
+      icon.className = 'palette-select-icon';
+      icon.textContent = '🔲';
+      btn.appendChild(icon);
+      const label = document.createElement('span');
+      label.className = 'palette-label';
+      label.textContent = '선택';
+      btn.appendChild(label);
+      btn.addEventListener('click', () => {
+        editor.tool = 'select';
+        clearSelection();
+        renderPalette();
+        renderPropsPanel();
+      });
+      palette.appendChild(btn);
+    }
     for (const def of Object.values(COMPONENTS)) {
       const btn = document.createElement('button');
       btn.className = 'palette-btn' + (editor.tool === def.id ? ' selected' : '');
@@ -3532,8 +3601,7 @@
       btn.appendChild(label);
       btn.addEventListener('click', () => {
         editor.tool = def.id;
-        editor.selected = -1;
-        editor.selFinish = false;
+        clearSelection();
         renderPalette();
         renderPropsPanel();
       });
@@ -3545,7 +3613,20 @@
   function renderPropsPanel() {
     const panel = $('editor-props');
     panel.innerHTML = '';
-    $('btn-comp-delete').disabled = editor.selected < 0;
+    $('btn-comp-delete').disabled = editor.selComps.size === 0 && editor.selected < 0;
+
+    // 🔲 다중 선택: 개별 속성 대신 묶음 안내
+    if (editor.selComps.size > 1) {
+      panel.innerHTML = `<div class="prop-row">🔲 <b>${editor.selComps.size}개 선택됨</b><br>
+        <span class="hint" style="font-size:11px">드래그해서 함께 이동 · <b>Ctrl+C</b> 복사 · <b>Ctrl+V</b> 붙여넣기 · <b>Del</b> 삭제</span></div>`;
+      return;
+    }
+    // '선택' 도구인데 아무것도 안 잡았을 때 안내
+    if (editor.tool === 'select' && editor.selComps.size === 0 && !editor.selFinish) {
+      panel.innerHTML = `<div class="prop-row">🔲 <b>선택 도구</b><br>
+        <span class="hint" style="font-size:11px">빈 곳을 드래그해 여러 요소를 묶어 선택하세요. 선택 후 드래그로 함께 이동, Ctrl+C/V, Del.</span></div>`;
+      return;
+    }
 
     // 🏁 골인 존 선택 시: 폭/높이 슬라이더 (위치는 드래그로 이동)
     if (editor.selFinish && editor.finish) {
@@ -3566,6 +3647,11 @@
         input.value = f[key];
         const setLabel = () => (lab.textContent = `${label}: ${input.value}`);
         setLabel();
+        let dirty = false;
+        const markDirty = () => { if (!dirty) { pushHistory(); dirty = true; } };
+        input.addEventListener('pointerdown', markDirty);
+        input.addEventListener('keydown', markDirty);
+        input.addEventListener('change', () => { dirty = false; });
         input.addEventListener('input', () => {
           f[key] = Number(input.value);
           // 폭이 커지면 x가 벽을 넘지 않도록 보정
@@ -3615,6 +3701,12 @@
         label.textContent = `${schema.label}: ${input.value}${extra}`;
       };
       setLabel();
+      // 슬라이더 조작 시작 시 되돌리기 지점 1회 저장 (드래그 중 반복 저장 방지)
+      let propDirty = false;
+      const markProp = () => { if (!propDirty) { pushHistory(); propDirty = true; } };
+      input.addEventListener('pointerdown', markProp);
+      input.addEventListener('keydown', markProp);
+      input.addEventListener('change', () => { propDirty = false; });
       input.addEventListener('input', () => {
         comp.props[schema.key] = Number(input.value);
         rebuildComp(comp);
@@ -3690,34 +3782,84 @@
     return -1;
   }
 
+  // 격자·경계 보정(반올림 없이 클램프만) — 그룹 이동 시 상대 간격 보존용
+  function clampPos(x, y) {
+    return {
+      x: Math.min(Math.max(x, EDIT_BOUNDS.minX), editMaxX()),
+      y: Math.min(Math.max(y, EDIT_BOUNDS.minY), editMaxY()),
+    };
+  }
+  // 드래그 이동 시작 (기존 요소 선택 이동 또는 새 배치)
+  function beginMove(pos, isPlacement) {
+    editor.dragging = true;
+    editor.dragStart = pos;
+    editor.dragOrig = new Map();
+    for (const c of editor.selComps) editor.dragOrig.set(c, { x: c.x, y: c.y });
+    editor._moved = false;
+    if (isPlacement) {
+      editor.dragMode = 'place'; // 배치 전 상태는 이미 history 에 넣었으므로 별도 커밋 안 함
+      editor._preDrag = null;
+    } else {
+      editor.dragMode = editor.selComps.size > 1 ? 'group' : 'single';
+      editor._preDrag = snapshotEditor(); // 이동 시작 전 상태 (실제 이동했을 때만 커밋)
+    }
+  }
+
   eCanvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (editor.viewOnly) return; // 구경 모드: 스크롤만 가능
     const pos = eventToWorld(e);
     const hit = hitTest(pos);
+
+    // 🔲 선택 도구: 요소 위면 (그룹)이동, 빈 곳이면 마퀴 드래그로 다중 선택
+    if (editor.tool === 'select') {
+      if (hit >= 0) {
+        const comp = editor.comps[hit];
+        if (!editor.selComps.has(comp)) selectOne(comp); // 그룹 밖이면 그것만 새로 선택
+        else editor.selected = editor.comps.indexOf(comp);
+        beginMove(pos, false);
+      } else if (finishHitTest(pos)) {
+        clearSelection();
+        editor.selFinish = true;
+        editor.dragging = true;
+        editor.dragMode = 'finish';
+        editor._preDrag = snapshotEditor();
+        editor._moved = false;
+        moveFinish(pos);
+      } else {
+        // 빈 곳: 마퀴 선택 시작
+        clearSelection();
+        editor.marquee = { x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y };
+        editor.dragging = true;
+        editor.dragMode = 'marquee';
+      }
+      renderPropsPanel();
+      eCanvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // 일반 배치 도구
     if (hit >= 0) {
-      editor.selected = hit;
-      editor.selFinish = false;
-      editor.dragging = true;
+      selectOne(editor.comps[hit]);
+      beginMove(pos, false);
     } else if (finishHitTest(pos)) {
-      // 🏁 골인 존 선택/이동
       editor.selFinish = true;
       editor.selected = -1;
+      editor.selComps.clear();
       editor.dragging = true;
+      editor.dragMode = 'finish';
+      editor._preDrag = snapshotEditor();
+      editor._moved = false;
       moveFinish(pos);
     } else {
       // 새 구성요소 배치
+      pushHistory(); // 배치 전 상태 저장 (Ctrl+Z 로 방금 배치 취소)
       const def = COMPONENTS[editor.tool];
-      const comp = {
-        type: def.id,
-        ...clampToBounds(pos),
-        props: defaultProps(def),
-      };
+      const comp = { type: def.id, ...clampToBounds(pos), props: defaultProps(def) };
       rebuildComp(comp);
       editor.comps.push(comp);
-      editor.selected = editor.comps.length - 1;
-      editor.selFinish = false;
-      editor.dragging = true;
+      selectOne(comp);
+      beginMove(pos, true);
     }
     renderPropsPanel();
     eCanvas.setPointerCapture(e.pointerId);
@@ -3725,17 +3867,49 @@
 
   eCanvas.addEventListener('pointermove', (e) => {
     if (!editor.dragging) return;
-    if (editor.selFinish) {
-      moveFinish(eventToWorld(e));
+    const cur = eventToWorld(e);
+    if (editor.dragMode === 'marquee') {
+      editor.marquee.x1 = cur.x;
+      editor.marquee.y1 = cur.y;
       return;
     }
-    if (editor.selected < 0) return;
-    const comp = editor.comps[editor.selected];
-    Object.assign(comp, clampToBounds(eventToWorld(e)));
+    if (editor.dragMode === 'finish') {
+      moveFinish(cur);
+      editor._moved = true;
+      return;
+    }
+    // place / single / group: 시작점 대비 격자 델타를 모든 선택 요소에 적용 (상대 간격 유지)
+    if (!editor.dragOrig) return;
+    const gdx = Math.round((cur.x - editor.dragStart.x) / 5) * 5;
+    const gdy = Math.round((cur.y - editor.dragStart.y) / 5) * 5;
+    if (gdx || gdy) editor._moved = true;
+    for (const [c, o] of editor.dragOrig) Object.assign(c, clampPos(o.x + gdx, o.y + gdy));
   });
 
   eCanvas.addEventListener('pointerup', () => {
+    if (editor.dragMode === 'marquee' && editor.marquee) {
+      const m = editor.marquee;
+      const x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1);
+      const y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
+      // 중심이 사각형 안에 든 요소를 묶어 선택
+      editor.selComps = new Set(
+        editor.comps.filter((c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1)
+      );
+      editor.selected = editor.selComps.size === 1 ? editor.comps.indexOf([...editor.selComps][0]) : -1;
+      editor.marquee = null;
+      renderPropsPanel();
+    } else if (
+      (editor.dragMode === 'single' || editor.dragMode === 'group' || editor.dragMode === 'finish') &&
+      editor._moved && editor._preDrag
+    ) {
+      // 실제로 이동했을 때만 되돌리기 지점 커밋
+      editor.history.push(editor._preDrag);
+      if (editor.history.length > HISTORY_MAX) editor.history.shift();
+    }
     editor.dragging = false;
+    editor.dragMode = null;
+    editor.dragOrig = null;
+    editor._preDrag = null;
   });
 
   // 휠 스크롤로 긴 맵 이동
@@ -3768,9 +3942,39 @@
   });
 
   function deleteSelected() {
-    if (editor.selected < 0) return;
-    editor.comps.splice(editor.selected, 1);
-    editor.selected = -1;
+    // 다중 선택이 있으면 전부, 아니면 대표 선택 하나
+    const targets = editor.selComps.size ? [...editor.selComps] : editor.selected >= 0 ? [editor.comps[editor.selected]] : [];
+    if (!targets.length) return;
+    pushHistory();
+    editor.comps = editor.comps.filter((c) => !targets.includes(c));
+    clearSelection();
+    renderPropsPanel();
+  }
+
+  // 📋 선택 요소 복사
+  function copySelected() {
+    const src = editor.selComps.size ? [...editor.selComps] : editor.selected >= 0 ? [editor.comps[editor.selected]] : [];
+    if (!src.length) return;
+    editor.clipboard = src.map((c) => ({ type: c.type, x: c.x, y: c.y, props: { ...c.props } }));
+  }
+  // 📋 붙여넣기 (약간 어긋나게 배치하고 붙여넣은 것들을 선택)
+  function pasteClipboard() {
+    if (!editor.clipboard || !editor.clipboard.length) return;
+    pushHistory();
+    const pasted = [];
+    for (const c of editor.clipboard) {
+      const pos = clampPos(c.x + 24, c.y + 24);
+      const comp = { type: c.type, x: Math.round(pos.x / 5) * 5, y: Math.round(pos.y / 5) * 5, props: { ...c.props } };
+      if (!rebuildComp(comp)) continue;
+      editor.comps.push(comp);
+      pasted.push(comp);
+    }
+    if (!pasted.length) return;
+    editor.tool = 'select'; // 붙여넣은 묶음을 바로 옮길 수 있게 선택 모드로
+    editor.selComps = new Set(pasted);
+    editor.selected = pasted.length === 1 ? editor.comps.indexOf(pasted[0]) : -1;
+    editor.selFinish = false;
+    renderPalette();
     renderPropsPanel();
   }
 
@@ -3778,10 +3982,14 @@
   document.addEventListener('keydown', (e) => {
     if (!editor.active) return;
     if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    const ctrl = e.ctrlKey || e.metaKey; // Windows/Mac 공용
+    if (!editor.viewOnly && ctrl && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); copySelected(); return; }
+    if (!editor.viewOnly && ctrl && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); pasteClipboard(); return; }
+    if (!editor.viewOnly && ctrl && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoEditor(); return; }
     if (!editor.viewOnly && (e.key === 'Delete' || e.key === 'Backspace')) deleteSelected();
     if (e.key === 'Escape') {
-      editor.selected = -1;
-      editor.selFinish = false;
+      clearSelection();
+      editor.marquee = null;
       renderPropsPanel();
     }
     if (e.key === 'ArrowDown') editor.camY = clampCam(editor.camY + 80, editor.height);
@@ -3889,7 +4097,7 @@
     editor.comps.forEach((comp, i) => {
       if (comp.y < camY - 300 || comp.y > camY + VIEW.height + 300) return;
       drawComponent(eCtx, comp, comp.spin ? comp.spin * t : 0);
-      if (i === editor.selected) {
+      if (editor.selComps.has(comp)) {
         eCtx.strokeStyle = '#d4af37';
         eCtx.lineWidth = 2;
         eCtx.setLineDash([6, 4]);
@@ -3901,30 +4109,45 @@
         eCtx.beginPath();
         eCtx.arc(comp.x, comp.y, radius + 6, 0, Math.PI * 2);
         eCtx.stroke();
-        // 폭탄 등: 발동 범위 미리보기
-        if (comp.hit && comp.hit.radius) {
-          eCtx.strokeStyle = 'rgba(255,176,58,0.55)';
-          eCtx.beginPath();
-          eCtx.arc(comp.x, comp.y, comp.hit.radius, 0, Math.PI * 2);
-          eCtx.stroke();
-        }
-        // ↔️ 움직이는 벽: 왕복 이동 범위(트랙) 표시
-        if (comp.move) {
-          const rng = comp.move.range;
-          eCtx.strokeStyle = 'rgba(180,140,232,0.7)';
-          eCtx.beginPath();
-          if (comp.move.axis === 'y') {
-            eCtx.moveTo(comp.x, comp.y - rng);
-            eCtx.lineTo(comp.x, comp.y + rng);
-          } else {
-            eCtx.moveTo(comp.x - rng, comp.y);
-            eCtx.lineTo(comp.x + rng, comp.y);
+        // 단일 선택일 때만 상세 미리보기(폭발 범위·이동 트랙) — 다중 선택 시 화면이 복잡해지지 않게
+        if (editor.selComps.size === 1) {
+          if (comp.hit && comp.hit.radius) {
+            eCtx.strokeStyle = 'rgba(255,176,58,0.55)';
+            eCtx.beginPath();
+            eCtx.arc(comp.x, comp.y, comp.hit.radius, 0, Math.PI * 2);
+            eCtx.stroke();
           }
-          eCtx.stroke();
+          if (comp.move) {
+            const rng = comp.move.range;
+            eCtx.strokeStyle = 'rgba(180,140,232,0.7)';
+            eCtx.beginPath();
+            if (comp.move.axis === 'y') {
+              eCtx.moveTo(comp.x, comp.y - rng);
+              eCtx.lineTo(comp.x, comp.y + rng);
+            } else {
+              eCtx.moveTo(comp.x - rng, comp.y);
+              eCtx.lineTo(comp.x + rng, comp.y);
+            }
+            eCtx.stroke();
+          }
         }
         eCtx.setLineDash([]);
       }
     });
+
+    // 🔲 마퀴(다중선택) 사각형
+    if (editor.marquee) {
+      const m = editor.marquee;
+      const x = Math.min(m.x0, m.x1), y = Math.min(m.y0, m.y1);
+      const w = Math.abs(m.x1 - m.x0), h = Math.abs(m.y1 - m.y0);
+      eCtx.fillStyle = 'rgba(53,224,255,0.10)';
+      eCtx.fillRect(x, y, w, h);
+      eCtx.strokeStyle = 'rgba(53,224,255,0.8)';
+      eCtx.lineWidth = 1.5;
+      eCtx.setLineDash([5, 4]);
+      eCtx.strokeRect(x, y, w, h);
+      eCtx.setLineDash([]);
+    }
 
     eCtx.restore();
 
