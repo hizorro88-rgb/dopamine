@@ -155,17 +155,47 @@
       c.width = c.height = Math.ceil((r + pad) * 2 * scale);
       const g = c.getContext('2d');
       const cx = c.width / 2;
+      const R = r * scale;
       g.shadowColor = glow;
       g.shadowBlur = 13 * scale;
       g.fillStyle = color;
       g.beginPath();
-      g.arc(cx, cx, r * scale, 0, Math.PI * 2);
+      g.arc(cx, cx, R, 0, Math.PI * 2);
       g.fill();
-      if (r >= 5) {
-        g.shadowBlur = 0;
+      g.shadowBlur = 0;
+      // 🪩 금속 구슬 질감을 스프라이트에 미리 구워둔다 (캐시되므로 런타임 비용 0)
+      if (r >= 4) {
+        // 구면 음영 (가장자리 어둡게)
+        const shade = g.createRadialGradient(cx, cx, R * 0.15, cx, cx, R * 1.02);
+        shade.addColorStop(0, 'rgba(0,0,0,0)');
+        shade.addColorStop(0.6, 'rgba(0,0,0,0)');
+        shade.addColorStop(0.9, 'rgba(0,0,0,0.28)');
+        shade.addColorStop(1, 'rgba(0,0,0,0.5)');
+        g.fillStyle = shade;
+        g.beginPath();
+        g.arc(cx, cx, R, 0, Math.PI * 2);
+        g.fill();
+        // 좌상단 정반사 하이라이트
+        const hx = cx - R * 0.32, hy = cx - R * 0.36;
+        const hi = g.createRadialGradient(hx, hy, 0, hx, hy, R * 0.9);
+        hi.addColorStop(0, 'rgba(255,255,255,0.9)');
+        hi.addColorStop(0.25, 'rgba(255,255,255,0.4)');
+        hi.addColorStop(0.55, 'rgba(255,255,255,0.06)');
+        hi.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = hi;
+        g.beginPath();
+        g.arc(cx, cx, R, 0, Math.PI * 2);
+        g.fill();
+        // 또렷한 반사 점
+        g.fillStyle = 'rgba(255,255,255,0.92)';
+        g.beginPath();
+        g.arc(cx - R * 0.3, cx - R * 0.34, Math.max(1, R * 0.16), 0, Math.PI * 2);
+        g.fill();
+      } else {
+        // 아주 작은 원은 중앙 코어만 (기존)
         g.fillStyle = 'rgba(255,255,255,0.35)';
         g.beginPath();
-        g.arc(cx, cx, r * 0.45 * scale, 0, Math.PI * 2);
+        g.arc(cx, cx, R * 0.45, 0, Math.PI * 2);
         g.fill();
       }
       glowSprites.set(key, c);
@@ -2764,6 +2794,52 @@
     game.fxSeen.set(key, cur);
   }
 
+  /**
+   * 쇠구슬(금속 구) 질감 렌더 — 플레이어 색을 유지하되 구면 음영·정반사 하이라이트·
+   * 바닥 반사광을 얹어 매끈한 유광 금속처럼 보이게 한다. 회색 오버레이만 쓰므로
+   * 색 문자열(hex/hsl) 파싱 없이 어떤 색에도 적용된다.
+   * @param cheap  이벤트(수백 개) 등에서 그라디언트 수를 줄인 경량 버전
+   */
+  function drawMetalBall(ctx, cx, cy, rx, ry, color, cheap) {
+    // 1) 바탕색 (호출부에서 설정한 그림자로 은은한 발광 헤일로가 여기서 한 번만 생김)
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent'; // 이후 오버레이는 그림자 없이 (중첩 그림자로 탁해지는 것 방지)
+    // 2) 구면 음영 (가장자리로 갈수록 어둡게 → 입체감)
+    const shade = ctx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, rx * 1.02);
+    shade.addColorStop(0, 'rgba(0,0,0,0)');
+    shade.addColorStop(0.6, 'rgba(0,0,0,0)');
+    shade.addColorStop(0.88, 'rgba(0,0,0,0.34)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = shade;
+    ctx.fill();
+    // 3) 정반사 하이라이트 (좌상단)
+    const hx = cx - rx * 0.34, hy = cy - ry * 0.4;
+    const hi = ctx.createRadialGradient(hx, hy, 0, hx, hy, rx * 0.95);
+    hi.addColorStop(0, 'rgba(255,255,255,0.95)');
+    hi.addColorStop(0.2, 'rgba(255,255,255,0.5)');
+    hi.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+    hi.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hi;
+    ctx.fill();
+    if (!cheap) {
+      // 4) 바닥 반사광 (하단 테두리에 옅은 빛 → 크롬 느낌)
+      const rl = ctx.createRadialGradient(cx, cy + ry * 0.58, 0, cx, cy + ry * 0.58, rx * 0.75);
+      rl.addColorStop(0, 'rgba(255,255,255,0.26)');
+      rl.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rl;
+      ctx.fill();
+      // 5) 또렷한 반사 점
+      ctx.beginPath();
+      ctx.arc(cx - rx * 0.32, cy - ry * 0.38, rx * 0.15, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.fill();
+    }
+  }
+
   /** 본체 뒤 아우라 — 자석(자기장 링) / 번개(둔화 오라) */
   function drawBallAura(ctx, b, x, y, radius, tNow) {
     if (b.m) {
@@ -3104,27 +3180,23 @@
       // 지속형 아이템 아우라(본체 뒤) — 자석/번개
       drawBallAura(ctx, b, bx, by, radius, tNow);
 
-      // 본체 — 발광 구슬 (풍선이면 타원으로 말랑 / 🎭 변신이면 각진 도형이 빙글 회전)
+      // 본체 (풍선이면 타원으로 말랑 / 🎭 변신이면 각진 도형이 빙글 회전 / 그 외엔 쇠구슬)
       const morphed = b.o > 0;
       const morphRot = tNow * 0.006 + ph;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = b.b ? 16 : morphed ? 14 : 11;
-      ctx.fillStyle = color;
       if (morphed) {
+        // 변신: 각진 실루엣 유지 (금속 음영 대신 발광 도형)
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = color;
         morphPath(ctx, bx, by, radius * 1.28, b.o, morphRot);
         ctx.fill();
+        ctx.shadowBlur = 0;
       } else {
-        ctx.beginPath();
-        ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.shadowBlur = 0;
-      // 밝은 코어 (변신 중엔 생략해 각진 실루엣을 살림)
-      if (!morphed) {
-        ctx.beginPath();
-        ctx.arc(bx - radius * 0.2, by - radius * 0.24, radius * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fill();
+        // 은은한 발광(어두운 배경에서 잘 보이게) + 쇠구슬 질감
+        ctx.shadowColor = color;
+        ctx.shadowBlur = b.b ? 12 : 7;
+        drawMetalBall(ctx, bx, by, rx, ry, color, many);
+        ctx.shadowBlur = 0;
       }
 
       // 내 공은 금테로 표시 (도형이면 도형 외곽선)
