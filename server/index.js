@@ -195,7 +195,7 @@ app.post('/api/admin/maps/update', (req, res) => {
 // ── 관리자: 런타임 설정 (후원 링크·낙하 배속·아이템 소개·하루 맵 제한 등) ──
 app.get('/api/admin/settings', (req, res) => {
   if (!requireAdmin(req, res)) return;
-  res.json({ ok: true, settings: settings.all() });
+  res.json({ ok: true, settings: settings.all(), itemDefs: require('./items').configurableItems() });
 });
 app.post('/api/admin/settings', (req, res) => {
   if (!requireAdmin(req, res)) return;

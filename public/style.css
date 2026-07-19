@@ -2445,3 +2445,12 @@ textarea:focus {
   color: rgba(255, 255, 255, 0.75);
   padding: 2px 0;
 }
+
+/* ⏱️ 관리자 아이템 지속시간 편집 */
+#item-durations { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+#item-durations label { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#item-durations input.item-dur-input { width: 96px; flex: 0 0 auto; }
+.dur-grade {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px;
+  border-radius: 6px; background: rgba(212,175,55,0.18); color: var(--gold, #ffce54); margin-left: 4px;
+}

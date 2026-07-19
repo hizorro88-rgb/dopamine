@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { atomicWriteJSON } = require('./security');
 const config = require('./config');
+const items = require('./items');
 
 const DATA_FILE = path.join(__dirname, '..', 'data', 'settings.json');
 const DEFAULT_DONATION_URL = 'https://qr.kakaopay.com/Ej8euQo2R';
@@ -20,6 +21,7 @@ const DEFAULTS = {
   itemIntroMs: config.ITEM_INTRO_MS,
   shuffleAutoDropMs: config.SHUFFLE_AUTO_DROP_MS,
   mapDailyLimit: MAP_DAILY_DEFAULT,
+  itemDurations: {}, // 아이템별 지속시간 override (비면 각 아이템 기본값)
 };
 
 class SettingsStore {
@@ -31,6 +33,8 @@ class SettingsStore {
     } catch {
       /* 파일 없으면 기본값 */
     }
+    if (!this.data.itemDurations || typeof this.data.itemDurations !== 'object') this.data.itemDurations = {};
+    items.applyDurationOverrides(this.data.itemDurations); // 저장된 override 를 아이템에 반영
   }
 
   get(k) {
@@ -57,6 +61,16 @@ class SettingsStore {
       if (patch.shuffleAutoDropMs !== undefined)
         d.shuffleAutoDropMs = num(patch.shuffleAutoDropMs, 1000, 30000, '자동 낙하 시간(ms)');
       if (patch.mapDailyLimit !== undefined) d.mapDailyLimit = num(patch.mapDailyLimit, 0, 1000, '하루 맵 제한');
+      if (patch.itemDurations !== undefined) {
+        if (typeof patch.itemDurations !== 'object' || patch.itemDurations === null)
+          throw new Error('아이템 지속시간 형식이 올바르지 않습니다.');
+        const clean = { ...(d.itemDurations || {}) };
+        for (const [id, v] of Object.entries(patch.itemDurations)) {
+          if (!(id in items.DURATION_DEFAULTS)) continue; // 조정 가능한 아이템만
+          clean[id] = num(v, items.DURATION_MIN, items.DURATION_MAX, `${id} 지속시간(ms)`);
+        }
+        d.itemDurations = clean;
+      }
     } catch (e) {
       return { ok: false, error: e.message };
     }
@@ -66,6 +80,7 @@ class SettingsStore {
     } catch (e) {
       return { ok: false, error: '저장 실패: ' + e.message };
     }
+    items.applyDurationOverrides(this.data.itemDurations); // 즉시 반영
     return { ok: true, settings: this.all() };
   }
 }

@@ -703,7 +703,7 @@
         }
         throw new Error(msg);
       })
-      .then(({ settings }) => {
+      .then(({ settings, itemDefs }) => {
         $('admin-msg').textContent = ''; // '확인 중…' 지우기
         $('admin-login').classList.add('hidden');
         $('admin-panel').classList.remove('hidden');
@@ -712,6 +712,7 @@
           const el = $('set-' + k);
           if (el) el.value = settings[k] != null ? settings[k] : '';
         }
+        renderItemDurations(itemDefs || []);
         loadAdminMaps();
         loadAdminFeedback();
         loadSeasonInfo();
@@ -739,6 +740,43 @@
       })
       .catch(() => {});
   }
+
+  // ⏱️ 아이템 지속시간 편집 UI
+  const GRADE_LABEL = { common: '일반', rare: '희귀', hero: '영웅', legend: '전설', mythic: '신화', unique: '유일' };
+  function renderItemDurations(defs) {
+    const box = $('item-durations');
+    if (!box) return;
+    box.innerHTML = '';
+    for (const it of defs) {
+      const row = document.createElement('label');
+      const gradeTag = GRADE_LABEL[it.grade] ? ` <span class="dur-grade">${GRADE_LABEL[it.grade]}</span>` : '';
+      const changed = it.duration !== it.default ? ` (기본 ${it.default})` : '';
+      row.innerHTML = `<span>${it.emoji} ${escapeHtml(it.name)}${gradeTag}<span class="hint" style="font-size:11px">${changed}</span></span>`;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 200; input.max = 15000; input.step = 100;
+      input.value = it.duration;
+      input.dataset.itemId = it.id;
+      input.className = 'item-dur-input';
+      row.appendChild(input);
+      box.appendChild(row);
+    }
+  }
+  $('btn-admin-save-durations').addEventListener('click', () => {
+    const itemDurations = {};
+    for (const input of document.querySelectorAll('.item-dur-input')) {
+      itemDurations[input.dataset.itemId] = Number(input.value);
+    }
+    const msg = $('admin-durations-msg');
+    fetch('/api/admin/settings', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ itemDurations }) })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) { msg.style.color = 'var(--danger)'; return (msg.textContent = res.error || '저장 실패'); }
+        msg.style.color = '#6fdfa0';
+        msg.textContent = '✅ 아이템 지속시간을 저장했습니다. (다음 판부터 적용)';
+      })
+      .catch(() => { msg.style.color = 'var(--danger)'; msg.textContent = '저장 실패'; });
+  });
 
   $('btn-admin-save-settings').addEventListener('click', () => {
     const patch = {};

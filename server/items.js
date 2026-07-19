@@ -409,6 +409,38 @@ const GRADE_OF = {
 };
 for (const id of Object.keys(GRADE_OF)) if (ITEMS[id]) ITEMS[id].grade = GRADE_OF[id];
 
+// ── ⏱️ 아이템 지속시간 관리자 조정 ──────────────────────
+// 즉발형(duration:0)은 지속 개념이 없어 제외. 원래 값을 스냅샷 해두고,
+// 관리자 설정(overrides)이 오면 ITEMS[id].duration 을 갈아끼운다.
+// apply/tick/expire 가 this.duration 을 라이브로 읽으므로 재시작 없이 반영된다.
+const DURATION_MIN = 200;
+const DURATION_MAX = 15000;
+const DURATION_DEFAULTS = {};
+for (const [id, it] of Object.entries(ITEMS)) {
+  if (it.duration > 0) DURATION_DEFAULTS[id] = it.duration;
+}
+/** 관리자 설정의 지속시간 override 를 ITEMS 에 적용 (없는 값은 기본값으로 복원) */
+function applyDurationOverrides(overrides = {}) {
+  for (const id of Object.keys(DURATION_DEFAULTS)) {
+    const def = DURATION_DEFAULTS[id];
+    const v = Number(overrides && overrides[id]);
+    ITEMS[id].duration = Number.isFinite(v)
+      ? Math.min(DURATION_MAX, Math.max(DURATION_MIN, Math.round(v)))
+      : def;
+  }
+}
+/** 관리자 UI 표시용: 조정 가능한 아이템 목록(현재/기본 지속시간 포함) */
+function configurableItems() {
+  return Object.keys(DURATION_DEFAULTS).map((id) => ({
+    id,
+    name: ITEMS[id].name,
+    emoji: ITEMS[id].emoji,
+    grade: ITEMS[id].grade,
+    duration: ITEMS[id].duration,
+    default: DURATION_DEFAULTS[id],
+  }));
+}
+
 /** 클라이언트에 내려줄 메타데이터 (apply/expire 함수 제외) */
 function itemMeta(item) {
   const { id, name, emoji, desc, target, grade, duration } = item;
@@ -480,4 +512,7 @@ function rollSpecialItem() {
   return specials[specials.length - 1].id;
 }
 
-module.exports = { ITEMS, itemMeta, randomItems, rollSpecialItem, itemChances, GRADES, SPECIAL_CHANCE };
+module.exports = {
+  ITEMS, itemMeta, randomItems, rollSpecialItem, itemChances, GRADES, SPECIAL_CHANCE,
+  applyDurationOverrides, configurableItems, DURATION_DEFAULTS, DURATION_MIN, DURATION_MAX,
+};
