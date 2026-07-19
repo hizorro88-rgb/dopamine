@@ -449,6 +449,15 @@ class Game {
     };
   }
 
+  /** 🔌 재접속 플레이어용 현재 게임 상태 (관전과 달리 본인 아이템 포함) */
+  resumePayload(playerId) {
+    const base = this.spectatorPayload();
+    base.spectator = false;
+    const items = this.playerItems.get(playerId);
+    base.yourItems = items ? items.map((id) => (id ? itemMeta(ITEMS[id]) : null)) : [];
+    return base;
+  }
+
   /** 새 배치 패턴을 골라 공들의 이동 목표를 재배정 */
   assignShuffleTargets() {
     const slots = randomPatternSlots(this.balls.size, this.width);
@@ -834,6 +843,40 @@ class Game {
     }
     this.playerItems.delete(playerId);
     if (!this.over && this.balls.size === 0) this.finish();
+  }
+
+  /** 🔌 재접속: oldId 로 키된 공·아이템·기록을 newId 로 옮긴다 (게임 상태 그대로 유지) */
+  rebindPlayer(oldId, newId) {
+    if (oldId === newId) return;
+    const prefix = oldId + ':';
+    const rekey = (k) => (typeof k === 'string' && k.startsWith(prefix) ? newId + ':' + k.slice(prefix.length) : k);
+    for (const [key, ball] of [...this.balls]) {
+      if (ball.plugin.playerId !== oldId) continue;
+      ball.plugin.playerId = newId;
+      const nk = rekey(key);
+      ball.plugin.key = nk;
+      this.balls.delete(key);
+      this.balls.set(nk, ball);
+      if (this.shuffleTargets.has(key)) {
+        this.shuffleTargets.set(nk, this.shuffleTargets.get(key));
+        this.shuffleTargets.delete(key);
+      }
+      if (this.finishTimes.has(key)) {
+        this.finishTimes.set(nk, this.finishTimes.get(key));
+        this.finishTimes.delete(key);
+      }
+    }
+    this.finished = this.finished.map(rekey);
+    if (this.playerItems.has(oldId)) {
+      this.playerItems.set(newId, this.playerItems.get(oldId));
+      this.playerItems.delete(oldId);
+    }
+    for (const c of this.clones) {
+      if (c.plugin.playerId === oldId) {
+        c.plugin.playerId = newId;
+        if (c.plugin.key) c.plugin.key = rekey(c.plugin.key);
+      }
+    }
   }
 
   finish() {

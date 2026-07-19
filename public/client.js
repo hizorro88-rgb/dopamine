@@ -10,6 +10,16 @@
 
   // ── 상태 ──────────────────────────────────────────────
   let myId = null;
+  // 🔌 재접속용 영구 토큰 (소켓 id 와 분리 — 잠깐 끊겨도 같은 자리로 복귀)
+  let clientToken = localStorage.getItem('pinball-token');
+  if (!clientToken) {
+    clientToken =
+      (window.crypto && crypto.randomUUID && crypto.randomUUID()) ||
+      `t${Date.now()}${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem('pinball-token', clientToken);
+  }
+  let currentRoomCode = null; // 지금 속한 방 코드 (재접속 대상)
+  let hadConnected = false; // 최초 연결 이후인가 (재연결 판별)
   let room = null; // room:update 페이로드
   let spectating = false; // 이 방에서 나는 관전자인가
   let game = null; // { board, players(Map), items, snapshots[], ... }
@@ -28,6 +38,27 @@
 
   socket.on('connect', () => {
     myId = socket.id;
+    // 🔌 재연결: 이미 방에 속해 있었다면 같은 자리로 복귀 시도
+    if (hadConnected && currentRoomCode) {
+      socket.emit('room:resume', { code: currentRoomCode, token: clientToken }, (res) => {
+        if (res && res.ok) {
+          hideReconnecting();
+          if (res.room) applyRoomUpdate(res.room);
+          if (res.game) {
+            // 게임 진행 중이었다면 스냅샷 상태를 이어받아 렌더 재개
+            resumeGameFromPayload(res.game);
+          }
+        } else {
+          // 유예 시간이 지나 자리가 사라졌으면 방을 떠난 것으로 처리
+          currentRoomCode = null;
+          hideReconnecting();
+          leaveToHome(res && res.error ? res.error : '방으로 돌아갈 수 없어 홈으로 이동했어요.');
+        }
+      });
+      hadConnected = true;
+      return;
+    }
+    hadConnected = true;
     // 이벤트 초대 링크(?event=CODE)로 들어온 경우 자동 입장
     if (urlEventCode && !autoJoinedEvent) {
       autoJoinedEvent = true;
@@ -890,6 +921,7 @@
         itemsEnabled: d.itemsEnabled,
         rounds: d.rounds,
         password: $('input-room-pw').value,
+        token: clientToken,
       },
       (res) => {
         if (!res.ok) homeError.textContent = res.error || '방 생성 실패';
@@ -911,7 +943,7 @@
     // 클릭 핸들러로도 직접 연결되므로 문자열일 때만 인자 사용
     const code = (typeof codeArg === 'string' ? codeArg : inputCode.value).trim().toUpperCase();
     if (!code) return (homeError.textContent = '초대 코드를 입력해주세요.');
-    socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode(), password }, (res) => {
+    socket.emit('room:join', { code, name: myName(), donorCode: myDonorCode(), password, token: clientToken }, (res) => {
       if (res.ok) {
         spectating = false;
         closeJoinPw();
@@ -1275,19 +1307,22 @@
     spectating = false;
     room = null;
     game = null;
+    currentRoomCode = null;
     homeError.textContent = '방의 모든 플레이어가 나가서 방이 닫혔어요.';
     showScreen('home');
   });
 
-  socket.on('room:update', (data) => {
+  function applyRoomUpdate(data) {
     room = data;
+    currentRoomCode = data && data.code ? data.code : currentRoomCode; // 재접속 대상 기억
     if (room.state === 'lobby' && !game && !editor.active) {
       renderLobby();
       showScreen('lobby');
     } else if (room.state === 'lobby') {
       renderLobby();
     }
-  });
+  }
+  socket.on('room:update', applyRoomUpdate);
 
   // 내 이름 인라인 편집 상태 (플레이어 목록에서 내 이름 클릭 시)
   const nameEdit = { active: false, value: '' };
@@ -1731,6 +1766,7 @@
     socket.emit('room:leave');
     spectating = false;
     room = null;
+    currentRoomCode = null; // 명시적으로 나가면 재접속 대상 해제
     showScreen('home');
   });
 
@@ -2292,12 +2328,51 @@
   });
 
   socket.on('disconnect', () => {
+    // 🔌 방에 속해 있었다면 상태를 지우지 않고 재접속을 기다린다 (자리 유지)
+    if (currentRoomCode) {
+      showReconnecting();
+      return;
+    }
     room = null;
     game = null;
     spectating = false;
     homeError.textContent = '서버와의 연결이 끊어졌습니다. 새로고침 해주세요.';
     showScreen('home');
   });
+
+  // ── 🔌 재접속 오버레이 & 헬퍼 ──────────────────────────
+  function reconnectOverlay() {
+    let el = $('reconnect-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'reconnect-overlay';
+      el.className = 'reconnect-overlay hidden';
+      el.innerHTML = `<div class="reconnect-box">
+        <div class="reconnect-spinner"></div>
+        <div class="reconnect-text">재접속 중…</div>
+        <div class="reconnect-sub">잠깐 끊겼어요. 자리를 지키는 중이에요.</div>
+      </div>`;
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function showReconnecting() {
+    reconnectOverlay().classList.remove('hidden');
+  }
+  function hideReconnecting() {
+    reconnectOverlay().classList.add('hidden');
+  }
+  function resumeGameFromPayload(payload) {
+    // 게임 진행 중 재접속: 관전 진입점과 동일한 경로로 렌더 재개 (본인 아이템 포함)
+    startGameView(payload);
+  }
+  function leaveToHome(msg) {
+    room = null;
+    game = null;
+    spectating = false;
+    if (msg) homeError.textContent = msg;
+    showScreen('home');
+  }
 
   // ── 아이템 UI ─────────────────────────────────────────
   function renderItems() {

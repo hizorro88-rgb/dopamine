@@ -57,6 +57,9 @@ function sanitizeBallCount(v) {
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), 5) : 1;
 }
 
+// 🔌 재접속 유예: 끊긴 뒤 이 시간 안에 같은 토큰으로 돌아오면 자리를 되살린다
+const GRACE_MS = 30000;
+
 // 이어서 진행할 판 수 (1~10). 여러 판을 이어 최종 승자/벌칙자를 가린다.
 const MAX_ROUNDS = 10;
 function sanitizeRounds(v) {
@@ -87,7 +90,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password, rounds } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password, rounds, token } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.create.allow(socket.id))
         return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
@@ -101,6 +104,7 @@ class RoomManager {
         state: 'lobby', // 'lobby' | 'playing'
         players: new Map(),
         spectators: new Map(), // 관전자 (공·아이템 없음, 인원 제한 없음)
+        grace: new Map(), // 🔌 재접속 유예: 끊긴 socketId -> 제거 타이머
         game: null,
         mapId: 'classic',
         roundMaps: [], // 시리즈: 판마다 다른 맵 (mapId 배열, 비면 mapId 사용)
@@ -114,11 +118,39 @@ class RoomManager {
         password: String(password || '').trim().slice(0, 20) || null,
       };
       this.rooms.set(code, room);
-      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
+      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode), token);
       cb({ ok: true, code });
     });
 
-    socket.on('room:join', ({ code, name, donorCode, password } = {}, cb) => {
+    // 🔌 재접속: 끊겼던 슬롯(같은 token)을 새 소켓으로 되살린다
+    socket.on('room:resume', ({ code, token } = {}, cb) => {
+      const done = (r) => typeof cb === 'function' && cb(r);
+      const room = this.rooms.get(String(code || '').trim().toUpperCase());
+      if (!room || !token) return done({ ok: false });
+      let oldId = null;
+      let player = null;
+      for (const [id, p] of room.players) {
+        if (p.disconnected && p.token && p.token === token) { oldId = id; player = p; break; }
+      }
+      if (!oldId) return done({ ok: false }); // 유예 만료했거나 그런 슬롯 없음
+      if (this.roomOf(socket)) this.leave(socket); // 다른 방에 있었으면 정리
+      if (room.grace.has(oldId)) { clearTimeout(room.grace.get(oldId)); room.grace.delete(oldId); }
+      const newId = socket.id;
+      room.players.delete(oldId);
+      player.id = newId;
+      player.disconnected = false;
+      room.players.set(newId, player);
+      if (room.hostId === oldId) room.hostId = newId;
+      if (room.game) room.game.rebindPlayer(oldId, newId);
+      this.socketRoom.set(newId, room.code);
+      socket.join(room.code);
+      const payload = { ok: true, code: room.code, state: room.state };
+      if (room.game && !room.game.over) payload.game = room.game.resumePayload(newId);
+      done(payload);
+      this.broadcastRoom(room);
+    });
+
+    socket.on('room:join', ({ code, name, donorCode, password, token } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const room = this.rooms.get(String(code || '').trim().toUpperCase());
       if (!room) return cb({ ok: false, error: '존재하지 않는 방 코드입니다.' });
@@ -137,7 +169,7 @@ class RoomManager {
       if (room.players.size >= MAX_PLAYERS)
         return cb({ ok: false, error: `방이 가득 찼습니다. (최대 ${MAX_PLAYERS}명)` });
       this.leave(socket); // 이전 방 정리 (누수·중복 소속 방지)
-      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode));
+      this.addPlayer(room, socket, sanitizeName(name), this.isDonor(donorCode), token);
       cb({ ok: true, code: room.code });
     });
 
@@ -390,38 +422,82 @@ class RoomManager {
       if (typeof cb === 'function') cb({ ok: !error, error });
     });
 
-    socket.on('disconnect', () => this.leave(socket));
+    // 연결 종료: 플레이어는 잠깐 자리를 남겨(재접속 유예) 두었다가 정리
+    socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
-  /** 방에서 퇴장 (연결 종료·자발적 나가기 공용) */
+  /** 🔌 연결 끊김 — 플레이어는 유예 후 정리(재접속 허용), 관전자·미소속은 즉시 */
+  handleDisconnect(socket) {
+    const room = this.roomOf(socket);
+    if (!room) return;
+    this.socketRoom.delete(socket.id);
+    socket.leave(room.code);
+    // 관전자면 즉시 정리
+    if (room.spectators.has(socket.id)) {
+      this.finalizeLeave(room, socket.id);
+      return;
+    }
+    const player = room.players.get(socket.id);
+    if (!player) return;
+    // 플레이어: 잠깐 자리를 유지(끊김 표시) → 같은 토큰으로 재접속하면 되살림
+    player.disconnected = true;
+    const oldId = socket.id;
+    // 방장이 끊기면 방이 멈추지 않게 다른 접속자에게 즉시 승계 (돌아와도 방장은 안 돌려줌)
+    if (room.hostId === oldId) {
+      const alt = [...room.players.values()].find((p) => !p.disconnected);
+      if (alt) room.hostId = alt.id;
+    }
+    if (room.grace.has(oldId)) clearTimeout(room.grace.get(oldId));
+    room.grace.set(
+      oldId,
+      setTimeout(() => {
+        room.grace.delete(oldId);
+        this.finalizeLeave(room, oldId);
+      }, GRACE_MS)
+    );
+    this.broadcastRoom(room);
+  }
+
+  /** 방에서 완전히 퇴장 (명시적 나가기 — 즉시) */
   leave(socket) {
     const room = this.roomOf(socket);
     if (!room) return;
     this.socketRoom.delete(socket.id);
     socket.leave(room.code);
+    if (room.grace.has(socket.id)) {
+      clearTimeout(room.grace.get(socket.id));
+      room.grace.delete(socket.id);
+    }
+    this.finalizeLeave(room, socket.id);
+  }
 
-    // 관전자였다면 목록에서만 제거하면 끝
-    if (room.spectators.delete(socket.id)) {
+  /** 슬롯 실제 제거 (유예 만료·명시적 나가기 공용) */
+  finalizeLeave(room, id) {
+    if (!this.rooms.has(room.code)) return;
+    // 관전자였다면 목록에서만 제거
+    if (room.spectators.delete(id)) {
       this.broadcastRoom(room);
       return;
     }
-
-    room.players.delete(socket.id);
-    if (room.game) room.game.removePlayer(socket.id);
+    if (!room.players.has(id)) return;
+    room.players.delete(id);
+    if (room.game) room.game.removePlayer(id);
 
     if (room.players.size === 0) {
       if (room.game) room.game.stop();
       if (room.seriesTimer) clearTimeout(room.seriesTimer); // 자동 다음 판 타이머 정리
+      for (const t of room.grace.values()) clearTimeout(t); // 남은 유예 타이머 정리
+      room.grace.clear();
       room.series = null;
       this.rooms.delete(room.code);
-      // 남아있던 관전자들에게 방이 사라졌음을 알림
       for (const specId of room.spectators.keys()) this.socketRoom.delete(specId);
       this.io.to(room.code).emit('room:closed');
       return;
     }
-    // 방장이 나가면 다음 사람에게 방장 승계
-    if (room.hostId === socket.id) {
-      room.hostId = room.players.keys().next().value;
+    // 방장이 나가면 접속 중인 다음 사람에게 승계
+    if (room.hostId === id) {
+      const alt = [...room.players.values()].find((p) => !p.disconnected);
+      room.hostId = alt ? alt.id : room.players.keys().next().value;
     }
     this.broadcastRoom(room);
   }
@@ -440,11 +516,17 @@ class RoomManager {
     return `${name} ${Math.floor(Math.random() * 900 + 100)}`;
   }
 
-  addPlayer(room, socket, name, isDonor = false) {
+  addPlayer(room, socket, name, isDonor = false, token = null) {
     const usedColors = new Set([...room.players.values()].map((p) => p.color));
     const color = COLORS.find((c) => !usedColors.has(c)) || COLORS[0];
     const finalName = this.uniqueName(room, name);
-    room.players.set(socket.id, { id: socket.id, name: finalName, color, isDonor });
+    room.players.set(socket.id, {
+      id: socket.id,
+      name: finalName,
+      color,
+      isDonor,
+      token: token ? String(token).slice(0, 64) : null, // 🔌 재접속 식별용
+    });
     this.socketRoom.set(socket.id, room.code);
     socket.join(room.code);
     this.broadcastRoom(room);
@@ -581,7 +663,14 @@ class RoomManager {
       hostId: room.hostId,
       state: room.state,
       maxPlayers: MAX_PLAYERS,
-      players: [...room.players.values()],
+      // ⚠️ token 은 절대 클라로 내보내지 않는다 (재접속 식별용 비밀)
+      players: [...room.players.values()].map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        isDonor: !!p.isDonor,
+        disconnected: !!p.disconnected,
+      })),
       spectators: room.spectators ? room.spectators.size : 0,
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
