@@ -123,6 +123,12 @@
             <button id="btn-admin-save-settings" class="btn primary">⚙️ 설정 저장</button>
             <p class="hint" id="admin-settings-msg"></p>
           </div>
+          <h3 class="admin-h" style="margin-top:18px">🏆 시즌 리더보드</h3>
+          <div class="admin-settings">
+            <p class="hint" id="admin-season-info">현재 시즌: —</p>
+            <button id="btn-admin-reset-season" class="btn">🔄 시즌 리셋 (상위 10명 명예의 전당 보관 후 초기화)</button>
+            <p class="hint" id="admin-season-msg"></p>
+          </div>
         </div>
         <div class="admin-col">
           <h3 class="admin-h">🗺 맵 관리</h3>
@@ -377,6 +383,9 @@
       <div id="canvas-wrap">
         <canvas id="canvas"></canvas>
         <canvas id="minimap" class="minimap"></canvas>
+        <!-- 🎉 이모지 응원: 떠오르는 이모지 레이어 + 하단 응원 바 -->
+        <div id="cheer-layer" aria-hidden="true"></div>
+        <div id="cheer-bar" class="hidden"></div>
       </div>
       <div id="game-side">
         <button id="btn-drop" class="btn primary hidden">🎲 지금 떨어뜨리기!</button>

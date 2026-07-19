@@ -225,7 +225,17 @@ app.get('/api/replay/:code', (req, res) => {
 
 // 전체 순위 (누적 전적 리더보드, 공개)
 app.get('/api/leaderboard', (_req, res) => {
-  res.json({ leaderboard: rooms.stats.list() });
+  res.json({
+    leaderboard: rooms.stats.list(),
+    season: rooms.stats.season,
+    hallOfFame: rooms.stats.hallOfFame,
+  });
+});
+
+// 시즌 리셋 (관리자 전용) — 현재 상위권을 명예의 기록으로 보관하고 집계 초기화
+app.post('/api/admin/leaderboard/reset', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json(rooms.stats.reset());
 });
 
 // 최후의 안전망: 한 요청/핸들러에서 예외가 새어나와도 프로세스 전체가 죽지 않도록 한다.

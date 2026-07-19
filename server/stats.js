@@ -4,6 +4,7 @@
  * 게임이 끝날 때마다 닉네임 기준으로 전적을 누적한다.
  * - 2인 이상 게임만 집계 (혼자 플레이로 승수 쌓기 방지)
  * - 점수: 참가자 수 - 순위 + 1 (4인 게임 1등 = 4점, 꼴찌 = 1점)
+ * - 시즌: 관리자가 리셋하면 시즌 번호가 오르고 집계가 초기화된다 (전 시즌 상위권은 명예의 기록으로 보관)
  */
 
 const fs = require('fs');
@@ -17,18 +18,37 @@ const MAX_LIST = 100;
 // 저장 항목 상한 — 닉네임은 무한히 생기므로(임의 입력) 상위 점수만 남기고 정리.
 // 리더보드(MAX_LIST)보다 넉넉히 잡아 잠깐 밀렸다 복귀하는 상위권을 보존.
 const MAX_ENTRIES = 5000;
+const ARCHIVE_TOP = 10; // 시즌 리셋 시 명예의 기록으로 남길 상위 인원
 
 class StatsStore {
   constructor() {
+    this.season = 1;
     this.byName = {}; // name -> { plays, wins, podiums, points }
+    this.hallOfFame = []; // [{ season, standings: [{name, points, wins}], endedAt }]
     this.load();
   }
 
   load() {
+    let raw;
     try {
-      this.byName = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     } catch {
+      raw = null;
+    }
+    if (raw && raw.byName && typeof raw.byName === 'object') {
+      // 새 포맷 { season, byName, hallOfFame }
+      this.season = Number(raw.season) > 0 ? Math.floor(Number(raw.season)) : 1;
+      this.byName = raw.byName;
+      this.hallOfFame = Array.isArray(raw.hallOfFame) ? raw.hallOfFame : [];
+    } else if (raw && typeof raw === 'object') {
+      // 구 포맷 (닉네임 → 전적 맵) 하위 호환
+      this.season = 1;
+      this.byName = raw;
+      this.hallOfFame = [];
+    } else {
+      this.season = 1;
       this.byName = {};
+      this.hallOfFame = [];
     }
     this.evict(); // 예전에 상한 없이 쌓인 파일도 로드 시 정리
   }
@@ -51,7 +71,11 @@ class StatsStore {
 
   persist() {
     this.evict();
-    atomicWriteJSON(DATA_FILE, this.byName);
+    atomicWriteJSON(DATA_FILE, {
+      season: this.season,
+      byName: this.byName,
+      hallOfFame: this.hallOfFame,
+    });
   }
 
   /** 게임 종료 시 순위표를 전적에 반영 */
@@ -68,6 +92,24 @@ class StatsStore {
       this.byName[r.name] = s;
     }
     this.persist();
+  }
+
+  /**
+   * 시즌 리셋 — 현재 상위권을 명예의 기록으로 보관하고 집계를 초기화, 시즌 번호 +1
+   * (관리자 전용)
+   */
+  reset() {
+    const standings = this.list()
+      .slice(0, ARCHIVE_TOP)
+      .map((e) => ({ rank: e.rank, name: e.name, points: e.points, wins: e.wins }));
+    if (standings.length) {
+      this.hallOfFame.unshift({ season: this.season, standings });
+      this.hallOfFame = this.hallOfFame.slice(0, 20); // 최근 20개 시즌만 보관
+    }
+    this.season += 1;
+    this.byName = {};
+    this.persist();
+    return { ok: true, season: this.season };
   }
 
   /** 점수순 전체 순위 */

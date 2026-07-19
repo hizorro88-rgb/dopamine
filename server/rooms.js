@@ -7,6 +7,7 @@ const { MapStore } = require('./maps');
 const { StatsStore } = require('./stats');
 const { ReviewStore } = require('./reviews');
 const { RateLimiter } = require('./security');
+const { sanitizeCheer } = require('./cheers');
 
 // 아이템전(직접 아이템 사용)은 최대 10명 — 그 이상은 이벤트 추첨 모드 사용
 const MAX_PLAYERS = 10;
@@ -87,6 +88,7 @@ class RoomManager {
       review: new RateLimiter(60000, 30), // 후기
       donor: new RateLimiter(60000, 20), // 후원자 코드 확인(브루트포스 방지)
       useItem: new RateLimiter(10000, 40), // 아이템 사용 스팸 방지(10초 40회)
+      cheer: new RateLimiter(10000, 20), // 이모지 응원 스팸 방지(10초 20회)
     };
     // 🧹 고아 방 청소 — 연결이 하나도 없는 방 회수 (테스트에서 프로세스 안 붙잡게 unref)
     this.gcTimer = setInterval(() => this.sweepRooms(), ROOM_GC_SWEEP_MS);
@@ -452,6 +454,16 @@ class RoomManager {
       }
       const error = room.game.useItem(socket.id, Number(slotIndex), targetId);
       if (typeof cb === 'function') cb({ ok: !error, error });
+    });
+
+    // 🎉 이모지 응원 — 방 안 모두(플레이어·관전자)가 서로에게 띄운다
+    socket.on('room:cheer', ({ emoji } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room) return;
+      if (!this.limiter.cheer.allow(socket.id)) return; // 스팸 방지
+      const e = sanitizeCheer(emoji);
+      if (!e) return;
+      this.io.to(room.code).emit('room:cheer', { emoji: e });
     });
 
     // 연결 종료: 플레이어는 잠깐 자리를 남겨(재접속 유예) 두었다가 정리

@@ -552,8 +552,9 @@
   function openLeaderboard() {
     fetch('/api/leaderboard')
       .then((r) => r.json())
-      .then(({ leaderboard }) => {
-        $('board-title').textContent = '📊 전체 순위 (누적 전적)';
+      .then(({ leaderboard, season, hallOfFame }) => {
+        const seasonTag = season > 1 ? ` · 시즌 ${season}` : '';
+        $('board-title').textContent = `📊 전체 순위 (누적 전적)${seasonTag}`;
         $('board-hint').innerHTML =
           '모든 게임의 결과가 닉네임 기준으로 누적됩니다.<br>점수 = 참가자 수 − 순위 + 1 (2인 이상 게임만 집계)';
         const list = $('board-list');
@@ -572,6 +573,22 @@
               ${e.wins}승 / ${e.plays}판
             </span>`;
           list.appendChild(li);
+        }
+        // 🏆 지난 시즌 명예의 전당 (있으면 하단에 접어서)
+        if (Array.isArray(hallOfFame) && hallOfFame.length) {
+          const hof = document.createElement('li');
+          hof.className = 'board-hof';
+          const seasons = hallOfFame
+            .map((h) => {
+              const top = h.standings
+                .slice(0, 3)
+                .map((s, i) => `${rankEmoji[i] || ''}${escapeHtml(s.name)}`)
+                .join(' · ');
+              return `<div class="hof-row"><b>시즌 ${h.season}</b> ${top || '기록 없음'}</div>`;
+            })
+            .join('');
+          hof.innerHTML = `<div class="hof-title">🏆 지난 시즌 명예의 전당</div>${seasons}`;
+          list.appendChild(hof);
         }
         $('board-modal').classList.remove('hidden');
       })
@@ -664,6 +681,7 @@
         }
         loadAdminMaps();
         loadAdminFeedback();
+        loadSeasonInfo();
       })
       .catch((e) => ($('admin-msg').textContent = e.message || '불러오기 실패'));
   }
@@ -705,6 +723,29 @@
         for (const k of SETTING_KEYS) { const el = $('set-' + k); if (el) el.value = res.settings[k]; }
       })
       .catch(() => ($('admin-settings-msg').textContent = '저장 실패'));
+  });
+
+  // 🏆 시즌 리더보드 — 현재 시즌 표시 & 리셋
+  function loadSeasonInfo() {
+    fetch('/api/leaderboard')
+      .then((r) => r.json())
+      .then(({ season, leaderboard }) => {
+        $('admin-season-info').textContent = `현재 시즌: ${season || 1} · 등록 ${leaderboard.length}명`;
+      })
+      .catch(() => {});
+  }
+  $('btn-admin-reset-season').addEventListener('click', () => {
+    if (!confirm('현재 시즌을 마감하고 리더보드를 초기화할까요?\n상위 10명은 명예의 전당에 보관됩니다.')) return;
+    const msg = $('admin-season-msg');
+    fetch('/api/admin/leaderboard/reset', { method: 'POST', headers: adminHeaders() })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) { msg.style.color = 'var(--danger)'; return (msg.textContent = res.error || '리셋 실패'); }
+        msg.style.color = '#6fdfa0';
+        msg.textContent = `✅ 시즌 ${res.season} 시작! 리더보드를 초기화했어요.`;
+        loadSeasonInfo();
+      })
+      .catch(() => { msg.style.color = 'var(--danger)'; msg.textContent = '리셋 실패'; });
   });
 
   function loadAdminMaps() {
@@ -1274,6 +1315,7 @@
     $('target-modal').classList.add('hidden');
     showScreen('game');
     setupCanvas();
+    showCheerBar(true); // 🎉 이벤트 관람 중에도 응원 가능
     requestAnimationFrame(renderFrame);
   }
 
@@ -1831,11 +1873,61 @@
     showIntro();
     showScreen('game'); // 화면 표시 후에 캔버스 크기 계산 (숨김 상태에선 부모 크기가 0)
     setupCanvas();
+    showCheerBar(true); // 🎉 응원 바 표시
     // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
     if (finished) for (const f of finished) appendFinishRow(f);
     requestAnimationFrame(renderFrame);
   }
   socket.on('game:started', startGameView);
+
+  // ── 🎉 이모지 응원 ───────────────────────────────────
+  // server/cheers.js 의 허용 목록과 순서·구성이 일치해야 한다.
+  const CHEERS = ['👏', '🔥', '🎉', '😂', '😮', '❤️', '😱', '💪', '🍀', '🙏'];
+  function buildCheerBar() {
+    const bar = $('cheer-bar');
+    if (bar.dataset.built) return;
+    bar.dataset.built = '1';
+    for (const e of CHEERS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cheer-btn';
+      b.textContent = e;
+      b.setAttribute('aria-label', '응원 ' + e);
+      b.addEventListener('click', () => sendCheer(e));
+      bar.appendChild(b);
+    }
+  }
+  function showCheerBar(show) {
+    buildCheerBar();
+    $('cheer-bar').classList.toggle('hidden', !show);
+    if (!show) $('cheer-layer').innerHTML = '';
+  }
+  let lastCheerAt = 0;
+  function sendCheer(emoji) {
+    const now = performance.now();
+    if (now - lastCheerAt < 220) return; // 연타 완화 (서버도 제한)
+    lastCheerAt = now;
+    // 이벤트 리플레이 관람이면 이벤트 채널로, 아니면 방 채널로
+    if (game && game.replay) socket.emit('event:cheer', { emoji });
+    else socket.emit('room:cheer', { emoji });
+    // 서버가 나를 포함해 방송하므로 여기서 별도 표시는 하지 않는다(중복 방지)
+  }
+  function spawnCheer(emoji) {
+    const layer = $('cheer-layer');
+    if (!layer) return;
+    if (layer.childElementCount > 40) layer.removeChild(layer.firstChild); // 폭주 방지
+    const el = document.createElement('span');
+    el.className = 'cheer-fly';
+    el.textContent = emoji;
+    el.style.left = (6 + Math.random() * 82).toFixed(1) + '%';
+    el.style.setProperty('--drift', (Math.random() * 44 - 22).toFixed(0) + 'px');
+    el.style.setProperty('--rot', (Math.random() * 36 - 18).toFixed(0) + 'deg');
+    el.style.fontSize = (26 + Math.random() * 14).toFixed(0) + 'px';
+    el.addEventListener('animationend', () => el.remove());
+    layer.appendChild(el);
+  }
+  socket.on('room:cheer', ({ emoji } = {}) => spawnCheer(emoji));
+  socket.on('event:cheer', ({ emoji } = {}) => spawnCheer(emoji));
 
   socket.on('game:snapshot', (snap) => {
     if (!game || game.replay) return;
@@ -2314,6 +2406,7 @@
 
   $('btn-back-lobby').addEventListener('click', () => {
     $('result-modal').classList.add('hidden');
+    showCheerBar(false);
     const wasReplay = game && game.replay;
     game = null;
     if (wasReplay && eventRoom) {
@@ -2365,6 +2458,15 @@
   function resumeGameFromPayload(payload) {
     // 게임 진행 중 재접속: 관전 진입점과 동일한 경로로 렌더 재개 (본인 아이템 포함)
     startGameView(payload);
+    // 스냅샷 버퍼가 비어 첫 프레임이 튀는 걸 감추려 잠깐 부드럽게 나타나게 한다
+    const wrap = $('canvas-wrap');
+    if (wrap) {
+      wrap.classList.remove('resume-fade');
+      void wrap.offsetWidth; // 리플로우로 애니메이션 재시작 보장
+      wrap.classList.add('resume-fade');
+      setTimeout(() => wrap.classList.remove('resume-fade'), 700);
+    }
+    toast('🔌 다시 연결됐어요 — 경기를 이어서 봅니다');
   }
   function leaveToHome(msg) {
     room = null;

@@ -12,6 +12,7 @@
 const zlib = require('zlib');
 const { simulateEvent } = require('./eventsim');
 const { RateLimiter } = require('./security');
+const { sanitizeCheer } = require('./cheers');
 
 // 공(참가자) 상한 — 아이템 없는 순수 낙하라 1000명까지 클라 60fps 실측 확인.
 // 서버 시뮬 시간은 인원에 초선형으로 늘어(사양 낮으면 더 오래) 환경변수로 조절 가능.
@@ -61,6 +62,7 @@ class EventManager {
     this.limiter = {
       create: new RateLimiter(60000, 20),
       register: new RateLimiter(60000, 30),
+      cheer: new RateLimiter(10000, 20), // 이모지 응원 스팸 방지(10초 20회)
     };
     // 🧹 유휴/고아 이벤트 청소 — 리플레이 버퍼 메모리 회수 (테스트에서 프로세스 안 붙잡게 unref)
     this.gcTimer = setInterval(() => this.sweep(), GC_SWEEP_MS);
@@ -188,6 +190,16 @@ class EventManager {
         this.io.to(this.roomKey(ev)).emit('event:error', { error: '추첨 생성에 실패했습니다. 다시 시도해주세요.' });
         this.broadcast(ev);
       }
+    });
+
+    // 🎉 이모지 응원 — 이벤트 관람 중 모두가 서로에게 띄운다
+    socket.on('event:cheer', ({ emoji } = {}) => {
+      const ev = this.eventOf(socket);
+      if (!ev) return;
+      if (!this.limiter.cheer.allow(socket.id)) return; // 스팸 방지
+      const e = sanitizeCheer(emoji);
+      if (!e) return;
+      this.io.to(this.roomKey(ev)).emit('event:cheer', { emoji: e });
     });
 
     // 이벤트에서 나가기 (홈으로) — 접속만 해제, 이미 등록한 추첨 엔트리는 유지
