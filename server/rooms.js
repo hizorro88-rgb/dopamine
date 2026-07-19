@@ -86,6 +86,7 @@ class RoomManager {
       save: new RateLimiter(60000, 20), // 맵 저장
       review: new RateLimiter(60000, 30), // 후기
       donor: new RateLimiter(60000, 20), // 후원자 코드 확인(브루트포스 방지)
+      useItem: new RateLimiter(10000, 40), // 아이템 사용 스팸 방지(10초 40회)
     };
     // 🧹 고아 방 청소 — 연결이 하나도 없는 방 회수 (테스트에서 프로세스 안 붙잡게 unref)
     this.gcTimer = setInterval(() => this.sweepRooms(), ROOM_GC_SWEEP_MS);
@@ -445,6 +446,10 @@ class RoomManager {
     socket.on('game:useItem', ({ slotIndex, targetId } = {}, cb) => {
       const room = this.roomOf(socket);
       if (!room || !room.game) return;
+      if (!this.limiter.useItem.allow(socket.id)) {
+        if (typeof cb === 'function') cb({ ok: false, error: '너무 빠르게 사용하고 있어요.' });
+        return;
+      }
       const error = room.game.useItem(socket.id, Number(slotIndex), targetId);
       if (typeof cb === 'function') cb({ ok: !error, error });
     });

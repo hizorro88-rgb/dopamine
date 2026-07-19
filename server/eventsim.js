@@ -49,7 +49,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
   const events = [];
   const finished = []; // 도착 순서 participant id
   const finishTimes = new Map();
-  const activeEffects = []; // { itemId, ball, until }
+  const activeEffects = []; // 반응형 맵 구성요소(폭탄 등)가 참조하는 효과 목록 (아이템 없음)
   const balls = new Map(); // participantId -> body
 
   // 아이템/반응형 구성요소가 기대하는 game 호환 컨텍스트
@@ -237,14 +237,13 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         const frameBalls = [];
         for (const [pid, ball] of balls) {
           if (ball.plugin.done) continue;
+          // 이벤트는 아이템 없는 순수 낙하 → 상태 플래그는 항상 0
+          // (클라 리플레이 포맷 호환을 위해 4번째 요소는 유지)
           frameBalls.push([
             pid,
             Math.round(ball.position.x * 10) / 10,
             Math.round(ball.position.y * 10) / 10,
-            (ball.plugin.ghost ? 1 : 0) |
-              (ball.plugin.frozen ? 2 : 0) |
-              (ball.plugin.balloon ? 4 : 0) |
-              (ball.plugin.morph ? 8 : 0), // 🎭 변신 (도형 종류는 재생 시 참가번호로 유도)
+            0,
           ]);
         }
         const off = [];
