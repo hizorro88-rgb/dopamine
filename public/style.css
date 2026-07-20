@@ -2454,3 +2454,14 @@ textarea:focus {
   display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px;
   border-radius: 6px; background: rgba(212,175,55,0.18); color: var(--gold, #ffce54); margin-left: 4px;
 }
+
+/* 🧪 맵 에디터 테스트: 에디터 복귀 버튼 (재생 중 좌상단 고정) */
+#editor-test-exit {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 30;
+  width: auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+#editor-test-exit.hidden { display: none; }

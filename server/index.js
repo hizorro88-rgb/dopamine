@@ -223,6 +223,41 @@ app.get('/api/replay/:code', (req, res) => {
   res.send(gz);
 });
 
+// 🧪 맵 에디터 즉석 테스트 — 저장 없이 현재 맵을 시뮬레이션해 리플레이를 돌려준다.
+//    이벤트 시뮬레이터(결정론적)를 그대로 재사용. 응답이 커질 수 있어 gzip 으로 보낸다.
+const zlibMod = require('zlib');
+const { simulateEvent: simulateMapTest } = require('./eventsim');
+const mapTestLimiter = new RateLimiter(60000, 20);
+app.post('/api/map/test', express.json({ limit: '256kb' }), async (req, res) => {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  if (!mapTestLimiter.allow(ip || 'anon'))
+    return res.status(429).json({ ok: false, error: '테스트가 너무 잦아요. 잠시 후 다시 시도해주세요.' });
+  const { components, height, width, finish, autoKickers, balls } = req.body || {};
+  const v = rooms.maps._validate({ name: '(테스트)', components, height, width, finish, autoKickers }, 2000);
+  if (!v.ok) return res.status(400).json(v);
+  const n = Math.min(24, Math.max(2, Math.round(Number(balls) || 12)));
+  const participants = Array.from({ length: n }, (_, i) => ({
+    id: i,
+    name: `테스트${i + 1}`,
+    color: `hsl(${Math.round((i * 137.5) % 360)}, 55%, 58%)`,
+  }));
+  const mapDef = {
+    id: '__test__', name: '(테스트)',
+    height: v.cleanHeight, width: v.cleanWidth, components: v.validated,
+    ...(v.cleanFinish ? { finish: v.cleanFinish } : {}),
+    ...(v.cleanAutoKickers === false ? { autoKickers: false } : {}),
+  };
+  try {
+    const replay = await simulateMapTest(mapDef, participants, () => {});
+    res.set('Content-Type', 'application/json');
+    res.set('Content-Encoding', 'gzip');
+    res.send(zlibMod.gzipSync(Buffer.from(JSON.stringify(replay))));
+  } catch (err) {
+    console.error('맵 테스트 시뮬 실패:', err);
+    res.status(500).json({ ok: false, error: '시뮬레이션에 실패했습니다.' });
+  }
+});
+
 // 전체 순위 (누적 전적 리더보드, 공개)
 app.get('/api/leaderboard', (_req, res) => {
   res.json({

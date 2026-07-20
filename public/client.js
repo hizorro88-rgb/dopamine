@@ -1348,9 +1348,10 @@
     }
   }
 
-  function startReplayPlayback(replay, startAt, offset) {
+  function startReplayPlayback(replay, startAt, offset, editorTest) {
     game = {
       board: replay.board,
+      editorTest: !!editorTest, // 🧪 에디터에서 테스트 재생 중인가
       winMode: 'first',
       players: new Map(replay.players.map((p) => [p.id, p])),
       items: [],
@@ -1379,16 +1380,61 @@
       },
     };
     $('item-bar').style.display = 'none'; // 시청자는 아이템 없음 (자동 발동)
-    document.querySelector('#rank-board h3').textContent = `🎪 이벤트 추첨 · 참가 ${replay.players.length}명`;
+    document.querySelector('#rank-board h3').textContent = editorTest
+      ? `🧪 맵 테스트 · 공 ${replay.players.length}개`
+      : `🎪 이벤트 추첨 · 참가 ${replay.players.length}명`;
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     showScreen('game');
     setupCanvas();
-    showCheerBar(true); // 🎉 이벤트 관람 중에도 응원 가능
+    showCheerBar(!editorTest); // 테스트 중엔 응원 바 숨김
+    editorTestExitBtn().classList.toggle('hidden', !editorTest); // 🧪 에디터 복귀 버튼
     requestAnimationFrame(renderFrame);
   }
+
+  // 🧪 맵 테스트: 저장 없이 현재 에디터 맵을 시뮬레이션해 재생
+  function editorTestExitBtn() {
+    let el = $('editor-test-exit');
+    if (!el) {
+      el = document.createElement('button');
+      el.id = 'editor-test-exit';
+      el.className = 'btn back-btn hidden';
+      el.textContent = '← 에디터로 돌아가기';
+      el.addEventListener('click', exitEditorTest);
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function exitEditorTest() {
+    game = null; // 렌더 루프 정지
+    $('result-modal').classList.add('hidden');
+    editorTestExitBtn().classList.add('hidden');
+    showScreen('editor'); // editor.active=true 로 renderEditor 재개
+    setupEditorCanvas();
+  }
+  function runMapTest() {
+    const msg = $('editor-msg');
+    if (editor.comps.length === 0) return (msg.textContent = '구성요소를 1개 이상 배치해주세요.');
+    msg.style.color = '';
+    msg.textContent = '⏳ 시뮬레이션 준비 중…';
+    const components = editor.comps.map(({ type, x, y, props }) => ({ type, x, y, props }));
+    const finish = editor.finish ? { ...editor.finish } : undefined;
+    fetch('/api/map/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ components, height: editor.height, width: editor.width, finish, autoKickers: editor.autoKickers, balls: 12 }),
+    })
+      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(new Error(j.error || '시뮬 실패')))))
+      .then((replay) => {
+        msg.textContent = '';
+        // 바로 재생 (다운로드 지연 없음)
+        startReplayPlayback(replay, Date.now(), 0, true);
+      })
+      .catch((e) => { msg.textContent = e.message || '시뮬레이션 실패'; });
+  }
+  $('btn-map-test').addEventListener('click', runMapTest);
 
   function dispatchReplayEvent(ev) {
     if (ev.type === 'finish') {
@@ -2369,7 +2415,9 @@
       list.appendChild(li);
     }
 
-    $('btn-back-lobby').textContent = event ? '이벤트로 돌아가기' : '대기실로 돌아가기';
+    $('btn-back-lobby').textContent = (game && game.editorTest)
+      ? '🧪 에디터로 돌아가기'
+      : event ? '이벤트로 돌아가기' : '대기실로 돌아가기';
     $('result-modal').classList.remove('hidden');
     startConfetti();
   }
@@ -2506,6 +2554,7 @@
   $('btn-back-lobby').addEventListener('click', () => {
     $('result-modal').classList.add('hidden');
     showCheerBar(false);
+    if (game && game.editorTest) { exitEditorTest(); return; } // 🧪 테스트 → 에디터 복귀
     const wasReplay = game && game.replay;
     game = null;
     if (wasReplay && eventRoom) {
