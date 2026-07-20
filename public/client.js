@@ -2172,11 +2172,13 @@
     return timeMs == null ? '' : (timeMs / 1000).toFixed(1) + '초';
   }
 
-  socket.on('game:itemUsed', ({ by, item, target, self }) => {
+  socket.on('game:itemUsed', ({ by, item, target, self, pickup }) => {
     toast(
-      self
-        ? `${item.emoji} ${by} → ${item.name} 사용!`
-        : `${item.emoji} ${by} → ${target}에게 ${item.name}!`
+      pickup
+        ? `🎁 ${by} → ${item.emoji} ${item.name} 획득!`
+        : self
+          ? `${item.emoji} ${by} → ${item.name} 사용!`
+          : `${item.emoji} ${by} → ${target}에게 ${item.name}!`
     );
   });
 

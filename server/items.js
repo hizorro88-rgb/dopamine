@@ -472,6 +472,13 @@ function randomItems(n) {
 // 게임당 특별 등급(신화·유일) 1종이 무작위 한 명에게 부여될 확률 (game.js 가 이 값을 사용)
 const SPECIAL_CHANCE = 0.16;
 
+// 🎁 맵에 놓는 '아이템 상자'가 줄 수 있는 아이템 풀 — 주운 공에게 이로운 self 효과만.
+// (상대 방해형은 자기 공에 걸면 손해라 제외. 너무 강한 전설급은 밸런스상 제외)
+const PICKUP_ITEMS = ['rocket', 'ghost', 'magnet', 'lightning', 'shockwave'];
+function randomPickupItem() {
+  return PICKUP_ITEMS[Math.floor(Math.random() * PICKUP_ITEMS.length)];
+}
+
 /**
  * 각 아이템의 등장 확률 (아이템 도감 표시용).
  *   일반 뽑기 대상 → kind:'draw',    chance = 한 번 뽑을 때 이 아이템이 나올 확률
@@ -515,4 +522,5 @@ function rollSpecialItem() {
 module.exports = {
   ITEMS, itemMeta, randomItems, rollSpecialItem, itemChances, GRADES, SPECIAL_CHANCE,
   applyDurationOverrides, configurableItems, DURATION_DEFAULTS, DURATION_MIN, DURATION_MAX,
+  PICKUP_ITEMS, randomPickupItem,
 };

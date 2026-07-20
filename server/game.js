@@ -13,7 +13,7 @@
  */
 
 const Matter = require('matter-js');
-const { ITEMS, itemMeta, randomItems, rollSpecialItem, SPECIAL_CHANCE } = require('./items');
+const { ITEMS, itemMeta, randomItems, rollSpecialItem, SPECIAL_CHANCE, randomPickupItem } = require('./items');
 const {
   buildBoard,
   createBall,
@@ -130,6 +130,14 @@ const HIT_ACTIONS = {
     Matter.Body.setVelocity(ball, { x: ball.velocity.x * 0.3, y: Math.max(ball.velocity.y * 0.4, 2) });
     if (ball.plugin.frozenPos) ball.plugin.frozenPos = { ...exit };
     if (game.portalEffect) game.portalEffect(from, { x: dest.x, y: dest.y });
+  },
+
+  // 🎁 아이템 상자: 무작위 아이템 효과를 닿은 공이 획득 (상자는 소비 후 재생성 대기)
+  powerup(game, inst, ball) {
+    inst.exploded = true;
+    inst.respawnAt = inst.hit.respawnMs > 0 ? game.now() + inst.hit.respawnMs : Infinity;
+    Matter.Composite.remove(game.engine.world, inst.body);
+    if (game.grantPowerup) game.grantPowerup(ball); // 이벤트 시뮬(sim)엔 없음 → 상자만 소비
   },
 
   // 🦘 발사대: 공을 위로(각도만큼 옆으로) 쏘아 올린다
@@ -876,6 +884,26 @@ class Game {
       self: ballOwnerId === playerId,
     });
     return null;
+  }
+
+  /** 🎁 아이템 상자 획득 — 무작위 아이템 효과를 이 공에 적용 (모든 모드 공용) */
+  grantPowerup(ball) {
+    if (this.over || ball.plugin.done) return;
+    const item = ITEMS[randomPickupItem()];
+    if (!item) return;
+    const pid = ball.plugin.playerId;
+    item.apply(this, ball, { byPlayerId: pid });
+    if (item.duration > 0) {
+      this.activeEffects.push({ itemId: item.id, ball, until: this.now() + item.duration });
+    }
+    const player = this.room.players.get(pid);
+    this.io.to(this.room.code).emit('game:itemUsed', {
+      by: player ? player.name : '?',
+      item: itemMeta(item),
+      target: player ? player.name : '?',
+      self: true,
+      pickup: true, // 맵 상자에서 획득했음을 표시
+    });
   }
 
   /** 플레이어 퇴장 시 공 전부 제거 */

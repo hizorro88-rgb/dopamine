@@ -260,6 +260,33 @@
       },
     },
 
+    // 🎁 아이템 상자: 공이 닿으면 무작위 아이템 효과를 그 공이 획득 (로켓·유령·자석·번개·충격파)
+    itembox: {
+      id: 'itembox',
+      name: '아이템 상자',
+      emoji: '🎁',
+      desc: '공이 닿으면 무작위 아이템(로켓·유령·자석·번개·충격파)을 그 공이 획득해요!',
+      props: [
+        { key: 'respawn', label: '재생성 시간(초)', min: 0, max: 15, step: 1, default: 5 },
+      ],
+      build(p) {
+        return {
+          shapes: [
+            { kind: 'rect', x: 0, y: 0, w: 30, h: 30, angle: 0, fill: '#d4af37', glow: '#ffe14a' },
+            { kind: 'rect', x: 0, y: 0, w: 30, h: 7, angle: 0, fill: '#fff3b0' },
+            { kind: 'rect', x: 0, y: 0, w: 7, h: 30, angle: 0, fill: '#fff3b0' },
+            { kind: 'rect', x: 0, y: 0, w: 13, h: 13, angle: 0.785, fill: '#35e0ff' },
+          ],
+          spin: 0,
+          restitution: 0.2,
+          hit: {
+            action: 'powerup',
+            respawnMs: p.respawn * 1000, // 0이면 게임당 1회
+          },
+        };
+      },
+    },
+
     // 🕳️ 포탈: 같은 채널의 다른 포탈로 순간이동 — 경로가 비선형이 된다
     portal: {
       id: 'portal',
