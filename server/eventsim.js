@@ -3,7 +3,8 @@
  * 리플레이(프레임 + 이벤트 + 순위)를 녹화한다.
  * 수천 명의 시청자는 이 리플레이를 한 번만 내려받아 동기화된 시각에 재생한다.
  *
- * - 아이템은 자동 발동: 무작위 시점에 무작위 공이 무작위 아이템 사용
+ * - 플레이어 인벤토리 아이템은 없음(순수 낙하). 단, 맵에 놓인 🎁 아이템 상자는
+ *   라이브 게임과 동일하게 닿은 공이 즉시 효과를 획득한다.
  * - 폭탄 등 반응형 구성요소도 라이브 게임과 동일하게 동작 (HIT_ACTIONS 재사용)
  */
 
@@ -18,7 +19,8 @@ const {
   DEFAULT_MASK,
   BALL_RESTITUTION,
 } = require('./board');
-const { HIT_ACTIONS } = require('./game'); // 폭탄·점프패드 등 반응형 구성요소 동작 (아이템 아님)
+const { HIT_ACTIONS } = require('./game'); // 폭탄·점프패드 등 반응형 구성요소 동작
+const { ITEMS, randomPickupItem, itemMeta } = require('./items'); // 🎁 아이템 상자 획득 효과
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
@@ -85,6 +87,25 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         });
       }
       events.push({ t: Math.round(simNow / TIME_SCALE), type: 'explosion', x, y, radius });
+    },
+    // 🎁 아이템 상자 획득: 무작위 아이템 효과를 이 공에 즉시 적용 (라이브 게임과 동일)
+    grantPowerup(ball) {
+      if (ball.plugin.done) return;
+      const item = ITEMS[randomPickupItem()];
+      if (!item) return;
+      item.apply(this, ball, { byPlayerId: ball.plugin.playerId });
+      if (item.duration > 0) activeEffects.push({ itemId: item.id, ball, until: simNow + item.duration });
+      // 리플레이에도 획득 순간을 기록 (클라가 토스트로 표시)
+      const who = nameOf(ball.plugin.playerId);
+      events.push({
+        t: Math.round(simNow / TIME_SCALE),
+        type: 'item',
+        item: itemMeta(item),
+        by: who,
+        target: who,
+        self: true,
+        pickup: true,
+      });
     },
   };
 
@@ -189,7 +210,29 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         }
       }
 
-      // (이벤트는 아이템 없음 — 지속효과·자동발동·얼림 로직 없음)
+      // 🎁 아이템 상자로 얻은 지속형 효과: 만료 처리 + 매 스텝 tick (비었으면 건너뜀)
+      if (activeEffects.length) {
+        for (let i = activeEffects.length - 1; i >= 0; i--) {
+          const fx = activeEffects[i];
+          if (simNow >= fx.until) {
+            const it = ITEMS[fx.itemId];
+            if (it.expire && !fx.ball.plugin.done) it.expire(sim, fx.ball);
+            activeEffects.splice(i, 1);
+          }
+        }
+        for (const fx of activeEffects) {
+          const it = ITEMS[fx.itemId];
+          if (it.tick && !fx.ball.plugin.done) it.tick(sim, fx.ball);
+        }
+      }
+
+      // 얼린 공 고정 (시간정지 등 — 픽업 풀엔 없지만 안전하게)
+      for (const ball of balls.values()) {
+        if (!ball.plugin.done && ball.plugin.frozen && ball.plugin.frozenPos) {
+          Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+          Matter.Body.setPosition(ball, ball.plugin.frozenPos);
+        }
+      }
 
       // 갇힘 구출 (라이브 게임과 동일: 하강 진전 없고 거의 멈춘 공만 튕겨줌)
       for (const ball of balls.values()) {
@@ -258,13 +301,16 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         const frameBalls = [];
         for (const [pid, ball] of balls) {
           if (ball.plugin.done) continue;
-          // 이벤트는 아이템 없는 순수 낙하 → 상태 플래그는 항상 0
-          // (클라 리플레이 포맷 호환을 위해 4번째 요소는 유지)
+          const bp = ball.plugin;
+          // 상태 플래그 — 아이템 상자로 얻은 효과를 리플레이에서도 보이게 인코딩
+          // (클라 디코더와 동일: 유령1·얼음2·풍선4·변신8)
+          const flags =
+            (bp.ghost ? 1 : 0) | (bp.frozen ? 2 : 0) | (bp.balloon ? 4 : 0) | (bp.morph ? 8 : 0);
           frameBalls.push([
             pid,
             Math.round(ball.position.x * 10) / 10,
             Math.round(ball.position.y * 10) / 10,
-            0,
+            flags,
           ]);
         }
         const off = [];

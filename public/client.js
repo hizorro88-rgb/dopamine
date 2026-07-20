@@ -1442,9 +1442,11 @@
       if (ev.rank === 1) toast(`🎉 1등 당첨: ${ev.name}!`);
     } else if (ev.type === 'item') {
       toast(
-        ev.self
-          ? `${ev.item.emoji} ${ev.by} → ${ev.item.name} 발동!`
-          : `${ev.item.emoji} ${ev.by} → ${ev.target}에게 ${ev.item.name}!`
+        ev.pickup
+          ? `🎁 ${ev.by} → ${ev.item.emoji} ${ev.item.name} 획득!`
+          : ev.self
+            ? `${ev.item.emoji} ${ev.by} → ${ev.item.name} 발동!`
+            : `${ev.item.emoji} ${ev.by} → ${ev.target}에게 ${ev.item.name}!`
       );
     } else if (ev.type === 'explosion') {
       game.explosions.push({ x: ev.x, y: ev.y, radius: ev.radius, start: performance.now() });
