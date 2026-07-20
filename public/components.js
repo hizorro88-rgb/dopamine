@@ -167,8 +167,8 @@
       desc: '공의 길을 막는 벽. 각도와 곡률(휘어짐)을 조절할 수 있어요',
       props: [
         { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 120 },
-        { key: 'angle', label: '각도(°)', min: -180, max: 180, step: 5, default: 0 },
-        { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 10, default: 0 },
+        { key: 'angle', label: '각도(°)', min: -180, max: 180, step: 1, default: 0 },
+        { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 1, default: 0 },
       ],
       build(p) {
         return {
@@ -187,10 +187,10 @@
       desc: '좌우(또는 위아래)로 왕복하며 움직이는 벽. 타이밍을 맞춰 통과하세요!',
       props: [
         { key: 'length', label: '길이', min: 40, max: 260, step: 10, default: 120 },
-        { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 5, default: 0 },
+        { key: 'angle', label: '각도(°)', min: -90, max: 90, step: 1, default: 0 },
         { key: 'range', label: '이동 거리', min: 30, max: 240, step: 10, default: 120 },
         { key: 'movespeed', label: '이동 속도', min: 0.5, max: 4, step: 0.5, default: 1.5 },
-        { key: 'phase', label: '시작 위치(위상 °)', min: 0, max: 360, step: 15, default: 0 },
+        { key: 'phase', label: '시작 위치(위상 °)', min: 0, max: 360, step: 1, default: 0 },
         { key: 'vertical', label: '세로 이동(0=좌우,1=위아래)', min: 0, max: 1, step: 1, default: 0 },
       ],
       build(p) {
@@ -323,7 +323,7 @@
       props: [
         { key: 'width', label: '폭', min: 50, max: 160, step: 10, default: 90 },
         { key: 'power', label: '점프력', min: 8, max: 24, step: 1, default: 15 },
-        { key: 'angle', label: '발사 각도(°)', min: -90, max: 90, step: 5, default: 0 },
+        { key: 'angle', label: '발사 각도(°)', min: -90, max: 90, step: 1, default: 0 },
       ],
       build(p) {
         return {

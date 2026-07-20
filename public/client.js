@@ -4261,9 +4261,33 @@
     eCtx.save();
     eCtx.translate(0, -camY);
 
-    // 배치 불가 구역 표시
     const maxY = editMaxY();
     const eW = editor.width;
+
+    // 🔳 격자 가이드라인 — 화면에 보이는 구간만(카메라 밖은 건너뜀). 50px 마다 옅은 선,
+    // 100px 마다 조금 더 진하게. 배치 격자(5px)와 별개인 시각 가이드다.
+    {
+      const GRID = 50;
+      const top = Math.max(0, Math.floor(camY / GRID) * GRID);
+      const bottom = Math.min(editor.height, camY + VIEW.height);
+      eCtx.lineWidth = 1;
+      for (let gy = top; gy <= bottom; gy += GRID) {
+        eCtx.strokeStyle = gy % 100 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.05)';
+        eCtx.beginPath();
+        eCtx.moveTo(0, gy);
+        eCtx.lineTo(eW, gy);
+        eCtx.stroke();
+      }
+      for (let gx = 0; gx <= eW; gx += GRID) {
+        eCtx.strokeStyle = gx % 100 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.05)';
+        eCtx.beginPath();
+        eCtx.moveTo(gx, top);
+        eCtx.lineTo(gx, bottom);
+        eCtx.stroke();
+      }
+    }
+
+    // 배치 불가 구역 표시
     eCtx.fillStyle = 'rgba(212,175,55,0.05)';
     eCtx.fillRect(0, 0, eW, EDIT_BOUNDS.minY - 20);
     eCtx.fillStyle = 'rgba(212,175,55,0.07)';
