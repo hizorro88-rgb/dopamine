@@ -2465,3 +2465,18 @@ textarea:focus {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 #editor-test-exit.hidden { display: none; }
+
+/* ⚖️ 하단 저작권 표기 */
+#site-footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.42);
+}
+#site-footer .footer-sub {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.32);
+}
