@@ -431,10 +431,15 @@
     const wrapW = wrap.clientWidth || 520;
     let h = wrapH * 0.5;
     let cssW = h * (mapW / mapH);
-    const maxW = wrapW * 0.2;
+    // 폭 상한: 좌측 여백(약 94px)을 넘지 않게 — 넓은 맵에서 미니맵이 보드를 가리던 버그 방지
+    const maxW = Math.min(wrapW * 0.2, 94);
     if (cssW > maxW) {
       cssW = maxW;
       h = cssW * (mapH / mapW);
+    }
+    if (h > wrapH * 0.92) { // 아주 긴 맵: 세로가 뷰를 넘지 않게
+      h = wrapH * 0.92;
+      cssW = h * (mapW / mapH);
     }
     mCanvas.style.width = cssW + 'px';
     mCanvas.style.height = h + 'px';
@@ -3591,10 +3596,26 @@
       }
     }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    eCanvas.width = VIEW.width * dpr;
-    eCanvas.height = VIEW.height * dpr;
-    eScale = dpr;
+    // 캔버스 버퍼 폭 상한(약 1400px) — 넓은 맵도 화면에선 축소되므로 원본 해상도로
+    // 굽지 않는다. 폭 조절 시 거대한 버퍼 재생성으로 버벅이던 문제 해결.
+    eScale = Math.min(dpr, 1400 / (VIEW.width || WORLD.width));
+    eCanvas.width = Math.round(VIEW.width * eScale);
+    eCanvas.height = Math.round(VIEW.height * eScale);
     setupMinimapCanvas(eMinimap, editor.height, editor.width);
+  }
+
+  // 슬라이더 드래그 중 캔버스 재설정을 rAF 로 코얼레스(프레임당 1회) — 버벅임 방지
+  let _editorResizeFn = null;
+  let _editorResizeRaf = 0;
+  function scheduleEditorResize(fn) {
+    _editorResizeFn = fn;
+    if (_editorResizeRaf) return;
+    _editorResizeRaf = requestAnimationFrame(() => {
+      _editorResizeRaf = 0;
+      const f = _editorResizeFn;
+      _editorResizeFn = null;
+      if (f) f();
+    });
   }
 
   function rebuildComp(comp) {
@@ -3664,8 +3685,10 @@
     $('btn-editor-back').textContent = '← 돌아가기';
 
     $('input-map-length').value = editor.height;
+    $('input-map-length-num').value = editor.height;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
     $('input-map-width').value = editor.width;
+    $('input-map-width-num').value = editor.width;
     $('map-width-label').textContent = `📏 맵 폭: ${editor.width}`;
     $('input-map-name').value = opts.adminEditName || '';
     $('btn-map-save').textContent = editor.adminEditId ? '💾 관리자 저장(덮어쓰기)' : '💾 저장하고 공유하기';
@@ -3678,29 +3701,34 @@
     setupEditorCanvas();
   }
 
-  // 맵 길이 슬라이더: 줄이면 범위를 벗어난 구성요소를 안쪽으로 이동
-  $('input-map-length').addEventListener('input', (e) => {
-    editor.height = Number(e.target.value);
+  // 맵 길이 변경 — 슬라이더/숫자입력 공용. 줄이면 범위 밖 구성요소를 안쪽으로 이동.
+  function applyMapLength(v) {
+    const n = Math.min(6000, Math.max(900, Math.round(Number(v) / 100) * 100 || 900));
+    editor.height = n;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
-    for (const comp of editor.comps) {
-      if (comp.y > editMaxY()) comp.y = editMaxY();
-    }
-    // 🏁 골인 존도 새 길이에 맞춰 안전 범위로 보정
+    $('input-map-length').value = editor.height;
+    $('input-map-length-num').value = editor.height;
+    for (const comp of editor.comps) if (comp.y > editMaxY()) comp.y = editMaxY();
     if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height, editor.width);
     editor.camY = clampCam(editor.camY, editor.height);
-    setupMinimapCanvas(eMinimap, editor.height, editor.width);
-  });
+    scheduleEditorResize(() => setupMinimapCanvas(eMinimap, editor.height, editor.width));
+  }
+  $('input-map-length').addEventListener('input', (e) => applyMapLength(e.target.value));
+  $('input-map-length-num').addEventListener('change', (e) => applyMapLength(e.target.value));
 
-  // 맵 폭 슬라이더: 폭이 바뀌면 캔버스 비율을 다시 잡고, 범위를 벗어난 요소를 안쪽으로
-  $('input-map-width').addEventListener('input', (e) => {
-    editor.width = Number(e.target.value);
+  // 맵 폭 변경 — 슬라이더/숫자입력 공용. 캔버스 비율 재설정 + 범위 밖 요소 이동.
+  function applyMapWidth(v) {
+    const n = Math.min(2400, Math.max(600, Math.round(Number(v) / 50) * 50 || 600));
+    editor.width = n;
     $('map-width-label').textContent = `📏 맵 폭: ${editor.width}`;
-    for (const comp of editor.comps) {
-      if (comp.x > editMaxX()) comp.x = editMaxX();
-    }
+    $('input-map-width').value = editor.width;
+    $('input-map-width-num').value = editor.width;
+    for (const comp of editor.comps) if (comp.x > editMaxX()) comp.x = editMaxX();
     if (editor.finish) editor.finish = clampFinish(editor.finish, editor.height, editor.width);
-    setupEditorCanvas(); // 뷰 폭·비율·미니맵 재설정
-  });
+    scheduleEditorResize(setupEditorCanvas); // 프레임당 1회로 코얼레스
+  }
+  $('input-map-width').addEventListener('input', (e) => applyMapWidth(e.target.value));
+  $('input-map-width-num').addEventListener('change', (e) => applyMapWidth(e.target.value));
 
   $('btn-editor-back').addEventListener('click', () => {
     if (editor.from === 'admin') {

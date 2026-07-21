@@ -2480,3 +2480,23 @@ textarea:focus {
   font-size: 10.5px;
   color: rgba(255, 255, 255, 0.32);
 }
+
+/* 맵 길이/폭: 라벨 + 숫자 직접입력 한 줄 */
+.map-dim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.map-dim-num {
+  width: 72px;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  font-size: 12px;
+  text-align: right;
+  background: var(--panel2, #1a1712);
+  border: 1px solid #37332a;
+  border-radius: 6px;
+  color: inherit;
+}
