@@ -209,6 +209,19 @@
     ctx.translate(comp.x + (offX || 0), comp.y + (offY || 0));
     if (angle) ctx.rotate(angle);
     for (const s of comp.shapes) {
+      // 🔤 이모지/텍스트 도형 (아이템 요소 표시) — 물리 없음, 시각 전용
+      if (s.kind === 'text') {
+        if (flat) continue; // 미니맵에선 생략
+        ctx.save();
+        ctx.font = `${s.size || 18}px "Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = s.glow || '#000';
+        ctx.shadowBlur = 6;
+        ctx.fillText(s.text || '', s.x || 0, s.y || 0);
+        ctx.restore();
+        continue;
+      }
       const color = s.fill || '#35e0ff';
       if (!flat) {
         ctx.shadowColor = s.glow || color;

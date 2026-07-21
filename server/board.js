@@ -78,14 +78,16 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       restitution: built.restitution,
       collisionFilter: { category: CAT_PEG, mask: 0xffff },
     };
-    const parts = built.shapes.map((s) =>
-      s.kind === 'circle'
-        ? Matter.Bodies.circle(comp.x + s.x, comp.y + s.y, s.r, opts)
-        : Matter.Bodies.rectangle(comp.x + s.x, comp.y + s.y, s.w, s.h, {
-            ...opts,
-            angle: s.angle || 0,
-          })
-    );
+    const parts = built.shapes
+      .filter((s) => s.kind === 'circle' || s.kind === 'rect') // 'text'(이모지) 등 시각 전용 도형은 물리 제외
+      .map((s) =>
+        s.kind === 'circle'
+          ? Matter.Bodies.circle(comp.x + s.x, comp.y + s.y, s.r, opts)
+          : Matter.Bodies.rectangle(comp.x + s.x, comp.y + s.y, s.w, s.h, {
+              ...opts,
+              angle: s.angle || 0,
+            })
+      );
     const body =
       parts.length === 1 ? parts[0] : Matter.Body.create({ parts, isStatic: true });
     bodies.push(body);

@@ -366,6 +366,44 @@
     },
   };
 
+  // ── 🎁 개별 아이템 요소: 폭탄처럼 맵에 배치. 공이 닿으면 그 아이템 효과가 발동한다 ──
+  //   버프(자기 공 강화)와 함정(닿은 공에 방해 효과)이 섞여 맵 설계에 다양성을 준다.
+  //   실제 효과 로직은 server/items.js (game.js HIT_ACTIONS.item 이 itemId 로 실행).
+  const PLACEABLE_ITEMS = [
+    { id: 'ghost', name: '유령 낙하', emoji: '👻', color: '#e2e8ff' },
+    { id: 'freeze', name: '얼리기(함정)', emoji: '🧊', color: '#7fdfff' },
+    { id: 'magnet', name: '자석', emoji: '🧲', color: '#ff6b6b' },
+    { id: 'lightning', name: '번개', emoji: '⚡', color: '#ffe14a' },
+    { id: 'rocket', name: '로켓 부스트', emoji: '🚀', color: '#ff8a3d' },
+    { id: 'shockwave', name: '충격파', emoji: '💥', color: '#ffb03a' },
+    { id: 'gust', name: '돌풍(함정)', emoji: '🌪️', color: '#8fe0d0' },
+    { id: 'morph', name: '변신(함정)', emoji: '🎭', color: '#c8a6ff' },
+    { id: 'balloon', name: '풍선(함정)', emoji: '🎈', color: '#ff9ecb' },
+    { id: 'timestop', name: '시간 정지', emoji: '⏸️', color: '#a0c4ff' },
+    { id: 'clone', name: '분신', emoji: '✨', color: '#ffd76a' },
+    { id: 'karma', name: '저주(함정)', emoji: '🎡', color: '#b48ce8' },
+  ];
+  for (const it of PLACEABLE_ITEMS) {
+    COMPONENTS['item_' + it.id] = {
+      id: 'item_' + it.id,
+      name: it.name,
+      emoji: it.emoji,
+      desc: `공이 닿으면 그 공이 '${it.name}' 효과를 얻습니다 (폭탄처럼 소비 후 재생성).`,
+      props: [{ key: 'respawn', label: '재생성 시간(초)', min: 0, max: 15, step: 1, default: 5 }],
+      build(p) {
+        return {
+          shapes: [
+            { kind: 'rect', x: 0, y: 0, w: 30, h: 30, angle: 0, fill: '#15151d', glow: it.color },
+            { kind: 'text', x: 0, y: 0, text: it.emoji, size: 20, glow: it.color },
+          ],
+          spin: 0,
+          restitution: 0.2,
+          hit: { action: 'item', itemId: it.id, respawnMs: p.respawn * 1000 },
+        };
+      },
+    };
+  }
+
   /** 레지스트리 안전 조회: 프로토타입 키(__proto__/constructor 등)를 걸러 실제 정의만 반환 */
   function lookupComponent(type) {
     return Object.prototype.hasOwnProperty.call(COMPONENTS, type) ? COMPONENTS[type] : null;

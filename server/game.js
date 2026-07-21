@@ -140,6 +140,14 @@ const HIT_ACTIONS = {
     if (game.grantPowerup) game.grantPowerup(ball); // 이벤트 시뮬(sim)엔 없음 → 상자만 소비
   },
 
+  // 🎁 개별 아이템 요소: 지정된 아이템(itemId) 효과를 닿은 공이 획득
+  item(game, inst, ball) {
+    inst.exploded = true;
+    inst.respawnAt = inst.hit.respawnMs > 0 ? game.now() + inst.hit.respawnMs : Infinity;
+    Matter.Composite.remove(game.engine.world, inst.body);
+    if (game.grantItem) game.grantItem(ball, inst.hit.itemId);
+  },
+
   // 🦘 발사대: 공을 위로(각도만큼 옆으로) 쏘아 올린다
   launch(game, inst, ball) {
     const now = game.now();
@@ -888,8 +896,13 @@ class Game {
 
   /** 🎁 아이템 상자 획득 — 무작위 아이템 효과를 이 공에 적용 (모든 모드 공용) */
   grantPowerup(ball) {
+    this.grantItem(ball, randomPickupItem());
+  }
+
+  /** 🎁 지정 아이템 효과를 이 공에 즉시 적용 (아이템 상자·개별 아이템 요소 공용) */
+  grantItem(ball, itemId) {
     if (this.over || ball.plugin.done) return;
-    const item = ITEMS[randomPickupItem()];
+    const item = ITEMS[itemId];
     if (!item) return;
     const pid = ball.plugin.playerId;
     item.apply(this, ball, { byPlayerId: pid });
@@ -902,7 +915,7 @@ class Game {
       item: itemMeta(item),
       target: player ? player.name : '?',
       self: true,
-      pickup: true, // 맵 상자에서 획득했음을 표시
+      pickup: true, // 맵 요소에서 획득했음을 표시
     });
   }
 

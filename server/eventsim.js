@@ -90,8 +90,11 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     },
     // 🎁 아이템 상자 획득: 무작위 아이템 효과를 이 공에 즉시 적용 (라이브 게임과 동일)
     grantPowerup(ball) {
+      this.grantItem(ball, randomPickupItem());
+    },
+    grantItem(ball, itemId) {
       if (ball.plugin.done) return;
-      const item = ITEMS[randomPickupItem()];
+      const item = ITEMS[itemId];
       if (!item) return;
       item.apply(this, ball, { byPlayerId: ball.plugin.playerId });
       if (item.duration > 0) activeEffects.push({ itemId: item.id, ball, until: simNow + item.duration });
