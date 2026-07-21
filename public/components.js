@@ -31,7 +31,7 @@
 
   // 월드(보드) 크기 — 서버 물리와 클라이언트 렌더링/에디터가 공유
   // width·height 는 기본값이며, 맵마다 min~max 범위에서 폭·길이를 정할 수 있다
-  const WORLD = { width: 600, minWidth: 600, maxWidth: 1400, height: 4800, minHeight: 900, maxHeight: 12000 };
+  const WORLD = { width: 600, minWidth: 600, maxWidth: 2400, height: 4800, minHeight: 900, maxHeight: 12000 };
   /** 저장/전송된 맵 폭을 안전 범위(minWidth~maxWidth)로 정제 (없으면 기본 600) */
   function clampWidth(w) {
     const n = Math.round(Number(w));
