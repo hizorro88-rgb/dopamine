@@ -76,7 +76,7 @@
       const my = (p1.y + p2.y) / 2 - cy;
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
-      const segLen = Math.hypot(dx, dy) + thick * 0.5; // 살짝 겹쳐 이음새 메움
+      const segLen = Math.hypot(dx, dy) + thick * 0.5 + 3; // 살짝 겹쳐 이음새 메움(얇아져도 물샐틈 없게)
       const segAng = Math.atan2(dy, dx);
       // angle(a0) 회전 적용
       shapes.push({
@@ -171,8 +171,10 @@
         { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 1, default: 0 },
       ],
       build(p) {
+        // 두께 10px — 공 반지름(7)+벽 반두께(5) = 충돌 밴드 24px 로, 검사당 이동 상한(19px)보다
+        // 넉넉히 커 얇아져도 공이 벽을 통과하지 않는다(실측 검증). 예전 14px 보다 날렵한 레일 느낌.
         return {
-          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 14, '#e9edf4'),
+          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 10, '#e9edf4'),
           spin: 0,
           restitution: 0.2,
         };
@@ -196,8 +198,8 @@
       build(p) {
         return {
           shapes: [
-            { kind: 'rect', x: 0, y: 0, w: p.length, h: 14, angle: (p.angle || 0) * DEG, fill: '#b48ce8' },
-            { kind: 'rect', x: 0, y: 0, w: p.length * 0.5, h: 4, angle: (p.angle || 0) * DEG, fill: '#e8d6ff' },
+            { kind: 'rect', x: 0, y: 0, w: p.length, h: 10, angle: (p.angle || 0) * DEG, fill: '#b48ce8' },
+            { kind: 'rect', x: 0, y: 0, w: p.length * 0.5, h: 3, angle: (p.angle || 0) * DEG, fill: '#e8d6ff' },
           ],
           spin: 0,
           restitution: 0.3,

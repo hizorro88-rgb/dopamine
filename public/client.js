@@ -249,15 +249,21 @@
         ctx.save();
         ctx.translate(s.x, s.y);
         ctx.rotate(s.angle || 0);
+        const hw = s.w / 2;
+        const hh = s.h / 2;
+        const rad = Math.min(hh, hw); // 끝을 완전히 둥글린 알약형 → 뚱뚱해 보이지 않고 날렵함
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(-s.w / 2, -s.h / 2, s.w, s.h, 4);
-        else ctx.rect(-s.w / 2, -s.h / 2, s.w, s.h);
+        if (ctx.roundRect) ctx.roundRect(-hw, -hh, s.w, s.h, rad);
+        else ctx.rect(-hw, -hh, s.w, s.h);
         ctx.fill();
-        if (!flat && s.h >= 8) {
-          // 막대 중심선을 밝혀 네온관 느낌
+        if (!flat && s.h >= 6) {
+          // 원통형 베벨: 위쪽 하이라이트 + 아래쪽 음영으로 입체감(둥근 금속 레일 느낌)
           ctx.shadowBlur = 0;
-          ctx.fillStyle = 'rgba(255,255,255,0.30)';
-          ctx.fillRect(-s.w / 2 + 2, -1, s.w - 4, 2);
+          const inset = Math.max(1.5, rad * 0.6);
+          ctx.fillStyle = 'rgba(255,255,255,0.34)';
+          ctx.fillRect(-hw + inset, -hh + hh * 0.18, s.w - inset * 2, Math.max(1, s.h * 0.22));
+          ctx.fillStyle = 'rgba(0,0,0,0.20)';
+          ctx.fillRect(-hw + inset, hh - hh * 0.4, s.w - inset * 2, Math.max(1, s.h * 0.22));
         }
         ctx.restore();
       }
