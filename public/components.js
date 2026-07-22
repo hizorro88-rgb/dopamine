@@ -220,12 +220,13 @@
       id: 'wall',
       name: '벽',
       emoji: '📏',
-      desc: '공의 길을 막는 벽. 각도·곡률·"사라짐(부딪힘 횟수)"을 조절할 수 있어요',
+      desc: '공의 길을 막는 벽. 각도·곡률·"사라짐(부딪힘 횟수)"·점프력을 조절할 수 있어요',
       props: [
         { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 120 },
         { key: 'angle', label: '각도(°)', min: -180, max: 180, step: 1, default: 0 },
         { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 1, default: 0 },
-        { key: 'breakHits', label: '사라짐(부딪힘 횟수, 0=안 사라짐)', min: 0, max: 12, step: 1, default: 0 },
+        { key: 'breakHits', label: '사라짐(부딪힘 횟수, 0=안 사라짐)', min: 0, max: 50, step: 1, default: 0 },
+        { key: 'bounce', label: '점프력(튕김, 0.7↑부터 강해짐)', min: 0, max: 2, step: 0.1, default: 0.2 },
       ],
       build(p) {
         // 두께 10px — 공 반지름(7)+벽 반두께(5) = 충돌 밴드 24px 로, 검사당 이동 상한(19px)보다
@@ -238,7 +239,7 @@
         const out = {
           shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 10, fill),
           spin: 0,
-          restitution: 0.2,
+          restitution: p.bounce != null ? p.bounce : 0.2, // 🦘 점프력(튕김)
         };
         if (breakable) out.hit = { action: 'vanish', hits, color: fill };
         return out;
@@ -250,7 +251,7 @@
       id: 'ring',
       name: '도넛 벽',
       emoji: '🍩',
-      desc: '동그란 링(도넛) 모양의 벽. 반지름·두께·열림(각도/방향)을 조절할 수 있어요',
+      desc: '동그란 링(도넛) 모양의 벽. 반지름·두께·열림·"사라짐(부딪힘 횟수)"·점프력을 조절할 수 있어요',
       props: [
         { key: 'radius', label: '반지름', min: 30, max: 220, step: 1, default: 90 },
         { key: 'thickness', label: '두께', min: 6, max: 22, step: 1, default: 10 },
@@ -258,13 +259,21 @@
         // 열림 방향: 화면좌표(0=오른쪽,90=아래,180=왼쪽,270=위). 기본은 아래(=∩ 아치)라
         // 무심코 열어도 공을 가두는 위쪽 그릇(바가지)이 되지 않는다.
         { key: 'gapDir', label: '열림 방향(°, 90=아래·270=위)', min: 0, max: 359, step: 1, default: 90 },
+        { key: 'breakHits', label: '사라짐(부딪힘 횟수, 0=안 사라짐)', min: 0, max: 50, step: 1, default: 0 },
+        { key: 'bounce', label: '점프력(튕김, 0.7↑부터 강해짐)', min: 0, max: 2, step: 0.1, default: 0.2 },
       ],
       build(p) {
-        return {
-          shapes: ringShapes(p.radius, p.thickness, '#e9edf4', p.gap || 0, p.gapDir || 0),
+        // 💥 벽과 동일한 '사라짐' 옵션 — breakHits>0 이면 N번 부딪히면 사라지는 도넛(색이 달아오름)
+        const hits = Math.round(p.breakHits || 0);
+        const breakable = hits > 0;
+        const fill = breakable ? breakWallColor(hits, hits) : '#e9edf4';
+        const out = {
+          shapes: ringShapes(p.radius, p.thickness, fill, p.gap || 0, p.gapDir || 0),
           spin: 0,
-          restitution: 0.2,
+          restitution: p.bounce != null ? p.bounce : 0.2, // 🦘 점프력(튕김)
         };
+        if (breakable) out.hit = { action: 'vanish', hits, color: fill };
+        return out;
       },
     },
 
