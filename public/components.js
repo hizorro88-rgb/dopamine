@@ -92,6 +92,49 @@
     return shapes;
   }
 
+  /**
+   * 🍩 도넛(링) 벽을 원 둘레의 짧은 접선 사각형들로 근사한다.
+   * gap>0 이면 그만큼(각도) 둘레를 비워 C자로 열린 링을 만든다.
+   * @param {number} radius   링 반지름(중심선)
+   * @param {number} thick    두께(px)
+   * @param {string} fill      색
+   * @param {number} gap       열림 각도(°) — 0이면 닫힌 도넛
+   * @param {number} gapDir    열림이 향하는 방향(°) — 화면좌표(0=오른쪽,90=아래,270=위)
+   */
+  function ringShapes(radius, thick, fill, gap = 0, gapDir = 0) {
+    const R = Math.max(12, radius);
+    // 둘레 길이에 맞춰 조각 수 결정(촘촘할수록 매끈+빈틈 없음), 과도한 물리 파트 방지 위해 상한
+    const segCount = Math.min(64, Math.max(16, Math.round((2 * Math.PI * R) / 16)));
+    const gapRad = Math.max(0, gap) * DEG;
+    const dir = gapDir * DEG;
+    const shapes = [];
+    // 원 위 연속한 두 점을 잇는 '현(chord)' 사각형으로 링을 만든다 — 이웃 조각이 꼭짓점을
+    // 공유하므로 안쪽에 빈틈(V자 노치)이 생기지 않는다(curvedWallShapes 와 동일한 방식).
+    for (let i = 0; i < segCount; i++) {
+      const a1 = (i / segCount) * Math.PI * 2;
+      const a2 = ((i + 1) / segCount) * Math.PI * 2;
+      const mid = (a1 + a2) / 2;
+      if (gapRad > 0) {
+        // 열림 구간(방향 dir 중심 ±gap/2) 안의 조각은 건너뛴다
+        const diff = Math.atan2(Math.sin(mid - dir), Math.cos(mid - dir)); // -π..π
+        if (Math.abs(diff) < gapRad / 2) continue;
+      }
+      const x1 = Math.cos(a1) * R, y1 = Math.sin(a1) * R;
+      const x2 = Math.cos(a2) * R, y2 = Math.sin(a2) * R;
+      const dx = x2 - x1, dy = y2 - y1;
+      shapes.push({
+        kind: 'rect',
+        x: (x1 + x2) / 2,
+        y: (y1 + y2) / 2,
+        w: Math.hypot(dx, dy) + thick * 0.5 + 2, // 꼭짓점에서 살짝 겹쳐 이음새 메움
+        h: thick,
+        angle: Math.atan2(dy, dx),
+        fill,
+      });
+    }
+    return shapes;
+  }
+
   // ── 🏁 골인(FINISH) 지오메트리 — 위치·크기를 맵마다 지정 가능 ──
   // 서버 물리(도착 판정)와 클라이언트 렌더/에디터가 공유한다.
   const FINISH = {
@@ -199,6 +242,29 @@
         };
         if (breakable) out.hit = { action: 'vanish', hits, color: fill };
         return out;
+      },
+    },
+
+    // 🍩 도넛(링) 벽: 동그란 링 모양 벽 — 공이 둘레에 튕긴다 (열림 각도로 C자도 가능)
+    ring: {
+      id: 'ring',
+      name: '도넛 벽',
+      emoji: '🍩',
+      desc: '동그란 링(도넛) 모양의 벽. 반지름·두께·열림(각도/방향)을 조절할 수 있어요',
+      props: [
+        { key: 'radius', label: '반지름', min: 30, max: 220, step: 1, default: 90 },
+        { key: 'thickness', label: '두께', min: 6, max: 22, step: 1, default: 10 },
+        { key: 'gap', label: '열림(각도°, 0=닫힘)', min: 0, max: 300, step: 5, default: 0 },
+        // 열림 방향: 화면좌표(0=오른쪽,90=아래,180=왼쪽,270=위). 기본은 아래(=∩ 아치)라
+        // 무심코 열어도 공을 가두는 위쪽 그릇(바가지)이 되지 않는다.
+        { key: 'gapDir', label: '열림 방향(°, 90=아래·270=위)', min: 0, max: 359, step: 1, default: 90 },
+      ],
+      build(p) {
+        return {
+          shapes: ringShapes(p.radius, p.thickness, '#e9edf4', p.gap || 0, p.gapDir || 0),
+          spin: 0,
+          restitution: 0.2,
+        };
       },
     },
 
