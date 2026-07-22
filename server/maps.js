@@ -744,6 +744,88 @@ function jarComponents() {
   return comps; // 자체 중앙 슈트로 골인 (funnel 미사용)
 }
 
+// 🤝 손에손잡고 벽을 넘어서: 다같이 두드려 깨는 '사라지는 벽'(벽을 넘어서) +
+//    링 사슬(손에 손잡고)로 이어지는 하강 코스. 88 서울올림픽 주제가 오마주.
+function handInHandComponents() {
+  const comps = [];
+  const H = 4800;
+  const ring = (x, y, r, extra = {}) => {
+    comps.push({ type: 'ring', x, y, props: { radius: r, thickness: 10, gap: 0, gapDir: 90, ...extra } });
+    // 정수리에 회전 십자 = 능동 청소기: 닫힌 링은 꼭대기에 공이 얹혀 고이기 쉬운데,
+    // 십자가 그 자리를 계속 쓸어내 공이 멈추지 못하게 한다(실측: 고임 대폭 감소).
+    comps.push({ type: 'cross', x, y: y - r, props: { length: Math.min(130, r * 2 + 16), speed: 4 } });
+  };
+  const bwall = (x, y, len, ang, hits) =>
+    comps.push({ type: 'wall', x, y, props: { length: len, angle: ang, curve: 0, breakHits: hits } });
+  // 전폭 '사라지는 벽' — 길이 상한(300) 때문에 두 조각으로 나눠 좌우를 잇는다(가운데 겹침).
+  //  좌/우 조각이 각자 hits 번 맞으면 무너져, 다같이 두드리면 뚫린다.
+  const dam = (y, hits) => {
+    bwall(155, y, 290, 0, hits);
+    bwall(445, y, 290, 0, hits);
+  };
+  // 벽 위로 공을 유도하는 얕은 핀 줄
+  const guide = (y) => lineDots(comps, 80, y, 520, y, 72, 6);
+
+  // ── 인트로: 핀 + 범퍼로 공을 넓게 퍼뜨리고 속도를 준다 (링 앞에서 정체 방지) ──
+  lineDots(comps, 70, 210, 530, 210, 58, 7);
+  comps.push({ type: 'bumper', x: 300, y: 300, props: { size: 22 } });
+  comps.push({ type: 'bumper', x: 130, y: 360, props: { size: 16 } });
+  comps.push({ type: 'bumper', x: 470, y: 360, props: { size: 16 } });
+
+  // ── 손에 손잡고: 링 사슬 (충분히 낙하해 속도가 붙은 뒤 통과 — 정수리에 고이지 않게) ──
+  //    간격 D > 2R+공지름 이어야 위 골짜기로 흘러든 공이 사이로 빠진다. 각 링엔 정수리 가드 핀.
+  ring(300, 520, 54);
+
+  // ── 첫 번째 벽 (가볍게, 4회) ──
+  guide(660);
+  dam(750, 4);
+
+  // ── 장애물: 닫힌 도넛 + 범퍼 + 스피너 (도넛 앞뒤로 범퍼가 공을 계속 튕겨 정체 방지) ──
+  comps.push({ type: 'bumper', x: 150, y: 900, props: { size: 18 } });
+  comps.push({ type: 'bumper', x: 450, y: 900, props: { size: 18 } });
+  ring(300, 960, 52);
+  comps.push({ type: 'spinner', x: 300, y: 1120, props: { length: 170, speed: 4 } });
+
+  // ── 두 번째 벽 (12회) ──
+  guide(1290);
+  dam(1370, 6);
+
+  // ── 링 터널: 도넛 세 개(한 줄, 넉넉한 간격) 사이를 지난다 (앞에 범퍼로 속도 부여) ──
+  ring(200, 1620, 52);
+  comps.push({ type: 'cross', x: 300, y: 1860, props: { length: 120, speed: -4 } });
+
+  // ── 세 번째 벽 (14회) ──
+  guide(2060);
+  dam(2140, 8);
+
+  // ── 핀 + 범퍼 통통 구간 (공을 가두지 않고 튕겨 흐르게) ──
+  lineDots(comps, 90, 2380, 510, 2380, 58, 6);
+  comps.push({ type: 'bumper', x: 150, y: 2500, props: { size: 18 } });
+  comps.push({ type: 'bumper', x: 300, y: 2470, props: { size: 20 } });
+  comps.push({ type: 'bumper', x: 450, y: 2500, props: { size: 18 } });
+  comps.push({ type: 'cross', x: 300, y: 2630, props: { length: 110, speed: 4 } });
+
+  // ── 네 번째 벽 (가장 튼튼, 16회) ──
+  guide(2720);
+  dam(2800, 10);
+
+  // ── 링 무리(한 줄) + 스피너 관문 ──
+  ring(400, 3040, 52);
+  comps.push({ type: 'spinner', x: 190, y: 3260, props: { length: 150, speed: 5 } });
+  comps.push({ type: 'spinner', x: 410, y: 3260, props: { length: 150, speed: -5 } });
+
+  // ── 다섯 번째 벽 (마지막 관문, 12회) ──
+  guide(3480);
+  dam(3560, 6);
+
+  // ── 피날레: 링 + 십자 + 핀 ──
+  ring(300, 3820, 54);
+  comps.push({ type: 'cross', x: 300, y: 4040, props: { length: 130, speed: 4 } });
+  lineDots(comps, 90, 4230, 510, 4230, 64, 6);
+
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   {
     id: 'classic',
@@ -768,6 +850,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 3200,
     components: pinballComponents(),
+  },
+  {
+    id: 'handinhand',
+    name: '🤝 손에손잡고 벽을 넘어서',
+    author: '기본 맵',
+    builtin: true,
+    height: 4800,
+    components: handInHandComponents(),
   },
   {
     id: 'jar',
