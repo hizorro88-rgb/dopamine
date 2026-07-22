@@ -79,7 +79,8 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       collisionFilter: { category: CAT_PEG, mask: 0xffff },
     };
     const parts = built.shapes
-      .filter((s) => s.kind === 'circle' || s.kind === 'rect') // 'text'(이모지) 등 시각 전용 도형은 물리 제외
+      // 'text'(이모지) 및 noPhysics(무지개 장식 아치 등) 도형은 물리 제외 — 시각 전용
+      .filter((s) => (s.kind === 'circle' || s.kind === 'rect') && !s.noPhysics)
       .map((s) =>
         s.kind === 'circle'
           ? Matter.Bodies.circle(comp.x + s.x, comp.y + s.y, s.r, opts)
@@ -88,6 +89,18 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
               angle: s.angle || 0,
             })
       );
+    // 물리 도형이 하나도 없으면(순수 장식) 바디를 만들지 않고 렌더만 한다
+    if (parts.length === 0) {
+      renderComponents.push({
+        type: comp.type,
+        x: comp.x,
+        y: comp.y,
+        shapes: built.shapes,
+        spin: built.spin || 0,
+        move: built.move || 0,
+      });
+      continue;
+    }
     const body =
       parts.length === 1 ? parts[0] : Matter.Body.create({ parts, isStatic: true });
     bodies.push(body);

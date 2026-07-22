@@ -277,6 +277,48 @@
       },
     },
 
+    // 🌈 무지개: 7색 동심 반원 아치(반 도넛). 방향(아래∩·왼쪽·오른쪽·위)을 바꿀 수 있다.
+    rainbow: {
+      id: 'rainbow',
+      name: '무지개',
+      emoji: '🌈',
+      desc: '7색 반 도넛 무지개 아치. 크기·방향(아래∩·왼쪽·오른쪽·위)·색 띠 두께·점프력을 조절해요',
+      props: [
+        { key: 'radius', label: '반지름(바깥)', min: 45, max: 200, step: 1, default: 110 },
+        { key: 'band', label: '색 띠 두께', min: 5, max: 12, step: 1, default: 8 },
+        { key: 'dir', label: '방향(0=아래∩,1=왼쪽,2=오른쪽,3=위∪)', min: 0, max: 3, step: 1, default: 0 },
+        { key: 'bounce', label: '점프력(튕김, 0.7↑부터 강해짐)', min: 0, max: 2, step: 0.1, default: 0.3 },
+      ],
+      build(p) {
+        // 무지개 7색(빨주노초파남보): 바깥이 빨강, 안쪽이 보라
+        const colors = ['#ff4d4d', '#ff9d2e', '#ffe14a', '#4ade5a', '#35b6ff', '#4b6bff', '#a45cff'];
+        // 방향 → '열림(제거)' 방향. 화면좌표(0=오른쪽,90=아래,180=왼쪽,270=위)
+        //  0 아래로 열림(∩ 위 반원)=90 · 1 왼쪽으로 열림())=180 · 2 오른쪽으로 열림(()=0 · 3 위로 열림(∪)=270
+        const gapDir = [90, 180, 0, 270][Math.round(p.dir) || 0] ?? 90;
+        const band = p.band || 8;
+        const shapes = [];
+        // ── 장식 아치(물리 없음): 꽉 찬 반원 벽처럼 보이는 7색 무지개 ──
+        //    닫힌/두꺼운 아치는 공을 정수리에 얹어 가두기 쉬우므로 '보이기'만 하고 통과시킨다.
+        let inner = p.radius;
+        for (let i = 0; i < colors.length; i++) {
+          const r = p.radius - i * band;
+          if (r < band + 4) break;
+          inner = r;
+          for (const s of ringShapes(r, band, colors[i], 180, gapDir)) shapes.push({ ...s, noPhysics: true });
+        }
+        // ── 물리 도트: 아치 바깥 테두리를 따라 성기게 박은 작은 공 — 공이 튕기되
+        //    도트 사이 틈으로 새어 빠지므로 절대 가두지 않는다(픽셀아트 맵과 같은 원리).
+        const rDot = p.radius - band / 2; // 바깥(빨강) 테두리
+        const solid = (((gapDir + 180) % 360) * Math.PI) / 180; // 반원(벽)의 중심 방향
+        const nDots = Math.max(6, Math.round((Math.PI * rDot) / 30));
+        for (let k = 0; k <= nDots; k++) {
+          const a = solid - Math.PI / 2 + Math.PI * (k / nDots);
+          shapes.push({ kind: 'circle', x: Math.cos(a) * rDot, y: Math.sin(a) * rDot, r: 6, fill: colors[0], glow: colors[0] });
+        }
+        return { shapes, spin: 0, restitution: p.bounce != null ? p.bounce : 0.3 };
+      },
+    },
+
     // ↔️ 움직이는 벽: 좌우(또는 위아래)로 왕복하는 벽 — 타이밍을 맞춰 통과
     movewall: {
       id: 'movewall',

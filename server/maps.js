@@ -826,6 +826,64 @@ function handInHandComponents() {
   return [...comps, ...funnel(H)];
 }
 
+// 🌈 무지개 나라: 방향이 제각각인 반 도넛 무지개(아래∩·왼쪽)·오른쪽() 아치들 사이로
+//    공이 알록달록 쏟아져 내려간다. ∩ 아치는 정수리에 회전 청소기로 고임 방지.
+function rainbowComponents() {
+  const comps = [];
+  const H = 4800;
+  // dir: 0=아래∩ · 1=왼쪽) · 2=오른쪽( (위∪=3 은 공을 가두므로 맵에선 쓰지 않음)
+  const rb = (x, y, radius, dir, band = 8, bounce = 0.4) =>
+    comps.push({ type: 'rainbow', x, y, props: { radius, band, dir, bounce } });
+  const bump = (x, y, s = 16) => comps.push({ type: 'bumper', x, y, props: { size: s } });
+
+  // ── 인트로: 핀 + 범퍼로 넓게 퍼뜨리고 속도를 준다 ──
+  lineDots(comps, 70, 200, 530, 200, 56, 7);
+  bump(300, 290, 20); bump(140, 350, 15); bump(460, 350, 15);
+
+  // ── 1층: 가운데 큰 ∩ 무지개 (정수리 청소기) ──
+  rb(300, 470, 118, 0);
+  // ── 2층: 양옆에서 마주보는 )( 무지개 → 공을 가운데로 모은다 ──
+  rb(120, 760, 96, 1); // 왼쪽에 ')' (열림 왼쪽=벽쪽) → 볼록면이 가운데로
+  rb(480, 760, 96, 2); // 오른쪽에 '(' (열림 오른쪽=벽쪽)
+  bump(300, 780, 18);
+
+  // ── 3층: 작은 ∩ 두 개 (좌우, 청소기) ──
+  rb(175, 1080, 82, 0);  rb(425, 1080, 82, 0);
+  // ── 4층: 가운데 큰 ∩ + 사이드 범퍼 ──
+  rb(300, 1400, 120, 0);  bump(90, 1360, 15); bump(510, 1360, 15);
+
+  // ── 5층: 바깥을 보는 () 무지개 (공을 바깥→아래로 흘린다) ──
+  rb(160, 1720, 92, 2); // '(' 열림 오른쪽(가운데쪽), 볼록면이 왼벽쪽
+  rb(440, 1720, 92, 1); // ')' 열림 왼쪽(가운데쪽), 볼록면이 오른벽쪽
+  comps.push({ type: 'spinner', x: 300, y: 1780, props: { length: 150, speed: 5 } });
+
+  // ── 6층: 지그재그 ∩ 세 개 ──
+  rb(150, 2040, 78, 0);  rb(300, 2120, 78, 0);  rb(450, 2040, 78, 0);
+  // ── 7층: 마주보는 )( + 가운데 십자 ──
+  rb(130, 2420, 90, 1); rb(470, 2420, 90, 2);
+  comps.push({ type: 'cross', x: 300, y: 2460, props: { length: 120, speed: -4 } });
+
+  // ── 8층: 통통 범퍼밭 ──
+  bump(150, 2680, 18); bump(300, 2640, 20); bump(450, 2680, 18);
+  lineDots(comps, 90, 2760, 510, 2760, 60, 6);
+
+  // ── 9층: 큰 ∩ 무지개 관문 ──
+  rb(300, 3000, 122, 0);
+  // ── 10층: 바깥 () + 스피너 ──
+  rb(165, 3300, 92, 2); rb(435, 3300, 92, 1);
+  comps.push({ type: 'spinner', x: 190, y: 3360, props: { length: 140, speed: 5 } });
+  comps.push({ type: 'spinner', x: 410, y: 3360, props: { length: 140, speed: -5 } });
+
+  // ── 11층: 작은 ∩ 무지개 사슬 ──
+  rb(150, 3620, 80, 0);  rb(300, 3700, 80, 0);  rb(450, 3620, 80, 0);
+  // ── 피날레: 마주보는 )( + 통통 범퍼 + 핀 ──
+  rb(140, 3980, 96, 1); rb(460, 3980, 96, 2);
+  bump(300, 4020, 20);
+  lineDots(comps, 90, 4200, 510, 4200, 62, 6);
+
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   {
     id: 'classic',
@@ -858,6 +916,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 4800,
     components: handInHandComponents(),
+  },
+  {
+    id: 'rainbowland',
+    name: '🌈 무지개 나라',
+    author: '기본 맵',
+    builtin: true,
+    height: 4800,
+    components: rainbowComponents(),
   },
   {
     id: 'jar',
