@@ -36,6 +36,10 @@
 
   const urlRoomCode = new URLSearchParams(location.search).get('room');
 
+  // 🎬 공유된 결과 링크(?replay=CODE) — 소켓 없이도 바로 관람 가능 (연결을 기다리지 않음)
+  const urlReplayCode = new URLSearchParams(location.search).get('replay');
+  let playedRecording = false;
+
   socket.on('connect', () => {
     myId = socket.id;
     // 🔌 재연결: 이미 방에 속해 있었다면 같은 자리로 복귀 시도
@@ -1283,16 +1287,33 @@
     showScreen('home');
   });
 
-  $('btn-event-register').addEventListener('click', () => {
+  function submitEventRegister() {
     const name = $('input-event-name').value.trim();
     if (!name) return ($('event-error').textContent = '이름을 입력해주세요.');
     socket.emit('event:register', { name }, (res) => {
       if (!res.ok) return ($('event-error').textContent = res.error || '참가 실패');
       $('event-error').textContent = '';
       myParticipantId = res.participantId;
-      $('event-my-status').textContent = `✅ "${name}" 참가 완료! (${res.participantId + 1}번 공)`;
-      $('event-register-row').style.display = 'none';
+      const added = res.added || [{ id: res.participantId, name }];
+      if (added.length === 1) {
+        // 단일 등록 — 기존 동작 그대로 (등록창 닫음)
+        $('event-my-status').textContent = `✅ "${added[0].name}" 참가 완료! (${added[0].id + 1}번 공)`;
+        $('event-register-row').style.display = 'none';
+      } else {
+        // 여러 명을 한 번에 등록 — 혼자서 더 넣을 수 있게 등록창은 열어둔다
+        const shown = added.slice(0, 8).map((a) => a.name).join(', ');
+        const more = added.length > 8 ? ` 외 ${added.length - 8}명` : '';
+        $('event-my-status').textContent =
+          `✅ ${added.length}명 참가 완료! (${shown}${more})` +
+          (res.full ? ' · 인원이 가득 찼습니다.' : ' · 더 넣으려면 이어서 입력하세요.');
+        $('input-event-name').value = '';
+        $('input-event-name').focus();
+      }
     });
+  }
+  $('btn-event-register').addEventListener('click', submitEventRegister);
+  $('input-event-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitEventRegister();
   });
 
   $('btn-event-start').addEventListener('click', () => {
@@ -1366,10 +1387,24 @@
     }
   }
 
-  function startReplayPlayback(replay, startAt, offset, editorTest) {
+  // 🎬 공유된 결과 관람 — /api/recording/CODE 를 받아 이벤트 방 없이 단독 재생
+  async function playRecording(code) {
+    try {
+      const replay = await (await fetch(`/api/recording/${encodeURIComponent(code)}`)).json();
+      if (!replay || !replay.board) throw new Error('bad');
+      startReplayPlayback(replay, Date.now(), 0, false, { shared: true });
+    } catch {
+      homeError.textContent = '저장된 결과를 불러오지 못했어요. 링크가 만료되었거나 잘못되었을 수 있어요.';
+      showScreen('home');
+    }
+  }
+
+  function startReplayPlayback(replay, startAt, offset, editorTest, opts) {
+    const shared = !!(opts && opts.shared); // 🎬 공유 링크(?replay=)로 열린 단독 관람인가
     game = {
       board: replay.board,
       editorTest: !!editorTest, // 🧪 에디터에서 테스트 재생 중인가
+      shared, // 🎬 공유된 결과 관람 (이벤트 방/대기실 없음)
       winMode: 'first',
       players: new Map(replay.players.map((p) => [p.id, p])),
       items: [],
@@ -1400,14 +1435,16 @@
     $('item-bar').style.display = 'none'; // 시청자는 아이템 없음 (자동 발동)
     document.querySelector('#rank-board h3').textContent = editorTest
       ? `🧪 맵 테스트 · 공 ${replay.players.length}개`
-      : `🎪 이벤트 추첨 · 참가 ${replay.players.length}명`;
+      : shared
+        ? `🎬 공유된 결과 · 참가 ${replay.players.length}명`
+        : `🎪 이벤트 추첨 · 참가 ${replay.players.length}명`;
     $('rank-list').innerHTML = '';
     $('toast-area').innerHTML = '';
     $('result-modal').classList.add('hidden');
     $('target-modal').classList.add('hidden');
     showScreen('game');
     setupCanvas();
-    showCheerBar(!editorTest); // 테스트 중엔 응원 바 숨김
+    showCheerBar(!editorTest && !shared); // 테스트/공유 관람 중엔 응원 바 숨김
     editorTestExitBtn().classList.toggle('hidden', !editorTest); // 🧪 에디터 복귀 버튼
     requestAnimationFrame(renderFrame);
   }
@@ -2437,10 +2474,50 @@
 
     $('btn-back-lobby').textContent = (game && game.editorTest)
       ? '🧪 에디터로 돌아가기'
+      : (game && game.shared) ? '🏠 홈으로'
       : event ? '이벤트로 돌아가기' : '대기실로 돌아가기';
+
+    // 🎬 결과 저장 & 공유 — 이벤트 추첨 결과일 때만 (에디터 테스트/공유 관람 제외)
+    const canShare = !!(game && game.replay && !game.editorTest && !game.shared && eventRoom);
+    const shareBtn = $('btn-share-recording');
+    const shareHint = $('share-recording-hint');
+    shareBtn.classList.toggle('hidden', !canShare);
+    shareHint.classList.add('hidden');
+    if (canShare) {
+      shareBtn.disabled = false;
+      shareBtn.textContent = '🎬 결과 저장 & 공유 링크 복사';
+    }
+
     $('result-modal').classList.remove('hidden');
     startConfetti();
   }
+
+  // 🎬 결과 녹화 저장 → 영구 공유 링크 복사
+  $('btn-share-recording').addEventListener('click', () => {
+    const btn = $('btn-share-recording');
+    const hint = $('share-recording-hint');
+    btn.disabled = true;
+    btn.textContent = '⏳ 저장 중…';
+    socket.emit('event:record', {}, async (res) => {
+      if (!res || !res.ok) {
+        btn.disabled = false;
+        btn.textContent = '🎬 결과 저장 & 공유 링크 복사';
+        hint.classList.remove('hidden');
+        hint.style.color = 'var(--danger, #e66)';
+        hint.textContent = (res && res.error) || '저장에 실패했어요.';
+        return;
+      }
+      const url = `${location.origin}${location.pathname}?replay=${res.code}`;
+      const copied = await copyText(url);
+      btn.textContent = copied ? '✅ 공유 링크 복사 완료!' : '🎬 공유 링크 준비 완료';
+      hint.classList.remove('hidden');
+      hint.style.color = '';
+      hint.innerHTML = copied
+        ? `이 링크를 아무에게나 보내면 결과를 그대로 볼 수 있어요:<br><code>${escapeHtml(url)}</code>`
+        : `아래 링크를 복사해 공유하세요:<br><code>${escapeHtml(url)}</code>`;
+      if (!copied) prompt('아래 링크를 복사해서 공유해주세요:', url);
+    });
+  });
 
   // ── 색종이 + 폭죽 축하 효과 ────────────────────────────
   // 금박·은박·크림슨 색종이 비 + 화려하게 터지는 폭죽(불꽃놀이)
@@ -4491,4 +4568,10 @@
 
   // 모든 선언·초기화가 끝난 뒤에 관리자 페이지 자동 오픈 (editor const 초기화 이후여야 함)
   if (ADMIN_MODE) openAdmin();
+
+  // 🎬 공유된 결과 링크(?replay=CODE)로 들어왔으면 바로 관람 (소켓 연결 불필요)
+  if (urlReplayCode && !playedRecording) {
+    playedRecording = true;
+    playRecording(urlReplayCode.toUpperCase());
+  }
 })();

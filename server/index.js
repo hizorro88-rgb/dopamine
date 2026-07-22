@@ -207,7 +207,9 @@ app.get('/api/admin/feedback', (req, res) => {
   if (!requireAdmin(req, res)) return;
   res.json({ ok: true, feedback: feedback.list() });
 });
-const events = new EventManager(io, rooms.maps);
+const { RecordingStore } = require('./recordings');
+const recordings = new RecordingStore();
+const events = new EventManager(io, rooms.maps, recordings);
 io.on('connection', (socket) => {
   rooms.handleConnection(socket);
   events.handleConnection(socket);
@@ -220,6 +222,16 @@ app.get('/api/replay/:code', (req, res) => {
   res.set('Content-Type', 'application/json');
   res.set('Content-Encoding', 'gzip');
   res.set('Cache-Control', 'public, max-age=3600');
+  res.send(gz);
+});
+
+// 🎬 저장된 결과 녹화 서빙 (영구 공유 링크 ?replay=CODE 용) — 디스크에서 gzip 그대로 흘려보낸다.
+app.get('/api/recording/:code', (req, res) => {
+  const gz = recordings.getGz(req.params.code);
+  if (!gz) return res.status(404).json({ error: '저장된 결과를 찾을 수 없습니다.' });
+  res.set('Content-Type', 'application/json');
+  res.set('Content-Encoding', 'gzip');
+  res.set('Cache-Control', 'public, max-age=31536000, immutable'); // 영구 (코드가 곧 버전)
   res.send(gz);
 });
 

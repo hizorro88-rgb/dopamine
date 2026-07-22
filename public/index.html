@@ -329,7 +329,7 @@
       <div id="event-names"></div>
       <div id="event-register-row">
         <div class="name-row">
-          <input id="input-event-name" type="text" maxlength="12" placeholder="추첨에 걸 이름" autocomplete="off" />
+          <input id="input-event-name" type="text" maxlength="240" placeholder="이름 (여러 명은 콤마로 구분)" autocomplete="off" />
           <button id="btn-event-random-name" class="icon-btn" title="닉네임 새로고침" aria-label="닉네임 새로고침">
             <svg viewBox="0 0 24 24" fill="none" stroke="url(#goldRefreshEvent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <defs>
@@ -345,6 +345,7 @@
           </button>
         </div>
         <button id="btn-event-register" class="btn primary" style="width:100%">✋ 참가</button>
+        <p class="hint" style="margin:.4rem 0 0">💡 혼자서 여러 명을 넣으려면 <b>이름들을 콤마(,)로 구분</b>해 한 번에 입력하세요. 예: <code>철수, 영희, 민수</code></p>
       </div>
       <p id="event-my-status" class="hint"></p>
       <div class="map-row" id="event-map-row">
@@ -455,6 +456,8 @@
         <div id="winner-banner"></div>
         <div id="podium"></div>
         <ol id="result-list"></ol>
+        <button id="btn-share-recording" class="btn hidden" style="width:100%">🎬 결과 저장 &amp; 공유 링크 복사</button>
+        <p id="share-recording-hint" class="hint hidden"></p>
         <button id="btn-back-lobby" class="btn primary">대기실로 돌아가기</button>
         <button id="btn-board-result" class="link-btn">📊 전체 순위 보기</button>
         <a class="donate-link hidden" target="_blank" rel="noopener"></a>

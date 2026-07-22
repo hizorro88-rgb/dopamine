@@ -54,15 +54,17 @@ function participantColor(i) {
 }
 
 class EventManager {
-  constructor(io, mapStore) {
+  constructor(io, mapStore, recordings) {
     this.io = io;
     this.maps = mapStore;
+    this.recordings = recordings || null; // 결과 영구 저장(공유 링크)용
     this.events = new Map(); // code -> event
     this.socketEvent = new Map(); // socketId -> code
     this.limiter = {
       create: new RateLimiter(60000, 20),
       register: new RateLimiter(60000, 30),
       cheer: new RateLimiter(10000, 20), // 이모지 응원 스팸 방지(10초 20회)
+      record: new RateLimiter(60000, 10), // 결과 저장 스팸 방지
     };
     // 🧹 유휴/고아 이벤트 청소 — 리플레이 버퍼 메모리 회수 (테스트에서 프로세스 안 붙잡게 unref)
     this.gcTimer = setInterval(() => this.sweep(), GC_SWEEP_MS);
@@ -100,6 +102,8 @@ class EventManager {
         replayGz: null,
         replayMeta: null, // { startAt, durationMs }
         replayVersion: 0, // 재추첨마다 +1 → 리플레이 URL 캐시 무효화
+        recordingCode: null, // 이 리플레이를 영구 저장했다면 공유 코드
+        recordingVersion: -1, // recordingCode 가 어느 replayVersion 의 것인지
         lastActivity: Date.now(),
       };
       this.events.set(code, ev);
@@ -118,7 +122,8 @@ class EventManager {
       this.broadcast(ev);
     });
 
-    // 참가 등록 (공 1개 배정) — 추첨 시작 전까지만
+    // 참가 등록 (공 배정) — 추첨 시작 전까지만.
+    // 콤마로 여러 이름을 한 번에 받을 수 있어, 한 사람이 여러 명을 넣고 혼자 돌릴 수 있다.
     socket.on('event:register', ({ name } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.register.allow(socket.id))
@@ -127,20 +132,31 @@ class EventManager {
       if (!ev) return cb({ ok: false, error: '이벤트에 먼저 입장해주세요.' });
       if (ev.state !== 'lobby')
         return cb({ ok: false, error: '이미 추첨이 시작되었습니다.' });
-      if (ev.registeredSockets.has(socket.id))
-        return cb({ ok: false, error: '이미 참가 등록을 했습니다.' });
       if (ev.participants.length >= MAX_PARTICIPANTS)
         return cb({ ok: false, error: `참가 인원이 가득 찼습니다. (최대 ${MAX_PARTICIPANTS}명)` });
 
-      const cleanName = String(name || '').trim().slice(0, 12);
-      if (!cleanName) return cb({ ok: false, error: '이름을 입력해주세요.' });
+      // 콤마로 구분해 여러 이름을 한 번에 등록 (한 번 호출당 최대 100명 — 과대 요청 방지)
+      const names = String(name || '')
+        .split(',')
+        .map((s) => s.trim().slice(0, 12))
+        .filter(Boolean)
+        .slice(0, 100);
+      if (names.length === 0) return cb({ ok: false, error: '이름을 입력해주세요.' });
 
-      const id = ev.participants.length;
-      // 동명이인 구분 — 추첨 결과에서 누가 당첨됐는지 헷갈리지 않게 (2), (3) 부여
-      const uniqueName = dedupeName(cleanName, ev.participants);
-      ev.participants.push({ id, name: uniqueName, color: participantColor(id) });
+      const added = [];
+      for (const nm of names) {
+        if (ev.participants.length >= MAX_PARTICIPANTS) break;
+        const id = ev.participants.length;
+        // 동명이인 구분 — 추첨 결과에서 누가 당첨됐는지 헷갈리지 않게 (2), (3) 부여
+        const uniqueName = dedupeName(nm, ev.participants);
+        ev.participants.push({ id, name: uniqueName, color: participantColor(id) });
+        added.push({ id, name: uniqueName });
+      }
       ev.registeredSockets.add(socket.id);
-      cb({ ok: true, participantId: id });
+      if (added.length === 0)
+        return cb({ ok: false, error: `참가 인원이 가득 찼습니다. (최대 ${MAX_PARTICIPANTS}명)` });
+      // participantId 는 하위호환(단일 등록) — 첫 번째로 추가된 공
+      cb({ ok: true, participantId: added[0].id, added, full: ev.participants.length >= MAX_PARTICIPANTS });
       this.broadcast(ev);
     });
 
@@ -202,6 +218,30 @@ class EventManager {
       this.io.to(this.roomKey(ev)).emit('event:cheer', { emoji: e });
     });
 
+    // 🎬 결과 녹화 저장 → 영구 공유 코드 발급 (누구나 요청 가능, 결과가 준비된 뒤)
+    socket.on('event:record', (_payload, cb) => {
+      if (typeof cb !== 'function') return;
+      const ev = this.eventOf(socket);
+      if (!ev) return cb({ ok: false, error: '이벤트에 먼저 입장해주세요.' });
+      if (!ev.replayGz || ev.state !== 'playing')
+        return cb({ ok: false, error: '아직 저장할 결과가 없습니다. 추첨을 먼저 진행해주세요.' });
+      if (!this.recordings) return cb({ ok: false, error: '녹화 저장을 사용할 수 없습니다.' });
+      // 같은 리플레이를 이미 저장했으면 그 코드를 재사용 (중복 저장 방지)
+      if (ev.recordingCode && ev.recordingVersion === ev.replayVersion)
+        return cb({ ok: true, code: ev.recordingCode });
+      if (!this.limiter.record.allow(socket.id))
+        return cb({ ok: false, error: '저장 요청이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
+      const mapDef = this.maps.get(ev.mapId) || this.maps.get('classic');
+      const res = this.recordings.save(ev.replayGz, {
+        mapName: mapDef ? mapDef.name : '',
+        count: ev.participants.length,
+      });
+      if (!res.ok) return cb(res);
+      ev.recordingCode = res.code;
+      ev.recordingVersion = ev.replayVersion;
+      cb({ ok: true, code: res.code });
+    });
+
     // 이벤트에서 나가기 (홈으로) — 접속만 해제, 이미 등록한 추첨 엔트리는 유지
     socket.on('event:leave', () => this.detach(socket));
 
@@ -212,6 +252,8 @@ class EventManager {
       ev.state = 'lobby';
       ev.replayGz = null;
       ev.replayMeta = null;
+      // 새 추첨을 준비하는 것이므로, 이전 결과의 저장 코드는 그대로 두고(공유 링크는 영구 유지)
+      // 다음 추첨은 새 리플레이 버전이라 record 시 새 코드가 발급된다.
       this.broadcast(ev);
     });
 
