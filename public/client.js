@@ -1,7 +1,7 @@
 /* global io, PinballComponents */
 (() => {
   const socket = io();
-  const { WORLD, COMPONENTS, defaultProps, buildShapes, defaultFinish, clampFinish, FINISH } = PinballComponents;
+  const { WORLD, COMPONENTS, defaultProps, buildShapes, defaultFinish, clampFinish, FINISH, breakWallColor } = PinballComponents;
 
   // 화면에 보이는 뷰포트 크기 (월드는 세로로 훨씬 길다 → 카메라가 따라감)
   const VIEW = { width: 600, height: 900 };
@@ -208,7 +208,7 @@
   }
 
   // flat=true(미니맵)면 글로우 생략. offX/offY 는 움직이는 벽의 실시간 위치 오프셋.
-  function drawComponent(ctx, comp, angle, flat, offX, offY) {
+  function drawComponent(ctx, comp, angle, flat, offX, offY, colorOverride) {
     ctx.save();
     ctx.translate(comp.x + (offX || 0), comp.y + (offY || 0));
     if (angle) ctx.rotate(angle);
@@ -226,13 +226,14 @@
         ctx.restore();
         continue;
       }
-      const color = s.fill || '#35e0ff';
+      // 💥 사라지는 벽은 남은 횟수에 따라 색이 바뀐다 — 도형 종류 무관하게 덮어씀
+      const color = colorOverride || s.fill || '#35e0ff';
       if (!flat) {
-        ctx.shadowColor = s.glow || color;
+        ctx.shadowColor = colorOverride || s.glow || color;
         ctx.shadowBlur = 13;
       }
       // 미니맵(flat)에서는 어두운 도형 대신 글로우 색으로 — 폭탄이 빨간 점으로 보임
-      ctx.fillStyle = flat ? s.glow || color : color;
+      ctx.fillStyle = flat ? colorOverride || s.glow || color : color;
       if (s.kind === 'circle') {
         if (!flat) {
           // 미리 구운 글로우 스프라이트로 — shadowBlur 실시간 렌더 대비 수십 배 빠름
@@ -1426,6 +1427,7 @@
       fxSeen: new Map(), // ballKey -> 직전 상태 플래그
       screenFx: null,
       hiddenComps: new Set(),
+      dmg: new Map(), // 💥 손상된 사라지는 벽: index → 남은 횟수
       shakeUntil: 0,
       replay: {
         frames: replay.frames,
@@ -1517,6 +1519,8 @@
     } else if (ev.type === 'portal') {
       if (ev.from) game.explosions.push({ x: ev.from.x, y: ev.from.y, radius: 55, start: performance.now(), color: '#35e0ff' });
       if (ev.to) game.explosions.push({ x: ev.to.x, y: ev.to.y, radius: 55, start: performance.now(), color: '#35e0ff' });
+    } else if (ev.type === 'wallbreak') {
+      game.explosions.push({ x: ev.x, y: ev.y, radius: 30, start: performance.now(), color: ev.color || '#ffb03a' });
     }
   }
 
@@ -2018,6 +2022,7 @@
       fxSeen: new Map(), // ballKey -> 직전 상태 플래그 (발동 순간 감지용)
       screenFx: null, // {emoji, label, color, start} — 내 공이 당했을 때 화면 전체 알림
       hiddenComps: new Set(), // 터져서 잠시 사라진 구성요소 인덱스
+      dmg: new Map(), // 💥 손상된 사라지는 벽: index → 남은 횟수
       shakeUntil: 0,
     };
     game.speedMult = 1;
@@ -2132,6 +2137,7 @@
     }
     game.shuffling = !!snap.sh;
     updateHiddenComps(snap.off);
+    updateDmg(snap.dmg);
   });
 
   // 숨김 구성요소 집합을 재사용 Set 으로 갱신하고, 실제로 바뀐 경우에만 버전을 올린다
@@ -2150,6 +2156,13 @@
     for (const i of off) game.hiddenComps.add(i);
     game._offPrev = off; // 파싱된 메시지의 배열 참조 보관 (다음 비교용)
     game.hiddenVersion = (game.hiddenVersion || 0) + 1;
+  }
+
+  // 💥 손상된 사라지는 벽 상태 갱신 ([[index, 남은횟수], ...]) — 색 변화용
+  function updateDmg(dmg) {
+    if (!game.dmg) return;
+    game.dmg.clear();
+    if (dmg) for (const [i, left] of dmg) game.dmg.set(i, left);
   }
 
   $('btn-drop').addEventListener('click', () => {
@@ -2188,6 +2201,12 @@
     if (Math.abs(y - (game.camY + VIEW.height / 2)) < VIEW.height) {
       game.shakeUntil = performance.now() + 250;
     }
+  });
+
+  // 💥 사라지는 벽이 깨짐 — 벽 색의 파편 링 (흔들림 없음)
+  socket.on('game:wallbreak', ({ x, y, color }) => {
+    if (!game) return;
+    game.explosions.push({ x, y, radius: 30, start: performance.now(), color: color || '#ffb03a' });
   });
 
   // 🌀 포탈 순간이동 / 🦘 점프 패드 발동 — 시안 링 이펙트 (흔들림 없음)
@@ -3165,6 +3184,7 @@
           });
           if (game.snapshots.length > 12) game.snapshots.shift();
           updateHiddenComps(f.off);
+          updateDmg(f.dmg);
         }
         while (rp.ei < rp.events.length && rp.events[rp.ei].t <= playT) {
           dispatchReplayEvent(rp.events[rp.ei++]);
@@ -3240,7 +3260,12 @@
         if (comp.move.axis === 'y') oy = off;
         else ox = off;
       }
-      drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0, false, ox, oy);
+      // 💥 사라지는 벽: 남은 피격 횟수에 따라 색을 다시 계산해 덮어씀 (손상됐을 때만)
+      let colorOverride;
+      if (comp.hp && game.dmg && game.dmg.has(i)) {
+        colorOverride = breakWallColor(game.dmg.get(i), comp.hp);
+      }
+      drawComponent(ctx, comp, comp.spin ? comp.spin * elapsed : 0, false, ox, oy, colorOverride);
     }
 
     // 🌀 블랙홀 흡입 범위 (공보다 먼저 그려 공이 위로 빨려드는 느낌을 살린다)

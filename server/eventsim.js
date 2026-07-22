@@ -71,6 +71,10 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
     portalEffect(from, to) {
       events.push({ t: Math.round(simNow / TIME_SCALE), type: 'portal', from, to });
     },
+    // 💥 사라지는 벽이 깨지는 순간 — 리플레이에 파편 poof 이벤트 기록
+    wallBreakEffect(x, y, color) {
+      events.push({ t: Math.round(simNow / TIME_SCALE), type: 'wallbreak', x, y, color });
+    },
     explodeAt(x, y, radius, power, excludePlayerId) {
       for (const [pid, ball] of balls) {
         if (ball.plugin.done || pid === excludePlayerId) continue;
@@ -317,11 +321,16 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
           ]);
         }
         const off = [];
+        const dmg = []; // 💥 손상된 사라지는 벽: [index, 남은횟수]
         for (const inst of built.reactive.values()) {
           if (inst.exploded) off.push(inst.index);
+          else if (inst.hit.action === 'vanish' && inst.hitsLeft < inst.hit.hits) {
+            dmg.push([inst.index, inst.hitsLeft]);
+          }
         }
         const frame = { t: Math.round(simNow / TIME_SCALE), e: Math.round(simNow), b: frameBalls };
         if (off.length) frame.off = off;
+        if (dmg.length) frame.dmg = dmg;
         frames.push(frame);
       }
 

@@ -148,6 +148,19 @@ const HIT_ACTIONS = {
     if (game.grantItem) game.grantItem(ball, inst.hit.itemId);
   },
 
+  // 💥 사라지는 벽: 부딪힐 때마다 남은 횟수 감소(색이 변함), 0이 되면 벽이 사라짐(재생성 없음)
+  vanish(game, inst) {
+    if (inst.exploded) return;
+    inst.hitsLeft = (inst.hitsLeft == null ? inst.hit.hits : inst.hitsLeft) - 1;
+    if (inst.hitsLeft <= 0) {
+      inst.exploded = true;
+      inst.respawnAt = Infinity; // 한 번 깨지면 끝 (다시 생기지 않음)
+      Matter.Composite.remove(game.engine.world, inst.body);
+      if (game.wallBreakEffect) game.wallBreakEffect(inst.x, inst.y, inst.hit.color);
+    }
+    // 남은 횟수(색 상태)는 스냅샷/리플레이의 dmg 필드로 전달된다
+  },
+
   // 🦘 발사대: 공을 위로(각도만큼 옆으로) 쏘아 올린다
   launch(game, inst, ball) {
     const now = game.now();
@@ -311,6 +324,11 @@ class Game {
   /** 🌀 블랙홀 흡입 범위 시각 효과 (지속 시간 동안 소용돌이 장 표시) */
   blackholeEffect(x, y, radius, duration) {
     this.io.to(this.room.code).emit('game:blackhole', { x, y, radius, duration });
+  }
+
+  /** 💥 사라지는 벽이 깨지는 순간의 파편 poof (색 링) */
+  wallBreakEffect(x, y, color) {
+    this.io.to(this.room.code).emit('game:wallbreak', { x, y, color });
   }
 
   /** 게임 시간(ms) — 낙하 후에는 실제 시간보다 TIME_SCALE 배 빠르게 흐른다.
@@ -830,18 +848,24 @@ class Game {
     }
     // 현재 터져 있는(숨겨진) 반응형 구성요소 인덱스
     const off = [];
+    const dmg = []; // 💥 손상된(색이 바뀐) 사라지는 벽: [index, 남은횟수]
     for (const inst of this.reactive.values()) {
       if (inst.exploded) off.push(inst.index);
+      else if (inst.hit.action === 'vanish' && inst.hitsLeft < inst.hit.hits) {
+        dmg.push([inst.index, inst.hitsLeft]);
+      }
     }
 
-    this.io.to(this.room.code).emit('game:snapshot', {
+    const snap = {
       t: Date.now(),
       elapsed: this.simMs, // 게임 시간 (회전 구성요소 각도 계산용)
       sh: this.shuffling ? 1 : 0,
       countdown: 0,
       balls,
       off,
-    });
+    };
+    if (dmg.length) snap.dmg = dmg; // 대부분의 프레임엔 없음 → 있을 때만 전송
+    this.io.to(this.room.code).emit('game:snapshot', snap);
   }
 
   /**

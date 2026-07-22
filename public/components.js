@@ -123,6 +123,19 @@
     };
   }
 
+  /**
+   * 💥 부딪히면 사라지는 벽의 현재 색 — 남은 횟수가 줄수록 시안→초록→노랑→주황→빨강으로
+   * 달아오른다(곧 깨질 것 같은 느낌). 서버(초기 색 굽기)와 클라(피격 시 재색칠)가 공유해
+   * 남은 횟수만 주고받아도 양쪽 색이 정확히 일치한다.
+   */
+  function breakWallColor(hitsLeft, total) {
+    // 마지막 한 방 남았을 때 항상 빨강, 가득일 때 항상 시안 — total 과 무관하게 전 색상대를 사용
+    const denom = Math.max(1, total - 1);
+    const ratio = Math.max(0, Math.min(1, (hitsLeft - 1) / denom));
+    const hue = Math.round(8 + ratio * 182); // 1남음=빨강(8) ~ 가득=시안(190)
+    return `hsl(${hue}, 80%, 61%)`;
+  }
+
   const COMPONENTS = {
     // 기본 핀
     peg: {
@@ -164,20 +177,28 @@
       id: 'wall',
       name: '벽',
       emoji: '📏',
-      desc: '공의 길을 막는 벽. 각도와 곡률(휘어짐)을 조절할 수 있어요',
+      desc: '공의 길을 막는 벽. 각도·곡률·"사라짐(부딪힘 횟수)"을 조절할 수 있어요',
       props: [
         { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 120 },
         { key: 'angle', label: '각도(°)', min: -180, max: 180, step: 1, default: 0 },
         { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 1, default: 0 },
+        { key: 'breakHits', label: '사라짐(부딪힘 횟수, 0=안 사라짐)', min: 0, max: 12, step: 1, default: 0 },
       ],
       build(p) {
         // 두께 10px — 공 반지름(7)+벽 반두께(5) = 충돌 밴드 24px 로, 검사당 이동 상한(19px)보다
         // 넉넉히 커 얇아져도 공이 벽을 통과하지 않는다(실측 검증). 예전 14px 보다 날렵한 레일 느낌.
-        return {
-          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 10, '#e9edf4'),
+        // 💥 breakHits>0 이면 공이 N번 부딪히면 사라지는 벽 — 기본색을 흰색이 아닌
+        //    달아오르는 색으로 굽고, hit 액션(vanish)을 달아 반응형으로 만든다.
+        const hits = Math.round(p.breakHits || 0);
+        const breakable = hits > 0;
+        const fill = breakable ? breakWallColor(hits, hits) : '#e9edf4';
+        const out = {
+          shapes: curvedWallShapes(p.length, p.angle || 0, p.curve || 0, 10, fill),
           spin: 0,
           restitution: 0.2,
         };
+        if (breakable) out.hit = { action: 'vanish', hits, color: fill };
+        return out;
       },
     },
 
@@ -436,5 +457,6 @@
     clampFinish,
     clampWidth,
     curvedWallShapes,
+    breakWallColor,
   };
 });

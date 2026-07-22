@@ -114,6 +114,8 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
         hit: built.hit,
         exploded: false,
         respawnAt: 0,
+        // 💥 사라지는 벽: 남은 피격 횟수 (부딪힐 때마다 감소, 0이면 소멸)
+        hitsLeft: built.hit.action === 'vanish' ? built.hit.hits : 0,
       });
     }
 
@@ -124,6 +126,8 @@ function buildBoard(engine, mapDef, { ceiling = true } = {}) {
       shapes: built.shapes,
       spin: built.spin || 0,
       move: built.move || 0, // 클라이언트 애니메이션용 {axis,range,speed}
+      // 💥 사라지는 벽이면 총 피격 횟수(hp)를 클라에 알려 남은 횟수로 색을 계산하게 한다
+      ...(built.hit && built.hit.action === 'vanish' ? { hp: built.hit.hits } : {}),
     });
   }
 
