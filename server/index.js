@@ -209,6 +209,7 @@ app.get('/api/admin/feedback', (req, res) => {
 });
 const { RecordingStore } = require('./recordings');
 const recordings = new RecordingStore();
+rooms.recordings = recordings; // 🎬 방 게임 결과 녹화 저장에도 같은 저장소 사용
 const events = new EventManager(io, rooms.maps, recordings);
 io.on('connection', (socket) => {
   rooms.handleConnection(socket);

@@ -2502,8 +2502,11 @@
       : (game && game.shared) ? '🏠 홈으로'
       : event ? '이벤트로 돌아가기' : '대기실로 돌아가기';
 
-    // 🎬 결과 저장 & 공유 — 이벤트 추첨 결과일 때만 (에디터 테스트/공유 관람 제외)
-    const canShare = !!(game && game.replay && !game.editorTest && !game.shared && eventRoom);
+    // 🎬 결과 저장 & 공유 — 이벤트 추첨(리플레이) 결과 또는 일반 방 게임 결과일 때.
+    //    (에디터 테스트/이미 공유된 결과 관람 중에는 제외)
+    const canShareEvent = game && game.replay && !game.editorTest && !game.shared && eventRoom;
+    const canShareRoom = game && !game.replay && !game.editorTest && !game.shared && room;
+    const canShare = !!(canShareEvent || canShareRoom);
     const shareBtn = $('btn-share-recording');
     const shareHint = $('share-recording-hint');
     shareBtn.classList.toggle('hidden', !canShare);
@@ -2523,7 +2526,9 @@
     const hint = $('share-recording-hint');
     btn.disabled = true;
     btn.textContent = '⏳ 저장 중…';
-    socket.emit('event:record', {}, async (res) => {
+    // 이벤트 추첨 결과는 event:record, 일반 방 게임 결과는 game:record 로 저장
+    const recEvent = game && !game.replay ? 'game:record' : 'event:record';
+    socket.emit(recEvent, {}, async (res) => {
       if (!res || !res.ok) {
         btn.disabled = false;
         btn.textContent = '🎬 결과 저장 & 공유 링크 복사';

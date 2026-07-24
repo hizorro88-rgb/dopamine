@@ -2,6 +2,7 @@
  * 게임방 관리: 방 생성 / 초대 코드로 입장 / 시작 / 아이템 사용 / 퇴장
  */
 
+const zlib = require('zlib');
 const { Game } = require('./game');
 const { MapStore } = require('./maps');
 const { StatsStore } = require('./stats');
@@ -81,6 +82,7 @@ class RoomManager {
     this.donors = donorStore || null;
     this.stats = new StatsStore();
     this.reviews = new ReviewStore();
+    this.recordings = null; // 🎬 결과 녹화 저장소 (index.js 에서 주입)
     // 소켓당 남용 방지 레이트 리미터 (분당 허용 횟수)
     this.limiter = {
       create: new RateLimiter(60000, 20), // 방 생성
@@ -89,6 +91,7 @@ class RoomManager {
       donor: new RateLimiter(60000, 20), // 후원자 코드 확인(브루트포스 방지)
       useItem: new RateLimiter(10000, 40), // 아이템 사용 스팸 방지(10초 40회)
       cheer: new RateLimiter(10000, 20), // 이모지 응원 스팸 방지(10초 20회)
+      record: new RateLimiter(60000, 10), // 결과 저장 스팸 방지
     };
     // 🧹 고아 방 청소 — 연결이 하나도 없는 방 회수 (테스트에서 프로세스 안 붙잡게 unref)
     this.gcTimer = setInterval(() => this.sweepRooms(), ROOM_GC_SWEEP_MS);
@@ -458,6 +461,27 @@ class RoomManager {
       if (typeof cb === 'function') cb({ ok: !error, error });
     });
 
+    // 🎬 방금 끝난 게임 결과를 녹화 저장 → 영구 공유 코드 (누구나, 게임 종료 후)
+    socket.on('game:record', (_payload, cb) => {
+      if (typeof cb !== 'function') return;
+      const room = this.roomOf(socket);
+      // 게임 종료 직후엔 room.game 이 비워지므로 방금 끝난 게임(lastGame)을 저장 대상으로 쓴다
+      const g = (room && room.game) || (room && room.lastGame);
+      if (!room || !g) return cb({ ok: false, error: '녹화할 게임이 없어요.' });
+      if (!g.over) return cb({ ok: false, error: '게임이 끝난 뒤에 저장할 수 있어요.' });
+      if (!this.recordings) return cb({ ok: false, error: '녹화 저장을 사용할 수 없습니다.' });
+      if (g._recordingCode) return cb({ ok: true, code: g._recordingCode }); // 중복 저장 방지
+      if (!this.limiter.record.allow(socket.id))
+        return cb({ ok: false, error: '저장 요청이 너무 잦아요. 잠시 후 다시 시도해주세요.' });
+      const replay = g.buildReplay(g.finalRanking);
+      if (!replay || !replay.frames.length) return cb({ ok: false, error: '저장할 결과가 없습니다.' });
+      const gz = zlib.gzipSync(Buffer.from(JSON.stringify(replay)));
+      const res = this.recordings.save(gz, { mapName: g.board.mapName, count: replay.players.length });
+      if (!res.ok) return cb(res);
+      g._recordingCode = res.code;
+      cb({ ok: true, code: res.code });
+    });
+
     // 🎉 이모지 응원 — 방 안 모두(플레이어·관전자)가 서로에게 띄운다
     socket.on('room:cheer', ({ emoji } = {}) => {
       const room = this.roomOf(socket);
@@ -631,6 +655,7 @@ class RoomManager {
   /** 한 판 종료 콜백 — 단판이면 대기실로, 시리즈면 점수 합산 후 다음 판/최종결과 */
   onRoundEnd(room, ranking, autoPilot) {
     this.stats.record(ranking); // 전체 순위(리더보드)에 매 판 누적
+    room.lastGame = room.game; // 🎬 방금 끝난 게임을 결과 저장(game:record)용으로 잠깐 보관
     room.game = null;
     const series = room.series;
 

@@ -232,6 +232,9 @@ class Game {
     this.lastSubCount = 1; // 적응형 물리 분할: 직전 스텝의 분할 수
     this.interval = null;
     this.over = false;
+    // 🎬 결과 녹화: 낙하 시작부터 프레임을 20Hz로 모아 이벤트 리플레이와 같은 형식으로 저장
+    this.rec = null; // drop() 에서 초기화 { frames, t0, tick }
+    this._recordingCode = null; // 이미 저장했으면 공유 코드 재사용
 
     const built = buildBoard(this.engine, mapDef);
     this.board = built.board;
@@ -535,6 +538,7 @@ class Game {
     this.shuffling = false;
     this.dropAt = Date.now();
     this.dropSimMs = this.simMs;
+    this.rec = { frames: [], tick: 0 }; // 🎬 낙하 시작부터 녹화 시작 (프레임 t는 dropAt 기준 실시간 ms)
 
     // 올랜덤: 자동 아이템 발동 스케줄 (게임 시간 기준 무작위 시점)
     if (this.autoPilot) {
@@ -866,6 +870,73 @@ class Game {
     };
     if (dmg.length) snap.dmg = dmg; // 대부분의 프레임엔 없음 → 있을 때만 전송
     this.io.to(this.room.code).emit('game:snapshot', snap);
+
+    // 🎬 결과 녹화: 낙하 중이면 20Hz(3틱마다)로 프레임을 모은다 (분신 제외, 이벤트 리플레이와 동일 형식)
+    if (this.rec && !this.shuffling && this.rec.frames.length < 4000) {
+      if (this.rec.tick++ % 3 === 0) {
+        const b = [];
+        for (const ball of this.balls.values()) {
+          if (ball.plugin.done) continue;
+          const bp = ball.plugin;
+          const flags = (bp.ghost ? 1 : 0) | (bp.frozen ? 2 : 0) | (bp.balloon ? 4 : 0) | (bp.morph ? 8 : 0);
+          b.push([bp.key, Math.round(ball.position.x * 10) / 10, Math.round(ball.position.y * 10) / 10, flags]);
+        }
+        // 프레임 t는 실시간(dropAt 기준) ms — 라이브 관전과 같은 속도로 재생되게 한다
+        const fr = { t: Date.now() - this.dropAt, b };
+        if (off.length) fr.off = off.slice();
+        if (dmg.length) fr.dmg = dmg.map((d) => d.slice());
+        this.rec.frames.push(fr);
+      }
+    }
+  }
+
+  /**
+   * 🎬 방금 끝난 게임을 이벤트 리플레이와 같은 형식으로 조립 (공유 링크용).
+   * 공 하나하나를 리플레이의 '참가자'로 매핑한다(여러 공/1인도 각각 표시).
+   */
+  buildReplay(ranking) {
+    if (!this.rec || !this.rec.frames.length) return null;
+    // 등장한 모든 공 키 수집 → 안정적 인덱스 부여
+    const keyIndex = new Map();
+    const players = [];
+    const addKey = (key) => {
+      if (keyIndex.has(key)) return keyIndex.get(key);
+      const idx = players.length;
+      keyIndex.set(key, idx);
+      const ball = this.balls.get(key);
+      const pid = ball ? ball.plugin.playerId : null;
+      const player = pid != null ? this.room.players.get(pid) : null;
+      const bIdx = ball ? ball.plugin.idx : 0;
+      const base = player ? player.name : '(나감)';
+      players.push({
+        id: idx,
+        name: this.ballsPerPlayer > 1 ? `${base} ${bIdx + 1}` : base,
+        color: player ? player.color : '#888',
+      });
+      return idx;
+    };
+    // 프레임의 공 키를 인덱스로 치환
+    const frames = this.rec.frames.map((fr) => {
+      const b = fr.b.map(([key, x, y, fl]) => [addKey(key), x, y, fl]);
+      const out = { t: fr.t, b };
+      if (fr.off) out.off = fr.off;
+      if (fr.dmg) out.dmg = fr.dmg;
+      return out;
+    });
+    // 순위(플레이어 단위) → 리플레이 표시용으로 그대로 사용 (playerId 는 하이라이트용일 뿐)
+    const rank = (ranking || []).map((r) => ({
+      rank: r.rank, name: r.name, color: r.color,
+      finished: r.finished, timeMs: r.timeMs, playerId: -1,
+    }));
+    const durationMs = frames.length ? frames[frames.length - 1].t : 0;
+    return {
+      board: this.board,
+      players,
+      frames,
+      events: [], // 라이브 녹화 v1: 낙하·순위만 (폭발·아이템 이펙트는 생략)
+      ranking: rank,
+      durationMs,
+    };
   }
 
   /**
@@ -1041,6 +1112,7 @@ class Game {
     const series = this.room.series
       ? { round: this.room.series.roundNo, total: this.room.series.total }
       : null;
+    this.finalRanking = ranking; // 🎬 녹화 저장(game:record) 때 쓸 최종 순위 보관
     this.io.to(this.room.code).emit('game:over', { ranking, series });
     this.onGameOver(ranking);
   }
