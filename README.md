@@ -267,6 +267,42 @@ GitHub Actions로 자동 배포합니다 (`.github/workflows/pages.yml`).
    (또는 `npm i -g pm2 pm2-windows-startup` → `pm2 start server/index.js --name pinball` → `pm2 save` → `pm2-startup install`)
 7. 설정 → 시스템 → 전원 → **절전 "안 함"** (PC가 자면 서버도 잡니다)
 
+### 🍎 맥(macOS) 빠른 시작 — 안 쓰는 맥북을 24시간 서버로
+
+안 쓰는 맥북/맥미니를 그대로 전용 서버로 쓸 수 있습니다. 스크립트 하나가
+**잠자기 방지 + 부팅 시 자동 실행 + 크래시 자동 복구 + git 자동 배포 + 터널**을 한 번에 걸어줍니다.
+
+1. [Node.js LTS](https://nodejs.org) 설치 (또는 `brew install node`)
+2. `git clone` 후 폴더로 이동
+3. (도메인 쓸 경우) cloudflared 준비 — 이미 터널이 있다면 건너뛰어도 됩니다
+   ```bash
+   brew install cloudflared
+   cloudflared tunnel login
+   cloudflared tunnel create pinball
+   cloudflared tunnel route dns pinball dopamine.me.kr
+   ```
+4. **설치 스크립트 한 번 실행**:
+   ```bash
+   bash scripts/mac/setup-mac.sh
+   ```
+   → `.env` 생성/의존성 설치 → 잠자기 해제(pmset) → 서버·터널을 `launchd` 서비스로 등록
+   (부팅 시 자동 시작, 죽으면 자동 재시작, git 새 커밋 시 자동 배포). 터널명이 `pinball` 이
+   아니면 `DOPAMINE_TUNNEL=이름 bash scripts/mac/setup-mac.sh`.
+5. `.env` 를 열어 **`ADMIN_KEY`** 를 채우세요. 시스템 설정에서 **자동 로그인**과
+   **정전 후 자동으로 시작**도 켜두면 완전 무인 운영이 됩니다.
+
+```bash
+# 확인/운영
+tail -f logs/server.log                         # 서버 로그
+launchctl list | grep dopamine                  # 서비스 상태
+launchctl unload ~/Library/LaunchAgents/kr.dopamine.server.plist   # 잠깐 끄기
+bash scripts/mac/uninstall-mac.sh               # 자동 실행 완전 해제
+```
+
+> 첫 테스트만 앞단에서 보고 싶으면 **`scripts/mac/start-mac.command` 더블클릭**(터미널 실행).
+> 덮개를 닫고 쓰려면: `sudo pmset -c disablesleep 1` (되돌리기 `... disablesleep 0`).
+> ⚠️ 2013년형이면 오래된 **배터리 부풀음** 여부만 한 번 확인하세요(트랙패드/바닥 들뜸).
+
 ### ♻️ 자동 배포 (git 푸시 → 자동 반영)
 
 `git pull` 하고 서버를 다시 켜는 과정을 없애고 싶다면 **자동 배포 모드**를 쓰세요.
