@@ -1461,6 +1461,7 @@
         offset,
         fi: 0,
         ei: 0,
+        slowDebt: 0, // 🐢 슬로우모션 누적 지연(ms)
       },
     };
     $('item-bar').style.display = 'none'; // 시청자는 아이템 없음 (자동 발동)
@@ -2924,7 +2925,8 @@
   /** 현재 렌더링할 서버 시각 */
   function renderTime() {
     if (game.replay) {
-      return Date.now() + game.replay.offset - game.replay.startAt - REPLAY_DELAY_MS;
+      // slowDebt 만큼 재생시계를 뒤로 당겨 슬로우모션(결정적 순간)을 만든다
+      return Date.now() + game.replay.offset - game.replay.startAt - REPLAY_DELAY_MS - (game.replay.slowDebt || 0);
     }
     if (game.clockOffset == null) return 0;
     return performance.now() + game.clockOffset - INTERP_DELAY_MS;
@@ -3225,14 +3227,22 @@
     }
 
     const { board } = game;
-    const renderT = renderTime();
-    const balls = interpolatedBalls(renderT);
-    const elapsed = gameElapsedSec(renderT);
 
     // 프레임 간 실제 경과시간 — 카메라 감쇠를 화면 주사율과 무관하게(60·120·144Hz 동일 체감)
     const nowFrame = performance.now();
     const dtMs = game._lastFrameMs ? Math.min(64, nowFrame - game._lastFrameMs) : 16.7;
     game._lastFrameMs = nowFrame;
+
+    // 🐢 리플레이 슬로우모션: 직전 프레임의 감속계수만큼 재생시계를 '빚'으로 늦춘다(누적).
+    //    라이브 게임은 서버 권위라 여기서 늦추지 않는다(동기화 유지) — 리플레이/공유결과 전용.
+    if (game.replay) {
+      // 총 지연을 상한(2.5초)으로 묶어, 여러 공이 골 근처에 오래 머물러도 재생이 과도하게 늘어지지 않게 함
+      game.replay.slowDebt = Math.min(2500, (game.replay.slowDebt || 0) + dtMs * (1 - (game._slowFactor || 1)));
+    }
+
+    const renderT = renderTime();
+    const balls = interpolatedBalls(renderT);
+    const elapsed = gameElapsedSec(renderT);
 
     // 카메라: 골인에 가장 가까운(최대 y) 공을 따라간다 — 경주의 최전선을 비춘다.
     // 순간이동(포탈·굴레) 공과 분신(clone)은 포커스에서 제외해 카메라가 튀지 않게 하고,
@@ -3263,6 +3273,7 @@
     // 앵커(zoomCx/zoomCy)는 선두 공의 '화면 위치'라, 줌이 그 공을 중심으로 파고든다. 부드럽게 보간.
     {
       let targetZoom = 1;
+      let targetSlow = 1; // 1=정상속도, <1=슬로우모션
       let anchorX = VIEW.width / 2;
       let anchorY = VIEW.height * 0.45;
       if (focus && !game.shuffling && !game.overShown) {
@@ -3271,6 +3282,7 @@
         if (dist < NEAR) {
           const t = Math.max(0, Math.min(1, 1 - dist / NEAR));
           targetZoom = 1 + t * 0.62; // 가까울수록 선형으로 확대, 최대 ~1.62배
+          targetSlow = 1 - t * 0.55; // 가까울수록 느리게, 최대 ~0.45배속(슬로우모션)
           anchorX = focus.x;
           anchorY = focus.y - camY; // 선두 공의 화면상 y
         }
@@ -3279,6 +3291,8 @@
       game.zoom = (game.zoom || 1) + (targetZoom - (game.zoom || 1)) * zk;
       game.zoomCx = game.zoomCx == null ? anchorX : game.zoomCx + (anchorX - game.zoomCx) * zk;
       game.zoomCy = game.zoomCy == null ? anchorY : game.zoomCy + (anchorY - game.zoomCy) * zk;
+      // 🐢 슬로우모션 계수(부드럽게) — 다음 프레임 slowDebt 누적에 쓰인다. 리플레이에서만 적용.
+      game._slowFactor = (game._slowFactor || 1) + ((game.replay ? targetSlow : 1) - (game._slowFactor || 1)) * zk;
     }
 
     // 폭발 시 카메라 흔들림
