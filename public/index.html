@@ -41,7 +41,7 @@
         <input id="input-code" type="text" maxlength="6" placeholder="초대 코드" autocomplete="off" />
         <button id="btn-join" class="btn">입장</button>
       </div>
-      <button id="btn-event-create" class="btn accent" style="margin-top:12px">🎪 이벤트 추첨 만들기 <span class="hint" style="font-size:11px">(최대 1000명)</span></button>
+      <button id="btn-event-create" class="btn accent" style="margin-top:12px">🎪 이벤트 추첨 만들기 <span class="hint" style="font-size:calc(11px * var(--fs-scale))">(최대 1000명)</span></button>
       <button id="btn-maps" class="btn accent" style="margin-top:8px">🗺 맵 갤러리 — 구경 · 제작</button>
       <p id="home-error" class="error"></p>
       <div id="rooms-box">
@@ -477,6 +477,11 @@
       <canvas id="series-confetti-front"></canvas>
     </div>
   </section>
+
+  <!-- 🔤 글자 크기 조절 (접근성) — 어느 화면에서나 항상 보이는 고정 버튼 -->
+  <button id="btn-fontsize" title="글자 크기 조절" aria-label="글자 크기 조절">
+    <span class="fs-ga">가</span><span class="fs-pct">100%</span>
+  </button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/qrcode.js"></script>

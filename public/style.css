@@ -22,12 +22,14 @@
   --g-legend: #b96bff;
   --g-mythic: #ffcf3f;
   --g-unique: #2fe6d6;
+  /* 글자 크기 배율 — '가+' 버튼으로 조절(접근성). 모든 font-size 가 이 값에 곱해진다. */
+  --fs-scale: 1;
   /* 타이포 스케일 (일관된 위계) */
-  --fs-title: 23px;
-  --fs-h3: 16px;
-  --fs-body: 15px;
-  --fs-sm: 13px;
-  --fs-xs: 12px;
+  --fs-title: calc(23px * var(--fs-scale));
+  --fs-h3: calc(16px * var(--fs-scale));
+  --fs-body: calc(15px * var(--fs-scale));
+  --fs-sm: calc(13px * var(--fs-scale));
+  --fs-xs: calc(12px * var(--fs-scale));
   --lh: 1.55;
 }
 
@@ -200,7 +202,7 @@ h3 {
   letter-spacing: 0.5px;
 }
 h1 {
-  font-size: 30px;
+  font-size: calc(30px * var(--fs-scale));
   margin-bottom: 8px;
 }
 h2 {
@@ -223,7 +225,7 @@ h3 {
 /* ── 브랜드 타이틀 ── */
 .brand {
   font-family: 'Cinzel', serif;
-  font-size: 40px;
+  font-size: calc(40px * var(--fs-scale));
   font-weight: 700;
   letter-spacing: 7px;
   margin-right: -7px; /* letter-spacing이 마지막 글자 뒤에도 붙어 중심이 밀리는 것 보정 */
@@ -237,7 +239,7 @@ h3 {
 .brand-tag {
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   letter-spacing: 4px;
   color: var(--accent2);
   margin-bottom: 14px;
@@ -257,7 +259,7 @@ textarea {
   border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
-  font-size: 16px; /* 16px 미만이면 iOS 가 포커스 시 화면을 확대함 */
+  font-size: calc(16px * var(--fs-scale)); /* 16px 미만이면 iOS 가 포커스 시 화면을 확대함 */
   margin-bottom: 12px;
   outline: none;
 }
@@ -284,7 +286,7 @@ textarea:focus {
   border-radius: 10px;
   background: var(--panel2);
   color: var(--text);
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.08s, filter 0.15s;
@@ -307,7 +309,7 @@ textarea:focus {
 }
 .btn.small {
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
 }
 /* 보조 CTA(맵 갤러리·이벤트 추첨 등) — 금빛 아웃라인. 밝은 금 Primary 한 개만 강조되도록 */
 .btn.accent {
@@ -339,7 +341,7 @@ textarea:focus {
   align-items: center;
   gap: 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   margin: 18px 0;
 }
 .divider::before,
@@ -426,13 +428,13 @@ textarea:focus {
 
 .error {
   color: var(--danger);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   min-height: 18px;
   margin-top: 12px;
 }
 .hint {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   margin-top: 12px;
 }
 
@@ -472,7 +474,7 @@ textarea:focus {
   height: 92px;
 }
 .qr-hint {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   margin-top: 5px;
   text-align: center;
@@ -480,7 +482,7 @@ textarea:focus {
 .invite-code {
   display: inline-block;
   font-family: 'Cinzel', serif;
-  font-size: 28px;
+  font-size: calc(28px * var(--fs-scale));
   font-weight: 700;
   letter-spacing: 8px;
   color: var(--accent2);
@@ -500,7 +502,7 @@ textarea:focus {
   transform: scale(0.97);
 }
 .invite-copy-hint {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   margin-bottom: 10px;
   transition: color 0.15s;
@@ -524,7 +526,7 @@ textarea:focus {
   background: var(--panel2);
   border-radius: 10px;
   margin-bottom: 6px;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
 }
 .player-dot {
   width: 16px;
@@ -534,7 +536,7 @@ textarea:focus {
 }
 .host-badge {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: #ffd76a;
 }
 /* 내 이름: 클릭하면 인라인 편집 */
@@ -542,7 +544,7 @@ textarea:focus {
   background: transparent;
   border: none;
   color: var(--text);
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   font-family: inherit;
   cursor: pointer;
   padding: 2px 6px;
@@ -553,7 +555,7 @@ textarea:focus {
   background: rgba(212, 175, 55, 0.14);
 }
 .name-edit-pencil {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   opacity: 0.6;
 }
 .player-list li.me-editing {
@@ -567,7 +569,7 @@ textarea:focus {
   border: 1px solid var(--accent2);
   background: var(--panel);
   color: var(--text);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   outline: none;
 }
 .inline-name-save {
@@ -582,7 +584,7 @@ textarea:focus {
   border-radius: 999px;
   background: linear-gradient(135deg, #d9a856, #b06a3a);
   color: #1e1206;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   font-weight: 700;
   text-decoration: none;
   transition: transform 0.08s, filter 0.15s;
@@ -604,12 +606,12 @@ textarea:focus {
 }
 .donate-hint {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
 }
 
 /* ── 이벤트 추첨 ── */
 #event-stats {
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   font-weight: 700;
   color: var(--accent2);
   margin-bottom: 10px;
@@ -628,7 +630,7 @@ textarea:focus {
   background: var(--panel2);
   border-radius: 999px;
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
 }
 #event-register-row {
@@ -644,7 +646,7 @@ textarea:focus {
   border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   outline: none;
 }
 #event-progress.hidden {
@@ -655,7 +657,7 @@ textarea:focus {
   min-height: 16px;
 }
 #rank-more {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
   padding: 6px 4px;
 }
@@ -677,7 +679,7 @@ textarea:focus {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
@@ -756,7 +758,7 @@ textarea:focus {
   border-radius: 10px;
   padding: 9px 14px;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: var(--muted);
 }
 .balls-row select {
@@ -765,7 +767,7 @@ textarea:focus {
   border: 1px solid #37332a;
   background: var(--panel);
   color: var(--text);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   outline: none;
 }
 
@@ -799,7 +801,7 @@ textarea:focus {
   background: transparent;
   color: var(--muted);
   font-family: 'Cinzel', serif;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   letter-spacing: 1px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
@@ -833,7 +835,7 @@ textarea:focus {
   margin-top: 16px;
 }
 .home-links .link-btn {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs-scale));
   padding: 4px 0;
   gap: 4px;
 }
@@ -884,7 +886,7 @@ textarea:focus {
 }
 .admin-h {
   text-align: left;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   margin-bottom: 8px;
   color: var(--accent2);
 }
@@ -898,7 +900,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
 }
 .admin-settings input {
@@ -908,7 +910,7 @@ textarea:focus {
   border: 1px solid #37332a;
   background: var(--panel2);
   color: var(--text);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   margin: 0;
 }
 #admin-settings-msg {
@@ -935,14 +937,14 @@ textarea:focus {
 .admin-map-name {
   display: block;
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .admin-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
   font-weight: 700;
   color: #1c1304;
   background: var(--accent2);
@@ -953,7 +955,7 @@ textarea:focus {
 }
 .admin-map-meta {
   display: block;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
 }
 .admin-map-actions {
@@ -985,16 +987,16 @@ textarea:focus {
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
 }
 .admin-fb-when {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   flex-shrink: 0;
 }
 .admin-fb-msg {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1019,7 +1021,7 @@ textarea:focus {
   text-align: left;
 }
 .item-guide-emoji {
-  font-size: 30px;
+  font-size: calc(30px * var(--fs-scale));
   line-height: 1.1;
   flex-shrink: 0;
   width: 40px;
@@ -1035,7 +1037,7 @@ textarea:focus {
   flex-wrap: wrap;
 }
 .item-guide-head b {
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
 }
 .item-guide-meta {
   font-size: var(--fs-xs);
@@ -1043,7 +1045,7 @@ textarea:focus {
 }
 /* 등장 확률 배지 */
 .chance-tag {
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 20px;
@@ -1063,7 +1065,7 @@ textarea:focus {
 }
 /* ── 등급 뱃지/태그 (색만) ── */
 .grade-badge {
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
   font-weight: 800;
   padding: 2px 8px;
   border-radius: 20px;
@@ -1198,7 +1200,7 @@ textarea:focus {
   min-width: 0;
 }
 #maps-list .map-stars {
-  font-size: 16px;
+  font-size: calc(16px * var(--fs-scale));
   color: var(--accent);
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(212, 175, 55, 0.45);
@@ -1207,11 +1209,11 @@ textarea:focus {
 }
 #maps-list .map-stars b {
   font-family: 'Cinzel', serif;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   margin-left: 2px;
 }
 #maps-list .map-stars span {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   letter-spacing: 0;
 }
@@ -1221,16 +1223,16 @@ textarea:focus {
 }
 #maps-list .map-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
 }
 #maps-list .map-meta {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   margin-top: 2px;
 }
 #maps-list .map-rating {
   color: var(--accent);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
 }
 #maps-list .map-actions {
   margin-left: auto;
@@ -1252,7 +1254,7 @@ textarea:focus {
   display: block;
 }
 #donate-qr-url {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   word-break: break-all;
   margin-top: 4px;
 }
@@ -1262,7 +1264,7 @@ textarea:focus {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #262219;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   letter-spacing: 2px;
 }
@@ -1271,11 +1273,11 @@ textarea:focus {
 }
 #visit-counter .vc-label {
   font-family: 'Cinzel', serif;
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
 }
 #visit-counter b {
   font-family: 'Cinzel', serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   color: var(--accent2);
   text-shadow: 0 0 8px rgba(212, 175, 55, 0.35);
   margin: 0 2px;
@@ -1296,7 +1298,7 @@ textarea:focus {
   justify-content: space-between;
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   font-weight: 700;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: var(--accent);
   letter-spacing: 1px;
   padding-bottom: 6px;
@@ -1327,10 +1329,10 @@ textarea:focus {
 }
 #rooms-list .room-title {
   font-weight: 700;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
 }
 #rooms-list .room-state {
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
   letter-spacing: 0.5px;
   color: var(--muted);
 }
@@ -1338,7 +1340,7 @@ textarea:focus {
   color: #c95b68;
 }
 #rooms-list .room-meta {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
   margin-top: 2px;
 }
@@ -1350,7 +1352,7 @@ textarea:focus {
 }
 #rooms-list .rooms-empty {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   justify-content: center;
   border-bottom: none;
 }
@@ -1358,7 +1360,7 @@ textarea:focus {
 /* ── 맵 후기 (커뮤니티) ── */
 #review-summary {
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  font-size: 20px;
+  font-size: calc(20px * var(--fs-scale));
   font-weight: 800;
   color: var(--accent2);
   margin-bottom: 12px;
@@ -1373,7 +1375,7 @@ textarea:focus {
 .star-btn {
   background: none;
   border: none;
-  font-size: 26px;
+  font-size: calc(26px * var(--fs-scale));
   cursor: pointer;
   color: #3a352a;
   transition: color 0.1s, transform 0.08s;
@@ -1402,7 +1404,7 @@ textarea:focus {
 #review-list li {
   padding: 9px 6px;
   border-bottom: 1px solid #262219;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
 }
 #review-list .review-head {
   display: flex;
@@ -1419,7 +1421,7 @@ textarea:focus {
 }
 #review-list .review-date {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
 }
 #review-list .review-text {
@@ -1446,11 +1448,11 @@ textarea:focus {
   gap: 10px;
   padding: 9px 6px;
   border-bottom: 1px solid #262219;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
 }
 #board-list .board-stats {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
   text-align: right;
 }
@@ -1470,15 +1472,15 @@ textarea:focus {
   gap: 10px;
   padding: 9px 6px;
   border-bottom: 1px solid #262219;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
 }
 #hall-list .hall-rank {
   width: 30px;
-  font-size: 17px;
+  font-size: calc(17px * var(--fs-scale));
 }
 #hall-list .hall-amount {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
 }
 #hall-list .hall-empty {
@@ -1495,7 +1497,7 @@ textarea:focus {
   top: 4px;
   left: 4px;
   z-index: 1;
-  font-size: 9px;
+  font-size: calc(9px * var(--fs-scale));
   font-weight: 800;
   padding: 1.5px 6px;
   border-radius: 6px;
@@ -1561,22 +1563,22 @@ textarea:focus {
   border: 1px solid #37332a;
   background: var(--panel);
   color: var(--text);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   outline: none;
 }
 #map-info {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
 }
 /* 시리즈: 판별 맵 선택 */
 .round-maps-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   margin-bottom: 10px;
 }
 .round-maps-title .hint {
   font-weight: 400;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
 }
 #round-maps-list {
   list-style: none;
@@ -1595,7 +1597,7 @@ textarea:focus {
   flex-shrink: 0;
   width: 34px;
   font-weight: 800;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: var(--accent2);
 }
 .round-map-row .map-thumb {
@@ -1614,7 +1616,7 @@ textarea:focus {
   border: 1px solid #37332a;
   background: var(--panel);
   color: var(--text);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   outline: none;
 }
 
@@ -1661,7 +1663,7 @@ textarea:focus {
 }
 #editor-side .hint {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
 }
 #palette {
   display: grid;
@@ -1676,12 +1678,12 @@ textarea:focus {
   text-align: center;
   cursor: pointer;
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   font-weight: 600;
 }
 .palette-btn .emoji {
   display: block;
-  font-size: 22px;
+  font-size: calc(22px * var(--fs-scale));
   margin-bottom: 3px;
 }
 /* 실제 모양 미리보기 아이콘 */
@@ -1699,7 +1701,7 @@ textarea:focus {
   width: 34px;
   height: 34px;
   margin: 0 auto 4px;
-  font-size: 22px;
+  font-size: calc(22px * var(--fs-scale));
 }
 .palette-btn .palette-label {
   display: block;
@@ -1714,7 +1716,7 @@ textarea:focus {
   gap: 8px;
 }
 .prop-row {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
 }
 .prop-row input[type='range'] {
@@ -1778,7 +1780,7 @@ textarea:focus {
   }
   .palette-btn {
     padding: 8px 3px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs-scale));
   }
   .palette-btn .palette-icon {
     width: 30px;
@@ -1841,7 +1843,7 @@ textarea:focus {
 
 #countdown {
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  font-size: 18px;
+  font-size: calc(18px * var(--fs-scale));
   font-weight: 800;
   letter-spacing: 1px;
   text-align: center;
@@ -1860,7 +1862,7 @@ textarea:focus {
   border-left: 3px solid var(--accent2);
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   animation: toast-in 0.25s ease;
 }
 @keyframes toast-in {
@@ -1916,12 +1918,12 @@ textarea:focus {
   cursor: default;
 }
 .item-slot .emoji {
-  font-size: 28px;
+  font-size: calc(28px * var(--fs-scale));
   display: block;
   margin-bottom: 4px;
 }
 .item-slot .label {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   font-weight: 600;
 }
 
@@ -1935,11 +1937,11 @@ textarea:focus {
   align-items: center;
   gap: 8px;
   padding: 7px 4px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   border-bottom: 1px solid #262219;
 }
 #result-list li {
-  font-size: 16px;
+  font-size: calc(16px * var(--fs-scale));
   padding: 10px 4px;
 }
 .rank-num {
@@ -1995,7 +1997,7 @@ textarea:focus {
 .target-hint {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   font-weight: 500;
   color: #6fdfa0;
 }
@@ -2036,17 +2038,17 @@ textarea:focus {
   }
 }
 .intro-emoji {
-  font-size: 36px;
+  font-size: calc(36px * var(--fs-scale));
   line-height: 1.2;
 }
 .intro-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   margin-top: 6px;
 }
 .intro-grade {
   display: inline-block;
-  font-size: 10px;
+  font-size: calc(10px * var(--fs-scale));
   font-weight: 800;
   margin-top: 4px;
   padding: 1px 8px;
@@ -2054,7 +2056,7 @@ textarea:focus {
   letter-spacing: 0.5px;
 }
 .intro-desc {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs-scale));
   color: var(--muted);
   margin-top: 8px;
   line-height: 1.45;
@@ -2062,7 +2064,7 @@ textarea:focus {
 }
 #intro-count {
   font-family: 'Cinzel', serif;
-  font-size: 17px;
+  font-size: calc(17px * var(--fs-scale));
   font-weight: 700;
   color: var(--accent2);
   min-height: 22px;
@@ -2126,7 +2128,7 @@ textarea:focus {
   border-radius: 10px;
 }
 .series-place {
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   font-weight: 800;
   min-width: 34px;
   text-align: center;
@@ -2136,7 +2138,7 @@ textarea:focus {
   flex: 1;
   text-align: left;
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2144,7 +2146,7 @@ textarea:focus {
 .series-score {
   font-weight: 800;
   color: var(--accent2);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
 }
 .series-row.winner {
   border-color: rgba(212, 175, 55, 0.7);
@@ -2157,21 +2159,21 @@ textarea:focus {
 }
 .series-nextmap {
   margin: 4px 0 10px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
   color: var(--accent2);
 }
 .series-count {
   margin-top: 16px;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs-scale));
   color: var(--text);
 }
 .series-count b {
   color: var(--accent2);
-  font-size: 20px;
+  font-size: calc(20px * var(--fs-scale));
 }
 .series-final-banner {
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  font-size: 17px;
+  font-size: calc(17px * var(--fs-scale));
   font-weight: 900;
   padding: 12px;
   border-radius: 12px;
@@ -2179,7 +2181,7 @@ textarea:focus {
 }
 .series-final-banner span {
   opacity: 0.85;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs-scale));
 }
 .series-final-banner.win {
   color: #ffe08a;
@@ -2208,16 +2210,16 @@ textarea:focus {
 .series-round-no {
   font-weight: 800;
   color: var(--accent2);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   min-width: 34px;
 }
 .series-round-name {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs-scale));
   color: var(--muted);
 }
 #winner-banner {
   font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  font-size: 21px;
+  font-size: calc(21px * var(--fs-scale));
   font-weight: 900;
   letter-spacing: 1px;
   color: #ffd76a;
@@ -2240,7 +2242,7 @@ textarea:focus {
   width: 96px;
 }
 .podium-medal {
-  font-size: 26px;
+  font-size: calc(26px * var(--fs-scale));
 }
 .podium-ball {
   width: 26px;
@@ -2249,7 +2251,7 @@ textarea:focus {
   box-shadow: 0 0 14px currentColor;
 }
 .podium-name {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   font-weight: 700;
   max-width: 96px;
   overflow: hidden;
@@ -2257,7 +2259,7 @@ textarea:focus {
   white-space: nowrap;
 }
 .podium-time {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs-scale));
   color: var(--muted);
 }
 .podium-block {
@@ -2285,7 +2287,7 @@ textarea:focus {
 }
 #result-list li .result-time {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   color: var(--muted);
 }
 
@@ -2351,13 +2353,13 @@ textarea:focus {
   }
 }
 .reconnect-text {
-  font-size: 18px;
+  font-size: calc(18px * var(--fs-scale));
   font-weight: 700;
   color: #fff;
 }
 .reconnect-sub {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: rgba(255, 255, 255, 0.6);
 }
 
@@ -2410,7 +2412,7 @@ textarea:focus {
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 19px;
+  font-size: calc(19px * var(--fs-scale));
   line-height: 1;
   cursor: pointer;
   transition: transform 0.08s ease, background 0.15s ease;
@@ -2441,7 +2443,7 @@ textarea:focus {
   margin-bottom: 6px;
 }
 .board-hof .hof-row {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs-scale));
   color: rgba(255, 255, 255, 0.75);
   padding: 2px 0;
 }
@@ -2451,7 +2453,7 @@ textarea:focus {
 #item-durations label { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #item-durations input.item-dur-input { width: 96px; flex: 0 0 auto; }
 .dur-grade {
-  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px;
+  display: inline-block; font-size: calc(10px * var(--fs-scale)); font-weight: 700; padding: 1px 5px;
   border-radius: 6px; background: rgba(212,175,55,0.18); color: var(--gold, #ffce54); margin-left: 4px;
 }
 
@@ -2472,12 +2474,12 @@ textarea:focus {
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   text-align: center;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs-scale));
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.42);
 }
 #site-footer .footer-sub {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs-scale));
   color: rgba(255, 255, 255, 0.32);
 }
 
@@ -2493,10 +2495,37 @@ textarea:focus {
   width: 72px;
   flex: 0 0 auto;
   padding: 3px 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs-scale));
   text-align: right;
   background: var(--panel2, #1a1712);
   border: 1px solid #37332a;
   border-radius: 6px;
   color: inherit;
 }
+
+/* 🔤 글자 크기 조절 버튼 (접근성) — 항상 보이는 고정 컨트롤. 자기 자신은 배율 영향 안 받게 고정 px */
+#btn-fontsize {
+  position: fixed;
+  left: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(18, 18, 24, 0.82);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: border-color 0.15s, transform 0.1s;
+}
+#btn-fontsize:hover { border-color: var(--accent); }
+#btn-fontsize:active { transform: scale(0.94); }
+#btn-fontsize .fs-ga { font-size: 15px; font-weight: 700; line-height: 1; }
+#btn-fontsize .fs-pct { font-size: 11px; color: var(--muted); line-height: 1; }
+/* 글자 배율이 커지면 버튼 강조색으로 켜졌음을 표시 */
+#btn-fontsize.on { border-color: var(--accent); color: var(--accent2); }

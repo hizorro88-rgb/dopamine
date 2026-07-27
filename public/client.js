@@ -32,6 +32,29 @@
   let lastRankingWinMode = 'first';
   const $ = (id) => document.getElementById(id);
 
+  // 🔤 글자 크기 조절 (접근성) — 버튼을 누를 때마다 100→115→130→150→100% 순환, 브라우저에 저장
+  (() => {
+    const LEVELS = [1, 1.15, 1.3, 1.5];
+    let idx = Math.min(LEVELS.length - 1, Math.max(0, Number(localStorage.getItem('pinball-fs')) || 0));
+    const btn = $('btn-fontsize');
+    function apply() {
+      const lv = LEVELS[idx];
+      document.documentElement.style.setProperty('--fs-scale', lv);
+      if (btn) {
+        btn.querySelector('.fs-pct').textContent = Math.round(lv * 100) + '%';
+        btn.classList.toggle('on', lv > 1);
+      }
+    }
+    if (btn) {
+      btn.addEventListener('click', () => {
+        idx = (idx + 1) % LEVELS.length;
+        localStorage.setItem('pinball-fs', idx);
+        apply();
+      });
+    }
+    apply();
+  })();
+
   const urlEventCode = new URLSearchParams(location.search).get('event');
 
   const urlRoomCode = new URLSearchParams(location.search).get('room');
@@ -3236,6 +3259,28 @@
     }
     const camY = game.camY;
 
+    // 🔍 결정적 순간 줌인 — 선두 공이 골인선에 가까워질수록 화면을 서서히 확대해 긴장감을 높인다.
+    // 앵커(zoomCx/zoomCy)는 선두 공의 '화면 위치'라, 줌이 그 공을 중심으로 파고든다. 부드럽게 보간.
+    {
+      let targetZoom = 1;
+      let anchorX = VIEW.width / 2;
+      let anchorY = VIEW.height * 0.45;
+      if (focus && !game.shuffling && !game.overShown) {
+        const dist = board.goal.y - focus.y; // 선두 공이 골인선까지 남은 거리(px)
+        const NEAR = 1050; // 골인 근처를 넉넉히 잡아 일찍부터 서서히 조여든다
+        if (dist < NEAR) {
+          const t = Math.max(0, Math.min(1, 1 - dist / NEAR));
+          targetZoom = 1 + t * 0.62; // 가까울수록 선형으로 확대, 최대 ~1.62배
+          anchorX = focus.x;
+          anchorY = focus.y - camY; // 선두 공의 화면상 y
+        }
+      }
+      const zk = 1 - Math.pow(1 - 0.2, dtMs / 16.7); // 프레임레이트 독립 보간(빠릿하게 따라붙음)
+      game.zoom = (game.zoom || 1) + (targetZoom - (game.zoom || 1)) * zk;
+      game.zoomCx = game.zoomCx == null ? anchorX : game.zoomCx + (anchorX - game.zoomCx) * zk;
+      game.zoomCy = game.zoomCy == null ? anchorY : game.zoomCy + (anchorY - game.zoomCy) * zk;
+    }
+
     // 폭발 시 카메라 흔들림
     let shakeX = 0;
     let shakeY = 0;
@@ -3248,6 +3293,12 @@
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, VIEW.width, VIEW.height);
     ctx.save();
+    // 🔍 줌 적용: 앵커 중심으로 game.zoom 배 확대 (카메라 이동보다 먼저 곱해진다)
+    if (game.zoom > 1.002) {
+      ctx.translate(game.zoomCx, game.zoomCy);
+      ctx.scale(game.zoom, game.zoom);
+      ctx.translate(-game.zoomCx, -game.zoomCy);
+    }
     ctx.translate(shakeX, -camY + shakeY);
 
     drawBoardDecor(ctx, board);
