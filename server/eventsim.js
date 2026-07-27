@@ -24,7 +24,9 @@ const { ITEMS, randomPickupItem, itemMeta } = require('./items'); // 🎁 아이
 const { TIME_SCALE } = require('./config'); // 이벤트 리플레이 녹화는 시작 시점 배속 상수 사용
 
 const TICK_MS = 1000 / 60; // 물리 60Hz
-const PHYSICS_SUBSTEPS = 4; // 물리 미세 분할 (라이브 게임과 동일: 터널링 방지)
+const PHYSICS_SUBSTEPS = 6; // 물리 미세 분할 (라이브 게임과 동일: 터널링 방지)
+const SUBSTEP_MAX_DISP = 10; // 검사 간 목표 이동량(px) — 벽 두께 수준
+const MAX_BALL_SPEED = 28; // 🐢 공 최대 속도 캡 (라이브 게임과 동일)
 // 재생은 게임 시간을 TIME_SCALE 배속으로 압축해 실제 20Hz 로 녹화
 const FRAME_EVERY = 3 * TIME_SCALE;
 const SIM_MAX_MS = 180000; // 시뮬레이션 최대 게임시간
@@ -266,14 +268,20 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
       for (const ball of balls.values()) {
         if (ball.plugin.done) continue;
         ball.plugin.prevY = ball.position.y;
+        // 🐢 최대 속도 제한 — 과속한 공을 캡까지 늦춰 얇은 벽 통과를 막는다 (라이브와 동일)
+        const sp = ball.speed;
+        if (sp > MAX_BALL_SPEED) {
+          const k = MAX_BALL_SPEED / sp;
+          Matter.Body.setVelocity(ball, { x: ball.velocity.x * k, y: ball.velocity.y * k });
+        }
         if (ball.speed > maxSpeed) maxSpeed = ball.speed;
       }
 
-      // 적응형 미세 분할 (라이브 게임과 동일: 검사 간 이동 ≤19px) — 공·장애물 이동량 모두 반영
+      // 적응형 미세 분할 (라이브 게임과 동일: 검사 간 이동 ≤10px) — 공·장애물 이동량 모두 반영
       const ballDisp = maxSpeed * lastSubCount;
       const obstacleDisp = obstacleTipSpeed * (TICK_MS / 1000);
       const fullDisp = Math.max(ballDisp, obstacleDisp);
-      const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
+      const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / SUBSTEP_MAX_DISP)));
       lastSubCount = sub;
       const subDt = TICK_MS / sub;
       for (let k = 0; k < sub; k++) {

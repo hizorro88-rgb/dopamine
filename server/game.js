@@ -36,10 +36,13 @@ const SHUFFLE_INTERVAL_MS = 1300; // 시작 배치 패턴 변경 주기
 const TICK_MS = 1000 / 60; // 물리 60Hz
 const SNAPSHOT_EVERY = 1; // 스냅샷 60Hz — 보간 구간이 절반(16.7ms)이라 더 부드럽고 지연도 낮출 수 있다
 // 물리 미세 분할: 한 스텝(16.67ms)을 여러 번에 나눠 적분한다.
-// 빠른 공이 한 스텝에 최대 38px 이동 → 두께 12~14px 벽을 그냥 통과(터널링)하던 버그 방지.
-// 4분할이면 충돌 검사 사이 이동이 ≤9.5px로 가장 얇은 벽보다 짧아 공이 오브젝트를 뚫지 못한다.
-// 시뮬 시간 총량은 동일하므로 낙하 속도·궤적 느낌은 그대로 유지된다.
-const PHYSICS_SUBSTEPS = 4;
+// 빠른 공이 한 스텝에 크게 이동 → 얇은 벽(10px)을 그냥 통과(터널링)하던 버그 방지.
+// 검사 사이 이동을 ≤10px(벽 두께 수준)로 유지하면 Matter 솔버가 확실히 막아준다(실측 0/20).
+const PHYSICS_SUBSTEPS = 6; // 빠른 공은 최대 6분할까지 잘게 검사
+const SUBSTEP_MAX_DISP = 10; // 검사 간 목표 이동량(px) — 벽 두께와 비슷하게
+// 🐢 공 최대 속도 캡 — 중력 자유낙하 등으로 과속해 벽을 지나치는 것을 방지(공기저항 종단속도 개념).
+//    실측: 캡 없으면 종단 ~47 → 여기에 걸리면 얇은 벽도 확실히 막힌다.
+const MAX_BALL_SPEED = 28;
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -725,6 +728,12 @@ class Game {
     for (const ball of this.balls.values()) {
       if (ball.plugin.done) continue;
       ball.plugin.prevY = ball.position.y;
+      // 🐢 최대 속도 제한 — 과속한 공을 캡까지 늦춰 얇은 벽 통과를 막는다
+      const sp = ball.speed;
+      if (sp > MAX_BALL_SPEED) {
+        const k = MAX_BALL_SPEED / sp;
+        Matter.Body.setVelocity(ball, { x: ball.velocity.x * k, y: ball.velocity.y * k });
+      }
       if (ball.speed > maxSpeed) maxSpeed = ball.speed;
     }
 
@@ -736,7 +745,7 @@ class Game {
     const ballDisp = maxSpeed * (this.lastSubCount || 1);
     const obstacleDisp = this.obstacleTipSpeed * (TICK_MS / 1000);
     const fullDisp = Math.max(ballDisp, obstacleDisp);
-    const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / 19)));
+    const sub = Math.min(PHYSICS_SUBSTEPS, Math.max(1, Math.ceil(fullDisp / SUBSTEP_MAX_DISP)));
     this.lastSubCount = sub;
     const subDt = TICK_MS / sub;
     const stepStart = sim - TICK_MS;
