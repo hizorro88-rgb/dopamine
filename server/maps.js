@@ -46,6 +46,19 @@ function pegRow(comps, y, offset = 0) {
   for (let x = 84 + offset; x <= 516; x += 54) comps.push(peg(x, y));
 }
 
+/**
+ * 촘촘한 육각 핀 밭 — 빈 구간을 잔잔한 핀으로 채워 수많은 잔충돌로 낙하를 늦춘다.
+ * 낱개 핀이라 절대 공을 가두지 않는다(클래식 맵과 동일 원리). 짧은 맵의 체류시간을
+ * 안전하게 늘리는 용도. rows 줄, vgap 간격, gap 가로간격으로 밀도 조절.
+ */
+function pegField(comps, y0, rows, { size = 6, gap = 54, vgap = 46, x0 = 70, x1 = 530 } = {}) {
+  for (let r = 0; r < rows; r++) {
+    const y = y0 + r * vgap;
+    const off = r % 2 === 0 ? 0 : Math.round(gap / 2);
+    for (let x = x0 + off; x <= x1; x += gap) comps.push(peg(x, y, size));
+  }
+}
+
 function classicComponents() {
   const comps = [];
   let row = 0;
@@ -216,6 +229,8 @@ function canyonComponents() {
       });
     }
   }
+  // 🪨 돌부리(pebbles): 빗금 밭과 지그재그 바 사이 평평한 구간에 잔돌 핀을 깔아 지체시킨다.
+  pegField(comps, 2540, 2, { size: 6, gap: 56 });
   // 지그재그 바: /\/\ — 골짜기마다 30px 배수 틈을 둬서 공이 고이지 않는다
   for (let i = 0; i < 3; i++) {
     const x0 = 55 + i * 185;
@@ -331,6 +346,9 @@ function flowerComponents() {
   // 무당벌레 (폭탄)
   comps.push({ type: 'bomb', x: 150, y: 1350, props: { radius: 130, power: 13, respawn: 8 } });
   comps.push({ type: 'bomb', x: 460, y: 1600, props: { radius: 130, power: 13, respawn: 8 } });
+  // 🌸 흩날리는 꽃가루(pollen): 줄기 옆 빈 구간을 촘촘한 핀으로 채워 체류시간을 늘린다.
+  pegField(comps, 740, 5, { size: 6, gap: 58 });
+  pegField(comps, 1660, 5, { size: 6, gap: 58 });
   // 잔디
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
@@ -356,6 +374,9 @@ function invaderComponents() {
   pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 25, x0: 55, pegSize: 5 });
   pixelGrid(comps, INVADER_ART_SMALL, { y0: 980, cell: 25, x0: 320, pegSize: 5 });
   pixelGrid(comps, INVADER_ART, { y0: 1450, cell: 30, pegSize: 6 });
+  // 👾 픽셀 탄막(bullet hail): 편대 사이 빈 구간을 촘촘한 8비트 총알 핀으로 채워 체류시간을 늘린다.
+  pegField(comps, 660, 3, { size: 5, gap: 52 });
+  pegField(comps, 1770, 2, { size: 5, gap: 52 });
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
@@ -379,12 +400,16 @@ function mushroomComponents() {
   comps.push({ type: 'bomb', x: 332, y: 780, props: { radius: 120, power: 12, respawn: 8 } });
   // 바람개비
   comps.push({ type: 'cross', x: 300, y: 1400, props: { length: 120, speed: 4 } });
+  // 🍄 흩날리는 포자(spore): 줄기 아래 빈 구간을 촘촘한 핀으로 채워 체류시간을 늘린다.
+  pegField(comps, 1180, 4, { size: 6, gap: 56 });
   // 아기 버섯 세 그루
   for (const [x, y] of [[140, 1780], [300, 1930], [465, 1780]]) {
     arcDots(comps, x, y, 70, -170, -10, 7, 6);
     lineDots(comps, x - 18, y + 15, x - 18, y + 85, 35, 5);
     lineDots(comps, x + 18, y + 15, x + 18, y + 85, 35, 5);
   }
+  // 아기 버섯 아래 포자 구름
+  pegField(comps, 2040, 4, { size: 6, gap: 56 });
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -427,6 +452,9 @@ function skullComponents() {
   }
   comps.push({ type: 'cross', x: 200, y: 1780, props: { length: 100, speed: -4 } });
   comps.push({ type: 'cross', x: 420, y: 1950, props: { length: 100, speed: 4 } });
+  // 🦴 뼛가루 모래톱(bone-dust shoal): 빈 구간을 촘촘한 핀 밭으로 채워 체류시간을 늘린다.
+  pegField(comps, 820, 5);   // 두개골과 뼈다귀 사이
+  pegField(comps, 2010, 6);  // 별자리 아래
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -462,6 +490,10 @@ function rocketComponents() {
   comps.push({ type: 'bumper', x: 90, y: 2150, props: { size: 14 } });
   comps.push({ type: 'bumper', x: 540, y: 2420, props: { size: 14 } });
   arcDots(comps, 470, 2100, 75, -140, 60, 9, 6);
+  // ☄️ 소행성대(asteroid belt): 배기가스 아래·별밤 끝의 빈 우주를 촘촘한 핀으로 채워
+  //    선체를 빠져나온 공이 소행성에 부딪히며 느리게 표류하도록 한다.
+  pegField(comps, 1800, 3, { size: 6, gap: 60 });
+  pegField(comps, 2600, 4, { size: 6, gap: 60 });
   return [...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
@@ -491,6 +523,9 @@ function heartsComponents() {
   for (const [x, y] of [[490, 950], [110, 1500], [520, 1350], [90, 1800], [300, 1500]]) {
     comps.push(peg(x, y, 6));
   }
+  // 💕 흩날리는 꽃잎 눈꽃(petal flurry): 하트 사이 빈 구간을 촘촘한 핀으로 채워 체류시간을 늘린다.
+  pegField(comps, 830, 5, { size: 6, gap: 58 });
+  pegField(comps, 1770, 4, { size: 6, gap: 58 });
   // 두근두근 바람개비
   comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
@@ -566,11 +601,13 @@ function pinballComponents() {
   lineDots(comps, 150, 420, 210, 470, 30, 6);
   lineDots(comps, 450, 420, 390, 470, 30, 6);
 
-  // ── 중상단: 스피너 쌍 + 사이드 슬링샷 범퍼 ──
+  // ── 중상단: 스피너 쌍 + 사이드 슬링샷 범퍼 (사이 빈 구간에 핀 밭 추가) ──
+  pegField(comps, 560, 2, { size: 6, gap: 52 });
   S(165, 690, 150, 4);
   S(435, 690, 150, -4);
   B(90, 800, 16);
   B(510, 800, 16);
+  pegField(comps, 860, 2, { size: 6, gap: 52, x0: 200, x1: 400 });
   wallPath(comps, [[25, 960], [200, 1050]]);
   wallPath(comps, [[575, 960], [400, 1050]]);
 
@@ -591,11 +628,15 @@ function pinballComponents() {
   comps.push({ type: 'wall', x: 376, y: 1500, props: { length: 130, angle: -30 } });
   comps.push({ type: 'jumper', x: 300, y: 1600, props: { width: 130, power: 15, angle: 0 } });
 
-  // ── 하단 플레이필드: 범퍼·핀 밭 + 회전체 ──
+  // ── 휠 양옆 핀 클러스터: 핀볼답게 촘촘한 핀으로 채워 좌우로 흐르며 지체하게 한다 ──
+  pegField(comps, 1090, 3, { size: 6, gap: 50, x0: 65, x1: 205 });
+  pegField(comps, 1090, 3, { size: 6, gap: 50, x0: 395, x1: 535 });
+
+  // ── 하단 플레이필드: 범퍼·핀 밭 + 회전체 (핀 밭을 위로 넓혀 체류시간을 늘림) ──
   B(150, 1780, 18);
   B(450, 1780, 18);
   S(300, 1800, 140, -4);
-  pegRow(comps, 1960);
+  pegField(comps, 1880, 4, { size: 7, gap: 54 });
   pegRow(comps, 2030, 27);
   B(120, 2120, 16);
   B(480, 2120, 16);
@@ -654,7 +695,7 @@ function handInHandComponents() {
 
   // ── 첫 번째 벽 (가볍게, 4회) ──
   guide(660);
-  dam(750, 4);
+  dam(750, 8);
 
   // ── 장애물: 닫힌 도넛 + 범퍼 + 스피너 (도넛 앞뒤로 범퍼가 공을 계속 튕겨 정체 방지) ──
   comps.push({ type: 'bumper', x: 150, y: 900, props: { size: 18 } });
@@ -664,7 +705,7 @@ function handInHandComponents() {
 
   // ── 두 번째 벽 (12회) ──
   guide(1290);
-  dam(1370, 6);
+  dam(1370, 12);
 
   // ── 링 터널: 도넛 세 개(한 줄, 넉넉한 간격) 사이를 지난다 (앞에 범퍼로 속도 부여) ──
   ring(200, 1620, 52);
@@ -672,7 +713,7 @@ function handInHandComponents() {
 
   // ── 세 번째 벽 (14회) ──
   guide(2060);
-  dam(2140, 8);
+  dam(2140, 16);
 
   // ── 핀 + 범퍼 통통 구간 (공을 가두지 않고 튕겨 흐르게) ──
   lineDots(comps, 90, 2380, 510, 2380, 58, 6);
@@ -683,7 +724,7 @@ function handInHandComponents() {
 
   // ── 네 번째 벽 (가장 튼튼, 16회) ──
   guide(2720);
-  dam(2800, 10);
+  dam(2800, 20);
 
   // ── 링 무리(한 줄) + 스피너 관문 ──
   ring(400, 3040, 52);
@@ -692,7 +733,7 @@ function handInHandComponents() {
 
   // ── 다섯 번째 벽 (마지막 관문, 12회) ──
   guide(3480);
-  dam(3560, 6);
+  dam(3560, 12);
 
   // ── 피날레: 링 + 십자 + 핀 ──
   ring(300, 3820, 54);
@@ -733,6 +774,8 @@ function rainbowComponents() {
   rb(440, 1720, 92, 1); // ')' 열림 왼쪽(가운데쪽), 볼록면이 오른벽쪽
   comps.push({ type: 'spinner', x: 300, y: 1780, props: { length: 150, speed: 5 } });
 
+  // 🌧️ 빗방울 커튼: 5층과 6층 사이 빈 구간에 촘촘한 핀
+  pegField(comps, 1540, 4, { size: 6, gap: 52 });
   // ── 6층: 지그재그 ∩ 세 개 ──
   rb(150, 2040, 78, 0);  rb(300, 2120, 78, 0);  rb(450, 2040, 78, 0);
   // ── 7층: 마주보는 )( + 가운데 십자 ──
@@ -742,6 +785,9 @@ function rainbowComponents() {
   // ── 8층: 통통 범퍼밭 ──
   bump(150, 2680, 18); bump(300, 2640, 20); bump(450, 2680, 18);
   lineDots(comps, 90, 2760, 510, 2760, 60, 6);
+
+  // 🌧️ 무지개 사이 빗방울(raindrops): 아치 사이 빈 구간을 촘촘한 핀으로 채워 체류시간을 늘린다.
+  pegField(comps, 2840, 4, { size: 6, gap: 52 });
 
   // ── 9층: 큰 ∩ 무지개 관문 ──
   rb(300, 3000, 122, 0);
