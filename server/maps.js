@@ -547,52 +547,6 @@ function wormholeComponents() {
   return [...comps, ...funnel(4800)];
 }
 
-// 🎢 트램펄린 산맥: 경사로를 타고 내려와 점프 패드로 벽을 넘는다 — 위아래로 출렁이는 낙하
-function trampolineComponents() {
-  const comps = [];
-  const jumper = (x, y, props = {}) => ({
-    type: 'jumper',
-    x,
-    y,
-    props: { width: 110, power: 17, angle: 0, ...props },
-  });
-
-  // 각 구간: 경사로 → 골짜기의 점프 패드 → 낮은 장벽을 넘어 다음 구간 (좌우 교대)
-  for (let k = 0; k < 3; k++) {
-    const y0 = 320 + k * 1300;
-    if (k % 2 === 0) {
-      // 왼쪽에서 오른쪽 아래로 흐르는 경사
-      wallPath(comps, [[25, y0], [400, y0 + 320]]);
-      comps.push(jumper(460, y0 + 350, { power: 20, angle: 12 })); // 위로 높이, 살짝 오른쪽
-      wallPath(comps, [[515, y0 + 210], [515, y0 + 360]]); // 낮은 장벽 — 폴짝 넘는다
-      lineDots(comps, 120, y0 + 120, 300, y0 + 60, 45, 6);
-      comps.push({ type: 'bumper', x: 100, y: y0 + 500, props: { size: 16 } });
-    } else {
-      wallPath(comps, [[575, y0], [200, y0 + 320]]);
-      comps.push(jumper(140, y0 + 350, { power: 20, angle: -12 })); // 위로 높이, 살짝 왼쪽
-      wallPath(comps, [[85, y0 + 210], [85, y0 + 360]]);
-      lineDots(comps, 300, y0 + 60, 480, y0 + 120, 45, 6);
-      comps.push({ type: 'bumper', x: 500, y: y0 + 500, props: { size: 16 } });
-    }
-    // 구간 사이 회전체 (마지막 구간 뒤는 트램펄린 밭이 있으므로 생략)
-    if (k < 2) {
-      comps.push({
-        type: k % 2 === 0 ? 'cross' : 'spinner',
-        x: 300,
-        y: y0 + 850,
-        props: { length: 140, speed: k % 2 === 0 ? 4 : -5 },
-      });
-    }
-  }
-
-  // 마지막 구간: 트램펄린 두 대 — 가운데 틈 쪽으로 기울어져 통통 튀다 빠져나간다
-  pegRow(comps, 4150, 27);
-  comps.push(jumper(150, 4400, { width: 110, power: 11, angle: 15 }));
-  comps.push(jumper(450, 4400, { width: 110, power: 11, angle: -15 }));
-
-  return [...comps, ...funnel(4800)];
-}
-
 // 🕹️ 진짜 핀볼: 곡선 어깨 레일 + ⚡3구 범퍼 클러스터 + 중앙 대형 회전 타깃
 //   + 중앙 킥커(공이 닿으면 위로 되돌려 보냄) + 하단 플리퍼 + 왼쪽 행운의 샛길
 function pinballComponents() {
@@ -664,84 +618,6 @@ function pinballComponents() {
   B(300, 2600, 16);
 
   return [...comps, ...funnel(H)];
-}
-
-// 🏺 욕망의 항아리: 부드러운 항아리 실루엣.
-//   가운데로 정확히 흘러든 공만 중앙 슈트를 통해 골인하고,
-//   양옆으로 새어나간 공은 회전 막대(스쿱)에 맞아 다시 위로 올라간다.
-function jarComponents() {
-  const H = 2800;
-  const CX = 300;
-  const comps = [];
-  const mir = (pts) => pts.map(([x, y]) => [600 - x, y]);
-
-  // ── 부드러운 항아리 실루엣 ──
-  // 중심에서의 반너비(halfWidth)를 y별 키프레임으로 두고 코사인 보간해 촘촘히 샘플 →
-  // wallPath 가 매끄러운 곡선처럼 이어 그린다.
-  const keys = [
-    [232, 266], // 넓은 아가리
-    [430, 250], // 어깨
-    [720, 214], // 몸통 상부
-    [1030, 150], // 좁아지는 목
-    [1330, 92], // 허리(가장 좁음) — 관문
-    [1640, 232], // 배 상부(불룩)
-    [1980, 252], // 배 최대
-    [2280, 210], // 배 하부
-    [2470, 158], // 바닥으로 좁힘
-  ];
-  const halfAt = (y) => {
-    if (y <= keys[0][0]) return keys[0][1];
-    if (y >= keys[keys.length - 1][0]) return keys[keys.length - 1][1];
-    for (let i = 0; i < keys.length - 1; i++) {
-      const [y0, w0] = keys[i];
-      const [y1, w1] = keys[i + 1];
-      if (y >= y0 && y <= y1) {
-        const t = (y - y0) / (y1 - y0);
-        const s = (1 - Math.cos(t * Math.PI)) / 2; // 코사인 보간(양끝이 부드럽다)
-        return w0 + (w1 - w0) * s;
-      }
-    }
-    return keys[keys.length - 1][1];
-  };
-  const leftPts = [];
-  for (let y = keys[0][0]; y <= keys[keys.length - 1][0]; y += 45) {
-    leftPts.push([Math.round(CX - halfAt(y)), y]);
-  }
-  wallPath(comps, leftPts);
-  wallPath(comps, mir(leftPts));
-
-  // 상단 곡선 뚜껑선
-  comps.push({ type: 'wall', x: CX, y: 240, props: { length: 150, angle: 0, curve: 62 } });
-
-  // ◇ 시안 다이아 클러스터 (장식 겸 산란)
-  diamond(comps, CX, 560, 44);
-  diamond(comps, 206, 815, 40);
-  diamond(comps, 394, 815, 40);
-  diamond(comps, CX, 1055, 44);
-
-  // 허리 관문: 중앙 회전 십자 — 좁은 목에서 순위가 뒤섞인다
-  comps.push({ type: 'cross', x: CX, y: 1330, props: { length: 118, speed: 3 } });
-
-  // ── 배(하부) 스쿱 회전 막대: 양옆으로 퍼진 공을 다시 위로 퍼올린다 ──
-  comps.push({ type: 'spinner', x: 152, y: 1980, props: { length: 150, speed: 6 } }); // 좌(시계)
-  comps.push({ type: 'spinner', x: 448, y: 1980, props: { length: 150, speed: -6 } }); // 우(반시계)
-  comps.push({ type: 'bumper', x: CX, y: 1900, props: { size: 18 } }); // 중앙 범퍼 — 좌우로 튕겨 갈림
-
-  // ── 바닥부 ──
-  // 중앙: 좁은 골인 슈트. 그 입구로 모으는 짧은 깔때기.
-  // 양옆: 스쿱 스피너가 위로 퍼올린다. 못 맞은 공은 열린 아래로 빠져 맵 위로 순환(끼임 없음).
-
-  // 중앙 골인 슈트 (좁은 수직 통로) — 여기로 정확히 들어온 공만 골인
-  comps.push({ type: 'wall', x: 256, y: 2640, props: { length: 175, angle: 90 } });
-  comps.push({ type: 'wall', x: 344, y: 2640, props: { length: 175, angle: 90 } });
-  // 슈트 입구로 모으는 짧은 깔때기 (가운데로 온 공만 진입)
-  comps.push({ type: 'wall', x: 224, y: 2512, props: { length: 96, angle: 38 } });
-  comps.push({ type: 'wall', x: 376, y: 2512, props: { length: 96, angle: -38 } });
-  // 양옆 스쿱 스피너 — 옆으로 온 공을 위로 퍼올린다
-  comps.push({ type: 'spinner', x: 158, y: 2510, props: { length: 152, speed: 7 } });
-  comps.push({ type: 'spinner', x: 442, y: 2510, props: { length: 152, speed: -7 } });
-
-  return comps; // 자체 중앙 슈트로 골인 (funnel 미사용)
 }
 
 // 🤝 손에손잡고 벽을 넘어서: 다같이 두드려 깨는 '사라지는 벽'(벽을 넘어서) +
@@ -925,16 +801,6 @@ const BUILTIN_MAPS = [
     height: 4800,
     components: rainbowComponents(),
   },
-  {
-    id: 'jar',
-    name: '🏺 욕망의 항아리',
-    author: '기본 맵',
-    builtin: true,
-    height: 2800,
-    // 가운데 좁은 슈트로 들어온 공만 골인 (양옆으로 새면 스쿱 막대로 되돌아간다)
-    finish: { x: 300, y: 2745, width: 110, height: 46 },
-    components: jarComponents(),
-  },
   // ── 미니맵 아트 맵: 미니맵으로 보면 그림, 게임에선 핀·범퍼·회전체·폭탄 ──
   {
     id: 'flower',
@@ -999,14 +865,6 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 4800,
     components: wormholeComponents(),
-  },
-  {
-    id: 'trampoline',
-    name: '🎢 트램펄린 산맥',
-    author: '기본 맵',
-    builtin: true,
-    height: 4800,
-    components: trampolineComponents(),
   },
   // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
   {
