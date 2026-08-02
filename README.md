@@ -272,7 +272,15 @@ GitHub Actions로 자동 배포합니다 (`.github/workflows/pages.yml`).
 안 쓰는 맥북/맥미니를 그대로 전용 서버로 쓸 수 있습니다. 스크립트 하나가
 **잠자기 방지 + 부팅 시 자동 실행 + 크래시 자동 복구 + git 자동 배포 + 터널**을 한 번에 걸어줍니다.
 
-1. [Node.js LTS](https://nodejs.org) 설치 (또는 `brew install node`)
+> **🍏 Big Sur(11) 맥북(예: 2013년형)이라면** — Homebrew 지원이 끊겨 `brew install node` 가
+> 불안정하고 Node 22 는 아예 안 돕니다. 클론 후 **부트스트랩 한 줄**이면 Node 20 LTS·cloudflared 를
+> 공식 소스에서 자동 설치하고 아래 설치까지 이어서 끝냅니다:
+> ```bash
+> bash scripts/mac/bootstrap-bigsur.sh
+> ```
+> (그다음 `.env` 의 `ADMIN_KEY` 만 채우면 끝. 아래 수동 단계는 참고용입니다.)
+
+1. [Node.js LTS](https://nodejs.org) 설치 (또는 `brew install node`) — Big Sur 는 **20 LTS** 사용
 2. `git clone` 후 폴더로 이동
 3. (도메인 쓸 경우) cloudflared 준비 — 이미 터널이 있다면 건너뛰어도 됩니다
    ```bash
