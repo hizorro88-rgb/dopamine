@@ -256,6 +256,76 @@
     g.appendChild(svgEl('path', { d: 'M-6,8 L0,-40 L4,8 Z', fill: 'var(--skin-shadow)', opacity: 0.5 }));
     return g;
   }
+  // 👹 큰 곡선 뿔 (영상의 황소뿔 느낌 — 바깥으로 휘어 올라가 끝이 뾰족)
+  function curvedHorn(cx, cy, flip) {
+    const g = svgEl('g', { transform: `translate(${cx},${cy})${flip ? ' scale(-1,1)' : ''}` });
+    g.appendChild(svgEl('path', {
+      d: 'M6,18 C-28,6 -50,-30 -44,-78 C-41,-102 -26,-122 -6,-132 C-18,-106 -20,-82 -10,-56 C0,-30 8,-6 6,18 Z',
+      fill: '#15161d', stroke: '#04060a', 'stroke-width': 4,
+    }));
+    g.appendChild(svgEl('path', { d: 'M-2,6 C-24,-6 -38,-38 -34,-72', fill: 'none', stroke: '#2c2e3a', 'stroke-width': 4, opacity: 0.7, 'stroke-linecap': 'round' }));
+    return g;
+  }
+
+  // ── 캐릭터별 배경 (오프닝 영상의 무대와 톤 맞춤) ──
+  function treeMoss(x, flip) {
+    // 이끼 늘어진 늪 나무 실루엣 (악어)
+    const g = svgEl('g', { transform: `translate(${x},0)${flip ? ' scale(-1,1)' : ''}`, opacity: 0.8 });
+    g.appendChild(svgEl('ellipse', { cx: 0, cy: 30, rx: 135, ry: 95, fill: '#0b1218' }));
+    for (let i = 0; i < 5; i++) {
+      const mx = -105 + i * 46, len = 55 + ((i * 53) % 85);
+      g.appendChild(svgEl('path', { d: `M${mx},70 q7,${len / 2} 0,${len}`, stroke: '#0b1218', 'stroke-width': 5, fill: 'none', 'stroke-linecap': 'round' }));
+    }
+    return g;
+  }
+  function canopy(x, flip) {
+    // 정글 캐노피 실루엣 (티라노)
+    const g = svgEl('g', { transform: `translate(${x},0)${flip ? ' scale(-1,1)' : ''}` });
+    g.appendChild(svgEl('ellipse', { cx: -10, cy: 60, rx: 175, ry: 125, fill: '#141f12', opacity: 0.9 }));
+    g.appendChild(svgEl('ellipse', { cx: 55, cy: 215, rx: 115, ry: 85, fill: '#0f180f', opacity: 0.85 }));
+    g.appendChild(svgEl('rect', { x: 30, y: 280, width: 22, height: 260, rx: 8, fill: '#0d140c', opacity: 0.8 }));
+    return g;
+  }
+  function buildBackdrop(char) {
+    const bg = el('bgWaves');
+    if (!bg) return;
+    bg.innerHTML = '';
+    bg.setAttribute('opacity', '1');
+    const add = (e) => bg.appendChild(e);
+    if (char === 'shark') {
+      // 해질녘: 수평선의 태양 글로우 + 노을 구름 띠
+      add(svgEl('ellipse', { cx: 300, cy: 692, rx: 330, ry: 130, fill: 'rgba(255,140,70,0.13)' }));
+      add(svgEl('circle', { cx: 300, cy: 688, r: 46, fill: 'rgba(255,175,95,0.32)' }));
+      add(svgEl('rect', { x: -20, y: 236, width: 640, height: 15, rx: 7, fill: 'rgba(70,55,66,0.5)' }));
+      add(svgEl('rect', { x: 60, y: 298, width: 480, height: 11, rx: 5, fill: 'rgba(70,55,66,0.4)' }));
+      add(svgEl('rect', { x: -20, y: 350, width: 420, height: 9, rx: 4, fill: 'rgba(70,55,66,0.3)' }));
+    } else if (char === 'dino') {
+      // 폭풍우 정글: 양옆 캐노피 + 빗줄기
+      add(canopy(0)); add(canopy(600, true));
+      for (let i = 0; i < 16; i++) {
+        const x = ((i * 89 + 31) % 600), y = (i * 61) % 480;
+        add(svgEl('line', { x1: x, y1: y, x2: x - 13, y2: y + 95, stroke: 'rgba(205,215,220,0.10)', 'stroke-width': 2 }));
+      }
+    } else if (char === 'monster') {
+      // 칠흑 호수: 침엽수 실루엣 지평선 + 폭풍 구름
+      for (let i = 0; i < 9; i++) {
+        const x = 25 + i * 69, h = 55 + ((i * 37) % 55);
+        add(svgEl('path', { d: `M${x - 27},702 L${x},${702 - h} L${x + 27},702 Z`, fill: 'rgba(4,7,11,0.85)' }));
+      }
+      add(svgEl('ellipse', { cx: 150, cy: 110, rx: 210, ry: 48, fill: 'rgba(8,10,16,0.6)' }));
+      add(svgEl('ellipse', { cx: 470, cy: 175, rx: 230, ry: 54, fill: 'rgba(8,10,16,0.5)' }));
+    } else {
+      // 악어(기본): 보름달 + 달빛 + 이끼 나무 + 물안개
+      add(svgEl('circle', { cx: 468, cy: 148, r: 92, fill: 'rgba(200,215,235,0.09)' }));
+      add(svgEl('circle', { cx: 468, cy: 148, r: 46, fill: '#cdd8e6', opacity: 0.8 }));
+      add(svgEl('circle', { cx: 452, cy: 138, r: 8, fill: 'rgba(140,155,175,0.5)' }));
+      add(svgEl('circle', { cx: 480, cy: 162, r: 5, fill: 'rgba(140,155,175,0.4)' }));
+      add(treeMoss(55)); add(treeMoss(545, true));
+      for (let i = 0; i < 4; i++) {
+        add(svgEl('ellipse', { cx: 85 + i * 145, cy: 665 - (i % 2) * 28, rx: 95, ry: 13, fill: 'rgba(190,205,220,0.05)' }));
+      }
+    }
+  }
 
   // ── 캐릭터별 눈 ──
   function eyeSlit(g, cx, cy, rot) { // 악어: 호박색 세로동공
@@ -315,6 +385,8 @@
       upper: 'M72,612 Q66,498 158,436 Q234,372 300,360 Q366,372 442,436 Q534,498 528,612 Q300,556 72,612 Z',
       lower: 'M82,600 Q300,556 518,600 Q556,674 532,792 Q300,858 68,792 Q44,674 82,600 Z',
       mouthFill: 'url(#mouthGradPink)', tongue: '#c76a7c', dorsal: 'M262,372 L338,372 L300,264 Z', texU: 0.08, texL: 0.06,
+      // 상어는 어깨가 좁아 입안도 좁게 (닫힌 입에서 옆으로 삐져나오지 않게)
+      mouth: 'M156,472 Q300,446 444,472 L444,628 Q300,664 156,628 Z',
       tooth: { style: 'triangle', wMul: 0.5, hMul: 0.95 },
       buildEyes(g) { eyeBlack(g, 166, 452, -6); eyeBlack(g, 434, 452, 6); },
       buildFeatures() {
@@ -357,8 +429,9 @@
       buildEyes(g) { eyePredator(g, 210, 442, -10, '#ff4a3a'); eyePredator(g, 390, 442, 10, '#ff4a3a'); },
       buildFeatures() {
         const r = el('ridges'), ls = el('lowerScutes'), n = el('nostrils');
-        r.appendChild(hornSpike(196, 402, -20));
-        r.appendChild(hornSpike(404, 402, 20));
+        // 영상 속 악마처럼 크게 휘어 올라간 검은 황소뿔
+        r.appendChild(curvedHorn(178, 424, false));
+        r.appendChild(curvedHorn(422, 424, true));
         r.appendChild(capsule(210, 418, 58, 15, 20, 'var(--skin-1)'));
         r.appendChild(capsule(390, 418, 58, 15, -20, 'var(--skin-1)'));
         for (let k = 0; k < 4; k++) { const y = 490 + k * 26; scuteBump(r, 285, y, 12, 9); scuteBump(r, 315, y, 12, 9); }
@@ -370,11 +443,13 @@
     },
   };
 
+  const DEFAULT_MOUTH = 'M104,430 Q300,404 496,430 L496,628 Q300,668 104,628 Z';
   function applyCreature(char) {
     const c = CREATURES[char] || CREATURES.crocodile;
     state.creature = c;
     el('upperBody').setAttribute('d', c.upper);
     el('lowerBody').setAttribute('d', c.lower);
+    el('mouthInner').setAttribute('d', c.mouth || DEFAULT_MOUTH);
     el('mouthInner').setAttribute('fill', c.mouthFill);
     el('tongue').setAttribute('fill', c.tongue);
     const fin = el('dorsalFin');
@@ -385,6 +460,7 @@
     el('eyes').innerHTML = ''; el('nostrils').innerHTML = ''; el('ridges').innerHTML = ''; el('lowerScutes').innerHTML = '';
     c.buildEyes(el('eyes'));
     c.buildFeatures();
+    buildBackdrop(char); // 오프닝 영상 톤에 맞춘 캐릭터별 배경
   }
 
   // 이빨 형태(캐릭터별): conic(악어) / triangle(상어, 톱니) / banana(티라노, 큰 송곳니)
