@@ -216,6 +216,40 @@ io.on('connection', (socket) => {
   events.handleConnection(socket);
 });
 
+// 🐊 악어 룰렛 (별도 게임) — 같은 프로세스에 Socket.IO 네임스페이스('/croc')로 마운트.
+//    핀볼 로직과 완전히 분리되어 있고, 정적 자산은 apps/crocodile/public 에서 /crocodile 로 서빙한다.
+const { mountCrocodile } = require('../apps/crocodile/croc');
+mountCrocodile(io);
+const CROC_DIR = path.join(__dirname, '..', 'apps', 'crocodile', 'public');
+app.use(
+  '/crocodile',
+  express.static(CROC_DIR, {
+    index: false,
+    redirect: false, // '/crocodile' → '/crocodile/' 자동 리다이렉트 끄기 (아래 serveCroc 로 넘긴다)
+    setHeaders: (res, filePath) => {
+      if (/\.(html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+    },
+  })
+);
+// 악어 룰렛 index.html — 자산 URL 에 버전 토큰(mtime)을 붙여 캐시 스테일 방지 (핀볼과 동일 기법)
+function serveCroc(_req, res) {
+  let html;
+  try {
+    html = fs.readFileSync(path.join(CROC_DIR, 'index.html'), 'utf8');
+  } catch {
+    return res.status(500).send('crocodile index.html not found');
+  }
+  let m = 0;
+  for (const f of ['croc-client.js', 'croc-style.css', 'index.html']) {
+    try { m = Math.max(m, fs.statSync(path.join(CROC_DIR, f)).mtimeMs); } catch {}
+  }
+  const v = Math.floor(m).toString(36);
+  html = html.replace(/(\/crocodile\/(?:croc-client\.js|croc-style\.css))(?=")/g, `$1?v=${v}`);
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(html);
+}
+app.get(['/crocodile', '/crocodile/'], serveCroc);
+
 // 이벤트 리플레이 (gzip 으로 미리 압축해둔 것을 그대로 서빙)
 app.get('/api/replay/:code', (req, res) => {
   const gz = events.getReplayGz(req.params.code);

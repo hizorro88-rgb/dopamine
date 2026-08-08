@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1f2a" />
+  <title>🐊 악어 룰렛 — 물까 말까 두근두근</title>
+  <link rel="preconnect" href="/" />
+  <link rel="stylesheet" href="/crocodile/croc-style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🐊%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════════════ 홈 화면 ═══════════════ -->
+  <section id="screen-home" class="screen active">
+    <div class="home-wrap">
+      <div class="home-hero">
+        <div class="hero-emoji" aria-hidden="true">🐊</div>
+        <h1 class="title">악어 룰렛</h1>
+        <p class="subtitle">순서대로 이빨을 눌러라. 물리면… <b>당첨!</b></p>
+      </div>
+
+      <div class="card">
+        <label class="field">
+          <span>닉네임</span>
+          <div class="name-row">
+            <input id="in-name" maxlength="12" placeholder="이름을 입력" autocomplete="off" />
+            <button id="btn-rand-name" class="btn ghost sq" title="랜덤 닉네임">🎲</button>
+          </div>
+        </label>
+
+        <div class="home-actions">
+          <button id="btn-create" class="btn primary big">🐊 방 만들기</button>
+          <div class="join-row">
+            <input id="in-code" maxlength="6" placeholder="초대코드" autocomplete="off" />
+            <button id="btn-join" class="btn big">입장</button>
+          </div>
+          <button id="btn-spectate" class="btn ghost">👀 관전으로 들어가기</button>
+        </div>
+      </div>
+
+      <p class="home-hint">친구를 초대해 다같이! 링크·QR로 각자 폰에서 참여해요.</p>
+      <p class="home-foot">DOPAMINE · 물까 말까 두근두근</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 로비(대기실) ═══════════════ -->
+  <section id="screen-lobby" class="screen">
+    <div class="lobby-wrap">
+      <header class="lobby-head">
+        <button class="btn ghost sq" id="btn-leave-lobby" title="나가기">←</button>
+        <div class="room-code-box">
+          <span class="rc-label">초대코드</span>
+          <span class="rc-code" id="lobby-code">------</span>
+        </div>
+        <button class="btn ghost sq" id="btn-share" title="공유">🔗</button>
+      </header>
+
+      <div class="lobby-body">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div id="qr-box" class="qr-box"></div>
+            <div class="qr-cap">스캔해서 바로 입장</div>
+            <button id="btn-copy-link" class="btn ghost tiny">초대링크 복사</button>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="players-card">
+            <div class="players-head">
+              <span>참가자 <b id="player-count">0</b></span>
+              <span class="spec-count" id="spec-count"></span>
+            </div>
+            <ul id="player-list" class="player-list"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="host-panel" id="host-panel">
+        <div class="opt-group">
+          <div class="opt-label">캐릭터</div>
+          <div class="char-picker" id="char-picker">
+            <button class="char-btn" data-char="crocodile">🐊<span>악어</span></button>
+            <button class="char-btn" data-char="shark">🦈<span>상어</span></button>
+            <button class="char-btn" data-char="dino">🦖<span>공룡</span></button>
+            <button class="char-btn" data-char="monster">👹<span>몬스터</span></button>
+          </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-group">
+            <div class="opt-label">이빨 수</div>
+            <div class="stepper">
+              <button class="btn ghost sq" id="teeth-minus">−</button>
+              <span id="teeth-val">12</span>
+              <button class="btn ghost sq" id="teeth-plus">＋</button>
+            </div>
+          </div>
+          <div class="opt-group">
+            <div class="opt-label">방식</div>
+            <div class="seg" id="mode-seg">
+              <button data-mode="single" class="seg-btn">한 명 당첨</button>
+              <button data-mode="survival" class="seg-btn">서바이벌</button>
+            </div>
+          </div>
+        </div>
+        <button id="btn-start" class="btn primary big glow">게임 시작!</button>
+      </div>
+      <div class="guest-wait" id="guest-wait">방장이 시작하기를 기다리는 중… <span class="dots"><i></i><i></i><i></i></span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 게임 화면 ═══════════════ -->
+  <section id="screen-game" class="screen">
+    <div class="game-wrap">
+      <!-- 상단 상태바 -->
+      <div class="game-top">
+        <button class="btn ghost sq" id="btn-leave-game" title="나가기">←</button>
+        <div class="turn-banner" id="turn-banner">
+          <span class="turn-avatar" id="turn-avatar"></span>
+          <span class="turn-text" id="turn-text">준비…</span>
+        </div>
+        <button class="btn ghost sq" id="btn-sound" title="소리">🔊</button>
+      </div>
+
+      <!-- 무대: 물 + 악어 -->
+      <div class="stage" id="stage">
+        <svg id="scene" viewBox="0 0 600 1000" preserveAspectRatio="xMidYMid meet" aria-label="악어 무대">
+          <defs>
+            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--sky-1)"/>
+              <stop offset="1" stop-color="var(--sky-2)"/>
+            </linearGradient>
+            <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--water-1)"/>
+              <stop offset="1" stop-color="var(--water-2)"/>
+            </linearGradient>
+            <radialGradient id="mouthGrad" cx="0.5" cy="0.25" r="0.95">
+              <stop offset="0" stop-color="#7a1230"/>
+              <stop offset="1" stop-color="#2c0512"/>
+            </radialGradient>
+            <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--skin-1)"/>
+              <stop offset="1" stop-color="var(--skin-2)"/>
+            </linearGradient>
+            <linearGradient id="bodyGrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--skin-2)"/>
+              <stop offset="1" stop-color="var(--skin-1)"/>
+            </linearGradient>
+          </defs>
+
+          <!-- 배경 하늘 -->
+          <rect x="0" y="0" width="600" height="1000" fill="url(#skyGrad)"/>
+          <!-- 뒤쪽 원경 물결 -->
+          <g id="bgWaves" opacity="0.4"></g>
+
+          <!-- 악어 전체 (정면). 인트로: 물 밑에서 떠오름 -->
+          <g id="croc" class="croc">
+            <ellipse id="crocShadow" cx="300" cy="815" rx="245" ry="46" fill="#000" opacity="0.2"/>
+
+            <!-- 아래턱 (고정) : 입안 → 혀 → 아래몸통 → 아래이빨 순서 -->
+            <g id="lowerJaw">
+              <!-- 입 안(어두운 목구멍) : 위턱이 들리면 드러난다 (닫힘 상태에선 위턱에 가려짐) -->
+              <path id="mouthInner" d="M104,430 Q300,406 496,430 L496,628 Q300,668 104,628 Z" fill="url(#mouthGrad)"/>
+              <!-- 혀 -->
+              <path id="tongue" d="M200,600 Q300,565 400,600 Q380,650 300,652 Q220,650 200,600 Z" fill="#d24a68" opacity="0.92"/>
+              <!-- 아래 몸통/턱 -->
+              <path id="lowerBody" d="M78,602 Q300,556 522,602 Q566,672 542,792 Q300,868 58,792 Q34,672 78,602 Z" fill="url(#bodyGrad2)" stroke="var(--skin-edge)" stroke-width="5"/>
+              <!-- 아래턱 옆 무늬 -->
+              <path d="M120,720 Q300,760 480,720" fill="none" stroke="var(--skin-edge)" stroke-width="3" opacity="0.35"/>
+              <!-- 아래 이빨 (JS가 채움) — 위로 솟은 '누르는' 버튼 -->
+              <g id="teethLower"></g>
+            </g>
+
+            <!-- 위턱 (인트로/물기: 수직으로 들렸다 내렸다) -->
+            <g id="upperJaw">
+              <!-- 위 몸통/머리 -->
+              <path id="upperBody" d="M74,606 Q54,470 150,428 Q300,372 450,428 Q546,470 526,606 Q300,556 74,606 Z" fill="url(#bodyGrad)" stroke="var(--skin-edge)" stroke-width="5"/>
+              <!-- 이마 요철 -->
+              <g id="ridges"></g>
+              <!-- 콧구멍 -->
+              <g id="nostrils">
+                <ellipse cx="272" cy="452" rx="12" ry="9" fill="#141414" opacity="0.72"/>
+                <ellipse cx="328" cy="452" rx="12" ry="9" fill="#141414" opacity="0.72"/>
+              </g>
+              <!-- 눈 (머리 위 두 개) -->
+              <g id="eyes">
+                <g id="eyeL" class="eye" transform="translate(205,452)">
+                  <ellipse class="eye-bg" cx="0" cy="0" rx="52" ry="54" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="5"/>
+                  <circle cx="0" cy="0" r="34" fill="#fff"/>
+                  <circle class="pupil" cx="4" cy="2" r="18" fill="#141414"/>
+                  <circle cx="11" cy="-6" r="6" fill="#fff"/>
+                  <path class="lid" d="M-54,0 Q0,-62 54,0 L54,-58 L-54,-58 Z" fill="var(--skin-1)"/>
+                </g>
+                <g id="eyeR" class="eye" transform="translate(395,452)">
+                  <ellipse class="eye-bg" cx="0" cy="0" rx="52" ry="54" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="5"/>
+                  <circle cx="0" cy="0" r="34" fill="#fff"/>
+                  <circle class="pupil" cx="4" cy="2" r="18" fill="#141414"/>
+                  <circle cx="11" cy="-6" r="6" fill="#fff"/>
+                  <path class="lid" d="M-54,0 Q0,-62 54,0 L54,-58 L-54,-58 Z" fill="var(--skin-1)"/>
+                </g>
+              </g>
+              <!-- 상어 지느러미 (상어일 때만 표시) -->
+              <path id="dorsalFin" d="M262,392 L338,392 L300,300 Z" fill="var(--skin-2)" stroke="var(--skin-edge)" stroke-width="5" opacity="0"/>
+              <!-- 위 이빨 (JS가 채움) — 아래로 향함 -->
+              <g id="teethUpper"></g>
+            </g>
+
+            <!-- 악어새 (드라마 'bird' 때 등장) -->
+            <g id="bird" class="bird" opacity="0">
+              <ellipse cx="0" cy="0" rx="28" ry="19" fill="#fff" stroke="#c9d3da" stroke-width="2"/>
+              <circle cx="22" cy="-7" r="13" fill="#fff" stroke="#c9d3da" stroke-width="2"/>
+              <path d="M33,-9 L50,-4 L33,1 Z" fill="#f5a623"/>
+              <circle cx="26" cy="-9" r="2.8" fill="#111"/>
+              <path id="wing" d="M-6,-4 Q-30,-32 -44,-6 Q-26,3 -6,-4 Z" fill="#e8eef2" stroke="#c9d3da" stroke-width="2"/>
+            </g>
+          </g>
+
+          <!-- 물 (악어 앞쪽 반투명 수면) -->
+          <g id="waterLayer">
+            <path id="waterFill" d="M0,700 L600,700 L600,1000 L0,1000 Z" fill="url(#waterGrad)" opacity="0.82"/>
+            <path id="waterEdge" d="M0,700 Q75,686 150,700 T300,700 T450,700 T600,700" fill="none" stroke="var(--water-edge)" stroke-width="6" opacity="0.65"/>
+          </g>
+        </svg>
+
+        <!-- 파티클(침·물보라·컨페티) 오버레이 -->
+        <canvas id="fx"></canvas>
+
+        <!-- 인트로/결과 오버레이 텍스트 -->
+        <div id="stage-flash" class="stage-flash"></div>
+      </div>
+
+      <!-- 하단: 응원 이모지 + 진행 정보 -->
+      <div class="game-bottom">
+        <div class="progress-info" id="progress-info"></div>
+        <div class="cheer-bar" id="cheer-bar">
+          <button class="cheer" data-e="😱">😱</button>
+          <button class="cheer" data-e="😂">😂</button>
+          <button class="cheer" data-e="🔥">🔥</button>
+          <button class="cheer" data-e="🙏">🙏</button>
+          <button class="cheer" data-e="💀">💀</button>
+          <button class="cheer" data-e="🎉">🎉</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 결과 오버레이 -->
+    <div id="result-overlay" class="result-overlay">
+      <div class="result-card">
+        <div class="result-emoji" id="result-emoji">💀</div>
+        <div class="result-title" id="result-title">당첨!</div>
+        <div class="result-name" id="result-name"></div>
+        <div class="result-sub" id="result-sub"></div>
+        <div class="result-actions">
+          <button id="btn-again" class="btn primary big">다시 하기</button>
+          <button id="btn-result-home" class="btn ghost">홈으로</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 토스트 -->
+  <div id="toast" class="toast"></div>
+  <!-- 응원 이모지가 떠오르는 레이어 -->
+  <div id="cheer-fly" class="cheer-fly"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/qrcode.js"></script>
+<script src="/crocodile/croc-client.js"></script>
+</body>
+</html>
