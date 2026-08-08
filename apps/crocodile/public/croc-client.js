@@ -622,6 +622,47 @@
   const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스', monster: '몬스터' };
   const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!', monster: '크르릉!' };
 
+  // 🎞 실사 오프닝 영상 (있으면 컷씬 대신): /crocodile/intro/{캐릭터}.mp4 를 찾아 재생.
+  //    파일이 없거나 재생 불가면 false → 기존 시네마틱 컷씬으로 폴백.
+  const videoAvail = {}; // 캐릭터별 존재 여부 캐시 (HEAD 1회)
+  async function tryVideoIntro() {
+    const char = state.character;
+    const url = '/crocodile/intro/' + char + '.mp4';
+    if (videoAvail[char] === undefined) {
+      try {
+        const r = await fetch(url, { method: 'HEAD' });
+        videoAvail[char] = r.ok;
+      } catch { videoAvail[char] = false; }
+    }
+    if (!videoAvail[char]) return false;
+    const wrap = el('intro-video-wrap');
+    const v = el('intro-video');
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => {
+        if (done) return; done = true;
+        wrap.classList.add('fade');
+        setTimeout(() => {
+          wrap.classList.remove('show', 'fade');
+          v.pause(); v.removeAttribute('src'); v.load();
+        }, 700);
+        resolve(ok);
+      };
+      v.src = url;
+      v.muted = false;
+      wrap.classList.add('show');
+      v.onended = () => finish(true);
+      v.onerror = () => { done = true; wrap.classList.remove('show'); resolve(false); };
+      el('btn-skip-intro').onclick = () => finish(true);
+      // 소리 포함 재생 시도 → 자동재생 차단되면 무음으로 재시도 → 그래도 안 되면 폴백
+      v.play().catch(() => {
+        v.muted = true;
+        v.play().catch(() => { done = true; wrap.classList.remove('show'); resolve(false); });
+      });
+      setTimeout(() => finish(true), 20000); // 안전망: 20초 상한
+    });
+  }
+
   // 🎬 시네마틱 인트로: 저 멀리서 카메라로 다가와 수면을 뚫고 포효 → 게임으로 페이드
   async function playIntro() {
     lockInput(true);
@@ -630,6 +671,23 @@
     const cinema = el('cinema');
     Jaw.breathe = false;
     Jaw.setInstant(JAW.closed);
+
+    // 🎞 실사 영상이 있으면 그것부터 — 끝나면 포효 브릿지로 게임에 착지
+    if (await tryVideoIntro()) {
+      croc.style.transition = 'none';
+      croc.style.transform = 'translateY(0) scale(1)';
+      croc.style.opacity = '1';
+      el('waterFill').style.opacity = '0.82';
+      flash(CREATURE_ROAR[state.character] || '크아앙!', 900);
+      sfx.roar();
+      shake(el('stage'));
+      splash(300, 560, 20, 'rgba(180,230,255,0.85)');
+      await Jaw.to(JAW.wide, 320, easeOutBack);
+      await Jaw.to(JAW.idle, 520, easeOutCubic);
+      Jaw.breathe = true;
+      lockInput(false);
+      return;
+    }
 
     // 컷씬 시작: 레터박스 내려오고 화면 어둡게
     cinema.classList.add('on');

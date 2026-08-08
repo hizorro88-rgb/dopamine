@@ -205,6 +205,15 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   background: radial-gradient(ellipse 90% 70% at 50% 45%, transparent 40%, rgba(255, 40, 40, 0.3) 100%);
 }
 
+/* 🎞 실사 오프닝 영상 */
+.intro-video-wrap { position: absolute; inset: 0; z-index: 6; display: none; background: #000; }
+.intro-video-wrap.show { display: block; animation: screen-in .3s ease both; }
+.intro-video-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.intro-video-wrap.fade { animation: vid-fade .7s ease forwards; }
+@keyframes vid-fade { to { opacity: 0; } }
+.skip-intro { position: absolute; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); opacity: 0; transition: opacity .4s; z-index: 2; }
+.intro-video-wrap.show .skip-intro { opacity: .85; transition-delay: 1s; }
+
 /* 🎬 시네마틱 인트로 컷씬 */
 .cinema { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s; z-index: 5; }
 .cinema.on { opacity: 1; }
