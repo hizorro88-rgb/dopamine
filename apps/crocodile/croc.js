@@ -240,10 +240,13 @@ class CrocRooms {
       this.startGame(room);
     });
 
-    // 다시하기 → 로비로 (방장)
+    // 다시하기 → 로비로 (방장, 게임이 끝난 뒤에만 — 진행 중 판을 초기화할 수 없게)
     socket.on('croc:again', () => {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id) return;
+      if (room.state === 'playing') return;
+      room.awaitingReload = false;
+      if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
       room.state = 'lobby';
       for (const p of room.players.values()) p.alive = true;
       room.pressed = [];
@@ -259,6 +262,7 @@ class CrocRooms {
     socket.on('croc:press', ({ tooth } = {}) => {
       const room = this.roomOf(socket);
       if (!room || room.state !== 'playing') return;
+      if (room.awaitingReload) return; // 서바이벌 리로드 연출 대기 중엔 입력 무시
       if (!this.limiter.press.allow(socket.id)) return;
       const currentId = room.order[room.turnPtr];
       if (currentId !== socket.id) return; // 내 턴 아님
@@ -283,6 +287,7 @@ class CrocRooms {
   // ── 게임 로직 ────────────────────────────────────────────
   startGame(room) {
     room.state = 'playing';
+    room.awaitingReload = false;
     room.round = (room.round || 0) + 1;
     room.pressed = new Array(room.teeth).fill(false);
     room.trap = Math.floor(Math.random() * room.teeth);
@@ -347,10 +352,13 @@ class CrocRooms {
         room.trap = Math.floor(Math.random() * room.teeth);
         // 다음 살아있는 플레이어로 턴 이동
         this.advanceTurn(room);
-        // 리셋된 판을 클라에 알린다 (연출이 끝난 뒤 새 판 시작)
+        // 리셋된 판을 클라에 알린다 (연출이 끝난 뒤 새 판 시작).
+        // 그 사이엔 press 를 막는다 — 새 함정이 이미 재장전돼 있어 미리 누르면 안 됨.
+        room.awaitingReload = true;
         if (room.turnTimer) clearTimeout(room.turnTimer);
         room.turnTimer = setTimeout(() => {
           room.turnTimer = null;
+          room.awaitingReload = false;
           if (!this.rooms.has(room.code) || room.state !== 'playing') return;
           this.nsp.to(room.code).emit('croc:reload', {
             teeth: room.teeth,
@@ -462,9 +470,16 @@ class CrocRooms {
     if (room.spectators.delete(id)) { this.broadcast(room); return; }
     if (!room.players.has(id)) return;
     room.players.delete(id);
-    // 진행 중이면 턴 순서에서도 제거
-    const wasCurrent = room.order[room.turnPtr] === id;
+    // 진행 중이면 턴 순서에서도 제거.
+    // ⚠️ 나간 사람이 현재 턴보다 '앞 순번'이면 인덱스가 한 칸 밀리므로,
+    //    현재 턴 주인의 id 를 기억해뒀다가 제거 후 다시 찾아 turnPtr 를 보정한다.
+    const currentId = room.order[room.turnPtr];
+    const wasCurrent = currentId === id;
     room.order = room.order.filter((x) => x !== id);
+    if (!wasCurrent) {
+      const idx = room.order.indexOf(currentId);
+      if (idx >= 0) room.turnPtr = idx;
+    }
     if (room.turnPtr >= room.order.length) room.turnPtr = 0;
 
     if (room.players.size === 0) {

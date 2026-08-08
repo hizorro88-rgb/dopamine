@@ -691,6 +691,15 @@
     if (!Jaw.node) Jaw.init(el('upperJaw'));
     crocNode = el('croc'); birdNode = el('bird');
     document.querySelectorAll('.tooth.pressed').forEach((t) => t.classList.remove('pressed'));
+    // 🎞 영상 존재 여부를 미리 확인해둔다 — 물기(클라이맥스) 순간에 HEAD 지연이 없도록
+    for (const sfxName of ['', '-bite']) {
+      const key = room.character + sfxName;
+      if (videoAvail[key] === undefined) {
+        fetch('/crocodile/intro/' + key + '.mp4', { method: 'HEAD' })
+          .then((r) => { videoAvail[key] = r.ok; })
+          .catch(() => { videoAvail[key] = false; });
+      }
+    }
   }
 
   // 인트로: 물 밑에서 스믈스믈 떠올라 → 입을 '악!' 벌림
@@ -1102,6 +1111,15 @@
     if (inner) inner.style.transform = 'translateY(6px)';
     sfx.tick();
     socket.emit('croc:press', { tooth: i });
+    // 안전망: 서버가 이 press 를 무시했다면(스테일 턴 등) 잠금이 영원히 안 풀리는 것 방지
+    clearTimeout(state._pressGuard);
+    state._pressGuard = setTimeout(() => {
+      if (state.busy) {
+        if (inner) inner.style.transform = '';
+        lockInput(false);
+        updateTurn(state.room ? state.room.turnId : null);
+      }
+    }, 4000);
   }
 
   function pressToothVisual(i, safe) {
@@ -1425,6 +1443,11 @@
       hideResult();
       show('lobby'); renderLobby(room);
     }
+    // 결과 화면이 떠 있는 동안 방장이 바뀌면(기존 방장 퇴장) 다시하기 버튼 표시를 갱신
+    if (el('result-overlay').classList.contains('show')) {
+      const amHost = room.hostId === state.myId && state.role === 'player';
+      el('btn-again').style.display = amHost ? '' : 'none';
+    }
   });
 
   function markPressed(i) {
@@ -1449,20 +1472,26 @@
   socket.on('croc:begin', async (ev) => {
     if (state._midJoinTimer) { clearTimeout(state._midJoinTimer); state._midJoinTimer = null; }
     state.teeth = ev.teeth;
+    if (state.room) state.room.turnId = ev.turnId;
     if (state.screen !== 'game') enterGame(state.room || { character: state.character, teeth: ev.teeth });
-    else buildTeeth(ev.teeth);
+    else { applyCreature(state.character); buildTeeth(ev.teeth); }
     hideResult();
     updateTurn(null);
     await playIntro();
-    updateTurn(ev.turnId);
+    // 인트로 동안 턴이 바뀌었을 수 있음(첫 턴 주인 이탈 등) — 최신 턴으로
+    updateTurn(state.room ? state.room.turnId : ev.turnId);
     updateProgress();
   });
 
   // 안전한 이빨 눌림 + 드라마
   socket.on('croc:pressed', async (ev) => {
+    clearTimeout(state._pressGuard); // 내 press 가 정상 처리됨
     lockInput(true);
     updateTurn(null); // 연출 중엔 턴 표시 비움
-    if (state.room && state.room.pressed) state.room.pressed[ev.tooth] = true;
+    if (state.room) {
+      if (state.room.pressed) state.room.pressed[ev.tooth] = true;
+      state.room.turnId = ev.nextTurnId; // 최신 턴 기억 (연출 중 croc:turn 이 오면 덮어씀)
+    }
     pressToothVisual(ev.tooth, true);
     nameTag(ev.tooth, ev.byName, ev.byColor); // 누가 눌렀는지 전원 화면에
     eyesLookAt(ev.tooth); // 크리쳐 눈동자가 눌린 이빨을 쳐다봄
@@ -1475,11 +1504,13 @@
     }
     updateProgress();
     lockInput(false);
-    updateTurn(ev.nextTurnId);
+    // 연출 동안 턴이 또 바뀌었을 수 있으니(끊김 등) 항상 최신 턴으로
+    updateTurn(state.room ? state.room.turnId : ev.nextTurnId);
   });
 
   // 물기!
   socket.on('croc:bite', (ev) => {
+    clearTimeout(state._pressGuard); // 내 press 가 (함정으로) 정상 처리됨
     if (state.room && state.room.pressed) state.room.pressed[ev.tooth] = true;
     updateTurn(null);
     nameTag(ev.tooth, ev.victimName, ev.victimColor);
@@ -1504,8 +1535,9 @@
 
   // 서바이벌: 다음 판 리셋
   socket.on('croc:reload', async (ev) => {
+    if (state.room) state.room.turnId = ev.turnId;
     await playReload(ev);
-    updateTurn(ev.turnId);
+    updateTurn(state.room ? state.room.turnId : ev.turnId);
     updateProgress();
   });
 
@@ -1519,8 +1551,11 @@
     setTimeout(() => showResult(ev), 300);
   });
 
-  // 턴만 바뀜(끊김 등)
-  socket.on('croc:turn', (ev) => { if (!state.busy) updateTurn(ev.turnId); });
+  // 턴만 바뀜(끊김 등) — 연출 중이어도 최신 턴은 항상 기억해둔다 (연출 끝나고 이 값 사용)
+  socket.on('croc:turn', (ev) => {
+    if (state.room) state.room.turnId = ev.turnId;
+    if (!state.busy) updateTurn(ev.turnId);
+  });
 
   socket.on('croc:closed', () => {
     toast('방이 종료되었습니다');
