@@ -458,9 +458,10 @@
     t.textContent = msg; t.classList.add('show');
     clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2600);
   }
-  function flash(text, ms) {
+  function flash(text, ms, small) {
     const f = el('stage-flash');
     f.textContent = text;
+    f.classList.toggle('small', !!small);
     f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');
     if (ms) { f.style.animationDuration = ms + 'ms'; }
   }
@@ -672,6 +673,11 @@
         { duration: 3000, easing: 'ease-out', fill: 'forwards' });
       setTimeout(() => blink(), 1600);
       await dinoStompIntro(croc);
+    } else if (state.character === 'monster') {
+      // 👹 공포 등장: 어둠 속 붉은 눈 → 번개가 칠 때마다 실루엣이 확 가까워져 있다
+      scene.animate([{ transform: 'scale(1.16)' }, { transform: 'scale(1.02)' }],
+        { duration: 3200, easing: 'ease-out', fill: 'forwards' });
+      await monsterIntro(croc);
     } else {
       sfxDrone(3200); // 다가오는 저음 드론 (고조)
       // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
@@ -890,6 +896,54 @@
     noise(0.09, g * 0.7);
   }
 
+  // 👹 공포 등장: 어둠 속 멀리 붉은 눈 한 쌍 → 번개가 칠 때마다 실루엣이 '순간이동'처럼 다가온다
+  async function monsterIntro(croc) {
+    const layer = ensureParticleLayer();
+    croc.style.transform = 'translateY(310px) scale(0.6)';
+    croc.style.opacity = '0.03';
+    // 멀리 어둠 속 붉은 눈 (작게 = 멀리 있음)
+    const g = svgEl('g', { transform: 'translate(300,560)' });
+    const eL = svgEl('ellipse', { cx: -26, cy: 0, rx: 9, ry: 6.5, fill: '#ff2d1a', opacity: 0 });
+    const eR = svgEl('ellipse', { cx: 26, cy: 0, rx: 9, ry: 6.5, fill: '#ff2d1a', opacity: 0 });
+    g.appendChild(eL); g.appendChild(eR); layer.appendChild(g);
+    const setEyes = (o) => { eL.setAttribute('opacity', o); eR.setAttribute('opacity', o); };
+    await sleep(300);
+    setEyes(0.95); tone(220, 0.3, 'sine', 0.08, 90); // 눈 점등
+    await sleep(650);
+    setEyes(0); await sleep(150); setEyes(1); // 깜빡…
+    await sleep(600);
+    // 번개 3연발 — 칠 때마다 훨씬 가까워져 있다 (트랜지션 없이 순간이동)
+    const jumps = [
+      { y: 200, s: 0.75, o: 0.5 },
+      { y: 90, s: 0.9, o: 0.75 },
+      { y: 0, s: 1, o: 1 },
+    ];
+    for (let k = 0; k < jumps.length; k++) {
+      const j = jumps[k];
+      lightning(k === jumps.length - 1);
+      if (k === 0) g.remove(); // 번개가 치면 먼 눈 대신 실루엣이 보인다
+      croc.style.transform = `translateY(${j.y}px) scale(${j.s})`;
+      croc.style.opacity = String(j.o);
+      await sleep(k === jumps.length - 1 ? 520 : 430 + Math.random() * 240);
+    }
+    el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 700, fill: 'forwards' });
+    splash(300, 700, 20); sfx.splash();
+  }
+  // ⚡ 번개: 흰 플래시 두 번 깜빡 + 천둥
+  function lightning(big) {
+    const s = el('stage');
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:4;background:radial-gradient(circle at 50% 18%, rgba(255,255,255,.95), rgba(200,220,255,.35) 55%, transparent 80%);';
+    s.appendChild(ov);
+    ov.animate(
+      [{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 0.25, offset: 0.22 }, { opacity: 0.85, offset: 0.34 }, { opacity: 0 }],
+      { duration: big ? 700 : 450, easing: 'ease-out' }
+    ).onfinish = () => ov.remove();
+    noise(big ? 0.5 : 0.3, big ? 0.3 : 0.2);
+    tone(70, big ? 0.6 : 0.35, 'sawtooth', big ? 0.2 : 0.12, 40);
+    if (big) shake(s);
+  }
+
   function blink() {
     document.querySelectorAll('.eye').forEach((e) => {
       e.classList.add('blink');
@@ -1092,10 +1146,70 @@
   // ═══════════════════════════════════════════════════════════
   //  턴 표시
   // ═══════════════════════════════════════════════════════════
+  // ── 게임플레이 잔재미 헬퍼 ──
+  function vibe(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch { /* 미지원 무시 */ } }
+  function tensionRatio() {
+    const room = state.room;
+    if (!room || !room.pressed || !room.teeth) return 0;
+    return room.pressed.filter(Boolean).length / room.teeth;
+  }
+  // 둥-둥 심박 (내 턴 + 후반 긴장)
+  function heartbeat(n) {
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => {
+        tone(50, 0.1, 'sine', 0.16);
+        setTimeout(() => tone(46, 0.09, 'sine', 0.12), 130);
+      }, i * 560);
+    }
+  }
+  // 누른 사람 이름표가 이빨 위로 떠오른다 (전원 화면 공통)
+  function nameTag(i, name, color) {
+    const layer = ensureParticleLayer();
+    const x = Math.min(520, Math.max(80, toothX(i, state.teeth)));
+    const g = svgEl('g', {});
+    const t = svgEl('text', {
+      x: 0, y: 0, 'text-anchor': 'middle', 'font-size': 32, 'font-weight': 800,
+      fill: color || '#fff', stroke: 'rgba(0,0,0,0.7)', 'stroke-width': 5, 'paint-order': 'stroke',
+    });
+    t.textContent = name || '';
+    g.appendChild(t); layer.appendChild(g);
+    const a = g.animate(
+      [
+        { transform: `translate(${x}px, ${GUM_Y - 60}px)`, opacity: 0 },
+        { transform: `translate(${x}px, ${GUM_Y - 100}px)`, opacity: 1, offset: 0.22 },
+        { transform: `translate(${x}px, ${GUM_Y - 108}px)`, opacity: 1, offset: 0.6 },
+        { transform: `translate(${x}px, ${GUM_Y - 140}px)`, opacity: 0 },
+      ],
+      { duration: 1500, easing: 'ease-out' }
+    );
+    a.onfinish = () => g.remove();
+  }
+  // 눌린 이빨 쪽으로 눈동자가 스윽 (전 캐릭터 공통 — .pupil)
+  function eyesLookAt(i) {
+    const dx = ((toothX(i, state.teeth) - 300) / 300) * 9;
+    document.querySelectorAll('#eyes .pupil').forEach((p) => {
+      p.animate(
+        [
+          { transform: 'translate(0,0)' },
+          { transform: `translate(${dx}px, 5px)` },
+          { transform: `translate(${dx}px, 5px)`, offset: 0.75 },
+          { transform: 'translate(0,0)' },
+        ],
+        { duration: 1100, easing: 'ease-in-out' }
+      );
+    });
+  }
+  const SAFE_TEXTS = ['휴…', '세이프!', '살았다!', '무사통과'];
+
   function updateTurn(turnId) {
     const room = state.room;
     if (!room) return;
+    const wasMine = state.myTurn;
     state.myTurn = turnId === state.myId && state.role === 'player';
+    if (state.myTurn && !wasMine) {
+      vibe(60); // 📳 내 차례! (모바일 진동)
+      if (tensionRatio() >= 0.5) heartbeat(2); // 후반이면 심박까지
+    }
     const banner = el('turn-banner');
     const p = room.players.find((x) => x.id === turnId);
     const avatar = el('turn-avatar');
@@ -1117,11 +1231,18 @@
   }
   function updateProgress() {
     const room = state.room;
-    if (!room || !room.pressed) { el('progress-info').textContent = ''; return; }
+    const tn = el('tension');
+    if (!room || !room.pressed) {
+      el('progress-info').textContent = '';
+      if (tn) tn.style.opacity = '0';
+      return;
+    }
     const pressed = room.pressed.filter(Boolean).length;
     const remain = room.teeth - pressed;
     const modeTxt = room.mode === 'survival' ? '서바이벌' : '한 명 당첨';
     el('progress-info').textContent = `${modeTxt} · 이빨 ${room.teeth}개 중 ${pressed}개 눌림 · 남은 ${remain}개`;
+    // 🔥 긴장 레이어: 눌린 비율이 높아질수록 화면 가장자리가 붉게
+    if (tn) tn.style.opacity = String(Math.min(0.85, Math.pow(pressed / room.teeth, 1.4)));
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1205,9 +1326,15 @@
     updateTurn(null); // 연출 중엔 턴 표시 비움
     if (state.room && state.room.pressed) state.room.pressed[ev.tooth] = true;
     pressToothVisual(ev.tooth, true);
+    nameTag(ev.tooth, ev.byName, ev.byColor); // 누가 눌렀는지 전원 화면에
+    eyesLookAt(ev.tooth); // 크리쳐 눈동자가 눌린 이빨을 쳐다봄
     sfx.press();
     await sleep(140);
     await playDrama(ev.drama, ev.tooth);
+    // 잔잔히 넘어간 턴에도 가끔 안도 텍스트 (드라마 있던 턴은 자체 연출이 있음)
+    if (ev.drama === 'none' && Math.random() < 0.6) {
+      flash(SAFE_TEXTS[Math.floor(Math.random() * SAFE_TEXTS.length)], 620, true);
+    }
     updateProgress();
     lockInput(false);
     updateTurn(ev.nextTurnId);
@@ -1217,6 +1344,10 @@
   socket.on('croc:bite', async (ev) => {
     if (state.room && state.room.pressed) state.room.pressed[ev.tooth] = true;
     updateTurn(null);
+    nameTag(ev.tooth, ev.victimName, ev.victimColor);
+    eyesLookAt(ev.tooth);
+    // 📳 물리는 순간 진동 — 당한 본인은 훨씬 세게
+    vibe(ev.victimId === state.myId ? [200, 80, 300, 80, 400] : [120, 60, 220]);
     await playBite(ev);
     if (ev.gameOver) {
       // croc:over 가 뒤따라 결과를 띄운다

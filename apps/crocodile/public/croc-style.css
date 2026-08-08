@@ -199,6 +199,12 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .tooth-glow { opacity: 0; transition: opacity .25s; }
 .tooth.pressed { pointer-events: none; }
 
+/* 🔥 긴장 레이어 (JS가 opacity 0~0.85 로 제어) */
+.tension {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .9s;
+  background: radial-gradient(ellipse 90% 70% at 50% 45%, transparent 40%, rgba(255, 40, 40, 0.3) 100%);
+}
+
 /* 🎬 시네마틱 인트로 컷씬 */
 .cinema { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s; z-index: 5; }
 .cinema.on { opacity: 1; }
@@ -221,6 +227,7 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   opacity: 0;
 }
 .stage-flash.show { animation: flash 1s ease both; }
+.stage-flash.small { font-size: clamp(26px, 7vw, 60px); }
 @keyframes flash {
   0% { opacity: 0; transform: scale(.4) rotate(-8deg); }
   25% { opacity: 1; transform: scale(1.15) rotate(3deg); }
