@@ -84,12 +84,78 @@ camera. Thunder-lit horror atmosphere, hyper-realistic. No text, no
 watermark, no people.
 ```
 
+## 💥 물기 엔딩 영상 (당첨 순간)
+
+함정 이빨을 눌러 **게임이 끝나는 순간**, `{캐릭터}-bite.mp4` 가 있으면 그 영상이 재생됩니다.
+영상이 끝나면 입 다문 화면 + 붉은 플래시 → 결과 화면으로 이어집니다. 없으면 기존 SVG 물기 연출.
+
+| 파일 | 캐릭터 |
+|------|--------|
+| `crocodile-bite.mp4` | 🐊 악어 물기 |
+| `shark-bite.mp4` | 🦈 상어 물기 |
+| `dino-bite.mp4` | 🦖 티라노 물기 |
+| `monster-bite.mp4` | 👹 몬스터 물기 |
+
+⭐ **1인칭(POV)으로 "입이 카메라를 덮치며 콱 닫히고 → 화면이 암전"** 으로 끝나야
+결과 화면 전환이 자연스럽습니다. 3~5초면 충분.
+
+### 🐊 악어 물기 — crocodile-bite.mp4
+
+```
+Vertical 9:16 photorealistic cinematic POV footage, 4 seconds. Camera floats
+at water level in a dark night swamp. A giant crocodile's jaws are wide open
+filling the entire frame, dark red throat and sharp teeth visible, water
+dripping. 0-2s: the jaws quiver, drool falling, tension. 2-4s: the jaws SNAP
+shut directly onto the camera with a violent lunge, water exploding — cut to
+black. Ends on black. Hyper-realistic, dramatic. No text, no watermark.
+```
+
+### 🦈 상어 물기 — shark-bite.mp4
+
+```
+Vertical 9:16 photorealistic cinematic POV footage, 4 seconds. Camera just
+above dark ocean water at dusk. A great white shark's open jaws fill the
+frame, rows of triangular teeth, pink gums. 0-2s: the shark rises closer,
+jaws widening. 2-4s: the jaws SNAP shut over the camera with spray flying —
+cut to black. Ends on black. Jaws-movie style, hyper-realistic. No text, no
+watermark.
+```
+
+### 🦖 티라노 물기 — dino-bite.mp4
+
+```
+Vertical 9:16 photorealistic cinematic POV footage, 4 seconds. Ground-level
+camera in a night jungle swamp. A Tyrannosaurus rex head looms above with
+jaws wide open, saliva strings between banana-sized teeth. 0-2s: it roars and
+lunges down toward the camera. 2-4s: the jaws SNAP shut onto the lens,
+shaking violently — cut to black. Ends on black. Jurassic-movie style,
+hyper-realistic. No text, no watermark.
+```
+
+### 👹 몬스터 물기 — monster-bite.mp4
+
+```
+Vertical 9:16 photorealistic cinematic horror POV footage, 4 seconds. Stormy
+black lake at night, heavy rain. A horned demonic monster's mouth gapes open
+filling the frame, long sharp teeth, red glowing eyes above. 0-2s: lightning
+flash, the creature roars and lunges. 2-4s: the jaws CLAMP shut over the
+camera in darkness — cut to black. Ends on black. Thunder-lit horror,
+hyper-realistic. No text, no watermark.
+```
+
 ### 짧은 버전 (글자수 제한 있는 도구용)
 
 - 🐊 `Photorealistic vertical 9:16: crocodile eyes glide across dark night swamp water toward camera, then it bursts up with jaws wide open at the lens, water spraying. Ends on open jaws. 6s, cinematic, no text.`
 - 🦈 `Photorealistic vertical 9:16: great white shark fin slices dark water, circles closer, sinks — pause — then shark erupts at camera jaws wide open. Jaws-style. Ends on open jaws. 7s, cinematic, no text.`
 - 🦖 `Photorealistic vertical 9:16: T-rex charges through night jungle swamp toward camera, ground shaking each stomp, then roars jaws wide open at lens. Ends on open jaws. 6s, cinematic, no text.`
 - 👹 `Photorealistic vertical 9:16 horror: red glowing eyes in storm darkness, each lightning flash the horned monster teleports closer, final flash reveals it roaring at camera. Ends on open jaws. 7s, no text.`
+
+물기 엔딩 짧은 버전:
+
+- 🐊 `POV vertical 9:16: giant crocodile jaws wide open fill frame in dark swamp, then SNAP shut onto camera, water exploding, cut to black. 4s, photorealistic, no text.`
+- 🦈 `POV vertical 9:16: great white shark jaws fill frame above dark water, rows of teeth, then SNAP shut over camera, cut to black. 4s, photorealistic, no text.`
+- 🦖 `POV vertical 9:16: T-rex head lunges down jaws wide open in night jungle, teeth SNAP shut onto camera, cut to black. 4s, photorealistic, no text.`
+- 👹 `POV vertical 9:16 horror: horned monster mouth gapes in lightning storm, jaws CLAMP shut over camera, cut to black. 4s, photorealistic, no text.`
 
 ## 용량이 크면 (선택)
 

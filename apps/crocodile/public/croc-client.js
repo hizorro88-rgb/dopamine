@@ -622,19 +622,10 @@
   const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스', monster: '몬스터' };
   const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!', monster: '크르릉!' };
 
-  // 🎞 실사 오프닝 영상 (있으면 컷씬 대신): /crocodile/intro/{캐릭터}.mp4 를 찾아 재생.
-  //    파일이 없거나 재생 불가면 false → 기존 시네마틱 컷씬으로 폴백.
-  const videoAvail = {}; // 캐릭터별 존재 여부 캐시 (HEAD 1회)
-  async function tryVideoIntro() {
-    const char = state.character;
-    const url = '/crocodile/intro/' + char + '.mp4';
-    if (videoAvail[char] === undefined) {
-      try {
-        const r = await fetch(url, { method: 'HEAD' });
-        videoAvail[char] = r.ok;
-      } catch { videoAvail[char] = false; }
-    }
-    if (!videoAvail[char]) return false;
+  // 🎞 실사 영상 재생기 — 오프닝({캐릭터}.mp4)과 물기 엔딩({캐릭터}-bite.mp4) 공용.
+  //    파일이 없거나 재생 불가면 false → 기존 SVG 연출로 폴백.
+  const videoAvail = {}; // 파일별 존재 여부 캐시 (HEAD 1회)
+  function playVideoFile(url) {
     const wrap = el('intro-video-wrap');
     const v = el('intro-video');
     return new Promise((resolve) => {
@@ -662,6 +653,19 @@
       setTimeout(() => finish(true), 20000); // 안전망: 20초 상한
     });
   }
+  async function tryCharVideo(suffix) {
+    const key = state.character + (suffix || '');
+    const url = '/crocodile/intro/' + key + '.mp4';
+    if (videoAvail[key] === undefined) {
+      try {
+        const r = await fetch(url, { method: 'HEAD' });
+        videoAvail[key] = r.ok;
+      } catch { videoAvail[key] = false; }
+    }
+    if (!videoAvail[key]) return false;
+    return playVideoFile(url);
+  }
+  const tryVideoIntro = () => tryCharVideo('');
 
   // 🎬 시네마틱 인트로: 저 멀리서 카메라로 다가와 수면을 뚫고 포효 → 게임으로 페이드
   async function playIntro() {
@@ -1399,17 +1403,27 @@
   });
 
   // 물기!
-  socket.on('croc:bite', async (ev) => {
+  socket.on('croc:bite', (ev) => {
     if (state.room && state.room.pressed) state.room.pressed[ev.tooth] = true;
     updateTurn(null);
     nameTag(ev.tooth, ev.victimName, ev.victimColor);
     eyesLookAt(ev.tooth);
     // 📳 물리는 순간 진동 — 당한 본인은 훨씬 세게
     vibe(ev.victimId === state.myId ? [200, 80, 300, 80, 400] : [120, 60, 220]);
-    await playBite(ev);
-    if (ev.gameOver) {
-      // croc:over 가 뒤따라 결과를 띄운다
-    }
+    // 물기 시퀀스를 저장 → croc:over(결과)는 이게 끝난 뒤에 뜬다
+    state._biteSeq = (async () => {
+      // 🎞 게임 종료 물기: {캐릭터}-bite.mp4 가 있으면 실사 '쾅' 영상으로
+      if (ev.gameOver && (lockInput(true), await tryCharVideo('-bite'))) {
+        pressToothVisual(ev.tooth, false);
+        Jaw.breathe = false;
+        Jaw.setInstant(JAW.bite); // 영상이 끝나면 입 다문 상태로 착지
+        redFlash(); sfx.chomp(); shake(el('stage'));
+        flash('쾅!!', 800);
+        await sleep(500);
+      } else {
+        await playBite(ev);
+      }
+    })();
   });
 
   // 서바이벌: 다음 판 리셋
@@ -1420,8 +1434,13 @@
   });
 
   // 최종 결과
-  socket.on('croc:over', (ev) => {
-    setTimeout(() => showResult(ev), 400);
+  socket.on('croc:over', async (ev) => {
+    // 물기 연출(영상 포함)이 끝날 때까지 기다렸다가 결과를 띄운다
+    if (state._biteSeq) {
+      try { await state._biteSeq; } catch { /* 연출 실패해도 결과는 띄운다 */ }
+      state._biteSeq = null;
+    }
+    setTimeout(() => showResult(ev), 300);
   });
 
   // 턴만 바뀜(끊김 등)
