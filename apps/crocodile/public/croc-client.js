@@ -234,89 +234,205 @@
     const t = n <= 1 ? 0.5 : i / (n - 1);
     return baseY - Math.sin(Math.PI * t) * (amp || 26);
   }
-  function toothPath(w, h, down) {
+  // ── SVG 헬퍼 ──
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function scuteBump(parent, x, y, rx, ry) {
+    if (!parent) return;
+    parent.appendChild(svgEl('ellipse', { cx: x, cy: y + 2.5, rx, ry, fill: 'var(--skin-shadow)', opacity: 0.6 }));
+    parent.appendChild(svgEl('ellipse', { cx: x, cy: y - 1.5, rx: rx * 0.78, ry: ry * 0.7, fill: 'var(--skin-1)', opacity: 0.82 }));
+  }
+  function capsule(cx, cy, len, thick, rot, fill) {
+    const g = svgEl('g', { transform: `translate(${cx},${cy}) rotate(${rot})` });
+    g.appendChild(svgEl('rect', { x: -len / 2, y: -thick / 2, width: len, height: thick, rx: thick / 2, fill, stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+    return g;
+  }
+  function hornSpike(cx, cy, rot) {
+    const g = svgEl('g', { transform: `translate(${cx},${cy}) rotate(${rot})` });
+    g.appendChild(svgEl('path', { d: 'M-15,12 L0,-56 L15,12 Q0,2 -15,12 Z', fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+    g.appendChild(svgEl('path', { d: 'M-6,8 L0,-40 L4,8 Z', fill: 'var(--skin-shadow)', opacity: 0.5 }));
+    return g;
+  }
+
+  // ── 캐릭터별 눈 ──
+  function eyeSlit(g, cx, cy, rot) { // 악어: 호박색 세로동공
+    const e = svgEl('g', { class: 'eye', transform: `translate(${cx},${cy}) rotate(${rot})` });
+    e.appendChild(svgEl('ellipse', { cx: 0, cy: 4, rx: 42, ry: 36, fill: 'url(#bodyGrad)', stroke: 'var(--skin-edge)', 'stroke-width': 4 }));
+    e.appendChild(svgEl('path', { d: 'M-36,2 Q0,-20 36,2 Q0,16 -36,2 Z', fill: '#efe0a6' }));
+    e.appendChild(svgEl('ellipse', { cx: 0, cy: 1, rx: 17, ry: 15, fill: 'url(#irisGrad)' }));
+    e.appendChild(svgEl('ellipse', { class: 'pupil', cx: 0, cy: 1, rx: 4, ry: 13, fill: '#0a0a05' }));
+    e.appendChild(svgEl('circle', { cx: 6, cy: -6, r: 3.4, fill: '#fff', opacity: 0.9 }));
+    e.appendChild(svgEl('path', { class: 'lid', d: 'M-38,2 Q0,-22 38,2 L38,-26 L-38,-26 Z', fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+    g.appendChild(e);
+  }
+  function eyeBlack(g, cx, cy, rot) { // 상어: 무표정 검은 눈
+    const e = svgEl('g', { class: 'eye', transform: `translate(${cx},${cy}) rotate(${rot})` });
+    e.appendChild(svgEl('ellipse', { cx: 0, cy: 0, rx: 30, ry: 25, fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 4 }));
+    e.appendChild(svgEl('path', { d: 'M-25,0 Q0,-17 25,0 Q0,15 -25,0 Z', fill: '#090c10' }));
+    e.appendChild(svgEl('circle', { class: 'pupil', cx: 0, cy: 0, r: 7, fill: '#04060a' }));
+    e.appendChild(svgEl('circle', { cx: 7, cy: -5, r: 3, fill: '#fff', opacity: 0.45 }));
+    e.appendChild(svgEl('path', { class: 'lid', d: 'M-27,0 Q0,-17 27,0 L27,-20 L-27,-20 Z', fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+    g.appendChild(e);
+  }
+  function eyePredator(g, cx, cy, rot, iris) { // 티라노/몬스터: 사나운 눈
+    const e = svgEl('g', { class: 'eye', transform: `translate(${cx},${cy}) rotate(${rot})` });
+    e.appendChild(svgEl('ellipse', { cx: 0, cy: 2, rx: 37, ry: 31, fill: 'url(#bodyGrad)', stroke: 'var(--skin-edge)', 'stroke-width': 4 }));
+    e.appendChild(svgEl('path', { d: 'M-31,-2 Q0,-18 31,-2 Q0,15 -31,-2 Z', fill: '#f7ead0' }));
+    e.appendChild(svgEl('circle', { cx: 0, cy: -1, r: 15, fill: iris }));
+    e.appendChild(svgEl('ellipse', { class: 'pupil', cx: 0, cy: -1, rx: 5, ry: 13, fill: '#0a0705' }));
+    e.appendChild(svgEl('circle', { cx: 6, cy: -6, r: 3.3, fill: '#fff', opacity: 0.9 }));
+    e.appendChild(svgEl('path', { class: 'lid', d: 'M-33,-2 Q0,-18 33,-2 L33,-22 L-33,-22 Z', fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+    g.appendChild(e);
+  }
+
+  // ── 캐릭터 정의 (형태/눈/특징/이빨이 전부 다름) ──
+  const CREATURES = {
+    crocodile: {
+      upper: 'M62,612 Q42,470 132,428 Q210,400 300,398 Q390,400 468,428 Q558,470 538,612 Q300,556 62,612 Z',
+      lower: 'M66,600 Q300,548 534,600 Q580,678 550,802 Q300,880 50,802 Q20,678 66,600 Z',
+      mouthFill: 'url(#mouthGrad)', tongue: '#7d1424', dorsal: null, texU: 0.18, texL: 0.16,
+      tooth: { style: 'conic', wMul: 0.58, hMul: 1.0 },
+      buildEyes(g) { eyeSlit(g, 206, 440, -12); eyeSlit(g, 394, 440, 12); },
+      buildFeatures() {
+        const r = el('ridges'), n = el('nostrils'), ls = el('lowerScutes');
+        r.appendChild(capsule(214, 414, 64, 16, 16, 'var(--skin-1)'));
+        r.appendChild(capsule(386, 414, 64, 16, -16, 'var(--skin-1)'));
+        for (let k = 0; k < 4; k++) { const y = 488 + k * 26; scuteBump(r, 285, y, 12, 9); scuteBump(r, 315, y, 12, 9); }
+        for (let i = 0; i < 7; i++) { const t = i / 6, x = 170 + t * 260, y = 398 - Math.sin(Math.PI * t) * 14; scuteBump(r, x, y, 10, 8); }
+        for (let i = 0; i < 3; i++) { scuteBump(r, 120 + i * 10, 545 + i * 16, 9, 7); scuteBump(r, 480 - i * 10, 545 + i * 16, 9, 7); }
+        r.appendChild(svgEl('path', { d: 'M250,560 Q300,548 350,560', fill: 'none', stroke: 'var(--skin-edge)', 'stroke-width': 3, opacity: 0.3 }));
+        n.appendChild(svgEl('ellipse', { cx: 272, cy: 456, rx: 18, ry: 13, fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+        n.appendChild(svgEl('ellipse', { cx: 328, cy: 456, rx: 18, ry: 13, fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+        n.appendChild(svgEl('path', { d: 'M266,455 Q272,462 278,455', fill: 'none', stroke: '#0c0c08', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+        n.appendChild(svgEl('path', { d: 'M322,455 Q328,462 334,455', fill: 'none', stroke: '#0c0c08', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+        for (let i = 0; i < 8; i++) { const x = 140 + i * 46; scuteBump(ls, x, 726 + (i % 2) * 10, 11, 8); }
+      },
+    },
+    shark: {
+      upper: 'M72,612 Q66,498 158,436 Q234,372 300,360 Q366,372 442,436 Q534,498 528,612 Q300,556 72,612 Z',
+      lower: 'M82,600 Q300,556 518,600 Q556,674 532,792 Q300,858 68,792 Q44,674 82,600 Z',
+      mouthFill: 'url(#mouthGradPink)', tongue: '#c76a7c', dorsal: 'M262,372 L338,372 L300,264 Z', texU: 0.08, texL: 0.06,
+      tooth: { style: 'triangle', wMul: 0.5, hMul: 0.95 },
+      buildEyes(g) { eyeBlack(g, 166, 452, -6); eyeBlack(g, 434, 452, 6); },
+      buildFeatures() {
+        const r = el('ridges'), n = el('nostrils');
+        r.appendChild(svgEl('ellipse', { cx: 300, cy: 472, rx: 96, ry: 64, fill: 'var(--skin-belly)', opacity: 0.16 }));
+        for (let i = 0; i < 4; i++) {
+          const y = 546 + i * 22;
+          r.appendChild(svgEl('path', { d: `M112,${y} Q128,${y + 15} 142,${y + 2}`, fill: 'none', stroke: '#16232e', 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.7 }));
+          r.appendChild(svgEl('path', { d: `M488,${y} Q472,${y + 15} 458,${y + 2}`, fill: 'none', stroke: '#16232e', 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.7 }));
+        }
+        n.appendChild(svgEl('path', { d: 'M282,492 q-8,7 0,13', fill: 'none', stroke: '#10202a', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+        n.appendChild(svgEl('path', { d: 'M318,492 q8,7 0,13', fill: 'none', stroke: '#10202a', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+      },
+    },
+    dino: { // 티라노사우루스
+      upper: 'M60,616 Q54,494 108,452 Q150,424 214,414 Q300,404 386,414 Q450,424 492,452 Q546,494 540,616 Q300,556 60,616 Z',
+      lower: 'M68,600 Q300,554 532,600 Q576,682 550,808 Q300,886 50,808 Q24,682 68,600 Z',
+      mouthFill: 'url(#mouthGrad)', tongue: '#6e1220', dorsal: null, texU: 0.2, texL: 0.18,
+      tooth: { style: 'banana', wMul: 0.82, hMul: 1.22 },
+      buildEyes(g) { eyePredator(g, 214, 452, -8, '#f0b23a'); eyePredator(g, 386, 452, 8, '#f0b23a'); },
+      buildFeatures() {
+        const r = el('ridges'), n = el('nostrils'), ls = el('lowerScutes');
+        // 뼈로 된 눈두덩 뿔(사나운 각도)
+        r.appendChild(svgEl('path', { d: 'M170,438 Q188,404 246,420 Q250,432 240,442 Q206,430 170,438 Z', fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+        r.appendChild(svgEl('path', { d: 'M430,438 Q412,404 354,420 Q350,432 360,442 Q394,430 430,438 Z', fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+        // 콧등 능선 융기
+        r.appendChild(svgEl('path', { d: 'M268,432 Q300,402 332,432 Q300,448 268,432 Z', fill: 'var(--skin-1)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
+        for (let i = 0; i < 6; i++) { const t = i / 5, x = 200 + t * 200, y = 476 + Math.sin(Math.PI * t) * 8; scuteBump(r, x, y, 11, 8); }
+        for (let i = 0; i < 4; i++) { scuteBump(r, 150 + i * 8, 520 + i * 14, 9, 7); scuteBump(r, 450 - i * 8, 520 + i * 14, 9, 7); }
+        n.appendChild(svgEl('ellipse', { cx: 280, cy: 448, rx: 13, ry: 10, fill: '#0c0c08', opacity: 0.78 }));
+        n.appendChild(svgEl('ellipse', { cx: 320, cy: 448, rx: 13, ry: 10, fill: '#0c0c08', opacity: 0.78 }));
+        for (let i = 0; i < 8; i++) { const x = 140 + i * 46; scuteBump(ls, x, 724 + (i % 2) * 10, 11, 8); }
+      },
+    },
+    monster: {
+      upper: 'M62,612 Q42,470 132,428 Q210,400 300,398 Q390,400 468,428 Q558,470 538,612 Q300,556 62,612 Z',
+      lower: 'M66,600 Q300,548 534,600 Q580,678 550,802 Q300,880 50,802 Q20,678 66,600 Z',
+      mouthFill: 'url(#mouthGrad)', tongue: '#4a1030', dorsal: null, texU: 0.18, texL: 0.16,
+      tooth: { style: 'conic', wMul: 0.62, hMul: 1.06 },
+      buildEyes(g) { eyePredator(g, 210, 442, -10, '#ff4a3a'); eyePredator(g, 390, 442, 10, '#ff4a3a'); },
+      buildFeatures() {
+        const r = el('ridges'), ls = el('lowerScutes'), n = el('nostrils');
+        r.appendChild(hornSpike(196, 402, -20));
+        r.appendChild(hornSpike(404, 402, 20));
+        r.appendChild(capsule(210, 418, 58, 15, 20, 'var(--skin-1)'));
+        r.appendChild(capsule(390, 418, 58, 15, -20, 'var(--skin-1)'));
+        for (let k = 0; k < 4; k++) { const y = 490 + k * 26; scuteBump(r, 285, y, 12, 9); scuteBump(r, 315, y, 12, 9); }
+        for (let i = 0; i < 3; i++) { scuteBump(r, 120 + i * 10, 545 + i * 16, 9, 7); scuteBump(r, 480 - i * 10, 545 + i * 16, 9, 7); }
+        n.appendChild(svgEl('ellipse', { cx: 272, cy: 456, rx: 15, ry: 11, fill: '#0c0c08', opacity: 0.7 }));
+        n.appendChild(svgEl('ellipse', { cx: 328, cy: 456, rx: 15, ry: 11, fill: '#0c0c08', opacity: 0.7 }));
+        for (let i = 0; i < 8; i++) { const x = 140 + i * 46; scuteBump(ls, x, 726 + (i % 2) * 10, 11, 8); }
+      },
+    },
+  };
+
+  function applyCreature(char) {
+    const c = CREATURES[char] || CREATURES.crocodile;
+    state.creature = c;
+    el('upperBody').setAttribute('d', c.upper);
+    el('lowerBody').setAttribute('d', c.lower);
+    el('mouthInner').setAttribute('fill', c.mouthFill);
+    el('tongue').setAttribute('fill', c.tongue);
+    const fin = el('dorsalFin');
+    if (c.dorsal) { fin.setAttribute('d', c.dorsal); fin.style.opacity = '1'; } else { fin.style.opacity = '0'; }
+    const tu = el('skinTexU'), tl = el('skinTexL');
+    if (tu) tu.setAttribute('opacity', c.texU);
+    if (tl) tl.setAttribute('opacity', c.texL);
+    el('eyes').innerHTML = ''; el('nostrils').innerHTML = ''; el('ridges').innerHTML = ''; el('lowerScutes').innerHTML = '';
+    c.buildEyes(el('eyes'));
+    c.buildFeatures();
+  }
+
+  // 이빨 형태(캐릭터별): conic(악어) / triangle(상어, 톱니) / banana(티라노, 큰 송곳니)
+  function toothPath(w, h, down, style) {
     const s = down ? -1 : 1;
-    // 뿌리(0,0)에서 솟은 '날카로운 송곳니' (곡선으로 끝이 뾰족)
+    if (style === 'triangle') {
+      return `M ${-w / 2},0 L ${-w * 0.3},${-h * 0.42 * s} L ${-w * 0.17},${-h * 0.36 * s} `
+        + `L ${-w * 0.09},${-h * 0.74 * s} L 0,${-h * s} L ${w * 0.09},${-h * 0.74 * s} `
+        + `L ${w * 0.17},${-h * 0.36 * s} L ${w * 0.3},${-h * 0.42 * s} L ${w / 2},0 Z`;
+    }
+    if (style === 'banana') {
+      return `M ${-w / 2},0 Q ${-w * 0.52},${-h * 0.55 * s} ${-w * 0.22},${-h * 0.9 * s} `
+        + `Q ${-w * 0.05},${-h * 1.08 * s} ${w * 0.14},${-h * 0.92 * s} `
+        + `Q ${w * 0.46},${-h * 0.6 * s} ${w / 2},0 Z`;
+    }
     return `M ${-w / 2},0 Q ${-w * 0.36},${-h * 0.5 * s} ${-w * 0.1},${-h * 0.86 * s} `
       + `Q 0,${-h * 1.03 * s} ${w * 0.1},${-h * 0.86 * s} `
       + `Q ${w * 0.36},${-h * 0.5 * s} ${w / 2},0 Z`;
   }
-  // 이빨 높이를 살짝 불규칙하게 (사실감) — 인덱스 기반 결정론
   function toothScale(i) { return 0.82 + 0.18 * (((i * 37 + 11) % 7) / 6); }
+
   function buildTeeth(n) {
-    const lower = el('teethLower');
-    const upper = el('teethUpper');
+    const c = state.creature || CREATURES.crocodile;
+    const ts = c.tooth || { style: 'conic', wMul: 0.58, hMul: 1 };
+    const lower = el('teethLower'), upper = el('teethUpper');
     lower.innerHTML = ''; upper.innerHTML = '';
     const spacing = (TEETH_RIGHT - TEETH_LEFT) / Math.max(1, n - 1);
-    const w = Math.min(38, Math.max(15, spacing * 0.6));
+    const w = Math.min(46, Math.max(13, spacing * ts.wMul));
     for (let i = 0; i < n; i++) {
       const x = toothX(i, n);
-      const hL = TOOTH_H * toothScale(i);
-      // 아래 이빨 (누르는 버튼, 위로 솟음)
+      const hL = TOOTH_H * ts.hMul * toothScale(i);
+      // 아래 이빨 (누르는 버튼, 위로 솟음) — 잇몸 소켓 + 송곳니
       const ly = toothArcY(i, n, GUM_Y, 22);
-      const lg = document.createElementNS(SVGNS, 'g');
-      lg.setAttribute('class', 'tooth');
-      lg.setAttribute('data-i', i);
-      lg.setAttribute('transform', `translate(${x.toFixed(1)},${ly.toFixed(1)})`);
-      const inner = document.createElementNS(SVGNS, 'g');
-      inner.setAttribute('class', 'tooth-inner');
-      const glow = document.createElementNS(SVGNS, 'ellipse');
-      glow.setAttribute('class', 'tooth-glow');
-      glow.setAttribute('cx', 0); glow.setAttribute('cy', -hL * 0.5);
-      glow.setAttribute('rx', w * 0.95); glow.setAttribute('ry', hL * 0.8);
-      glow.setAttribute('fill', 'rgba(255,120,70,0.5)');
-      const p = document.createElementNS(SVGNS, 'path');
-      p.setAttribute('d', toothPath(w, hL, false));
-      p.setAttribute('fill', 'url(#toothGrad)');
-      p.setAttribute('stroke', 'var(--teeth-edge)');
-      p.setAttribute('stroke-width', '1.5');
-      inner.appendChild(glow); inner.appendChild(p);
+      const lg = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${x.toFixed(1)},${ly.toFixed(1)})` });
+      lg.appendChild(svgEl('ellipse', { cx: 0, cy: 0, rx: w * 0.62, ry: 7, fill: 'var(--skin-shadow)', opacity: 0.5 }));
+      const inner = svgEl('g', { class: 'tooth-inner' });
+      inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -hL * 0.55, rx: w * 0.66, ry: hL * 0.6, fill: 'rgba(255,214,130,0.22)' }));
+      inner.appendChild(svgEl('path', { d: toothPath(w, hL, false, ts.style), fill: 'url(#toothGrad)', stroke: 'var(--teeth-edge)', 'stroke-width': 1.5 }));
       lg.appendChild(inner);
       lg.addEventListener('click', () => onToothClick(i));
       lower.appendChild(lg);
-      // 위 이빨 (아래로 향함, 위턱에 붙어 함께 이동)
+      // 위 이빨 (아래로 향함, 위턱과 함께 이동)
       const uy = toothArcY(i, n, UPPER_Y, 16);
-      const ug = document.createElementNS(SVGNS, 'g');
-      ug.setAttribute('transform', `translate(${x.toFixed(1)},${uy.toFixed(1)})`);
-      const up = document.createElementNS(SVGNS, 'path');
-      up.setAttribute('d', toothPath(w * 0.92, TOOTH_H * 0.9 * toothScale(i + 3), true));
-      up.setAttribute('fill', 'url(#toothGradD)');
-      up.setAttribute('stroke', 'var(--teeth-edge)');
-      up.setAttribute('stroke-width', '1.5');
-      ug.appendChild(up);
+      const ug = svgEl('g', { transform: `translate(${x.toFixed(1)},${uy.toFixed(1)})` });
+      ug.appendChild(svgEl('ellipse', { cx: 0, cy: 0, rx: w * 0.58, ry: 6, fill: 'var(--skin-shadow)', opacity: 0.45 }));
+      ug.appendChild(svgEl('path', { d: toothPath(w * 0.92, TOOTH_H * ts.hMul * 0.9 * toothScale(i + 3), true, ts.style), fill: 'url(#toothGradD)', stroke: 'var(--teeth-edge)', 'stroke-width': 1.5 }));
       upper.appendChild(ug);
     }
-    buildScutes();
-  }
-  // 비늘/골판(osteoderm) 스큐트 — 솟은 돌기(그림자+하이라이트)로 사실감
-  function buildScutes() {
-    const ridges = el('ridges');
-    const lowerS = el('lowerScutes');
-    if (ridges) ridges.innerHTML = '';
-    if (lowerS) lowerS.innerHTML = '';
-    const bump = (parent, x, y, rx, ry) => {
-      if (!parent) return;
-      const sh = document.createElementNS(SVGNS, 'ellipse');
-      sh.setAttribute('cx', x); sh.setAttribute('cy', y + 2.5);
-      sh.setAttribute('rx', rx); sh.setAttribute('ry', ry);
-      sh.setAttribute('fill', 'var(--skin-shadow)'); sh.setAttribute('opacity', '0.6');
-      const hi = document.createElementNS(SVGNS, 'ellipse');
-      hi.setAttribute('cx', x); hi.setAttribute('cy', y - 1.5);
-      hi.setAttribute('rx', rx * 0.78); hi.setAttribute('ry', ry * 0.7);
-      hi.setAttribute('fill', 'var(--skin-1)'); hi.setAttribute('opacity', '0.8');
-      parent.appendChild(sh); parent.appendChild(hi);
-    };
-    // 콧등 중앙 스큐트 (세로 2열)
-    for (let r = 0; r < 4; r++) { const y = 486 + r * 26; bump(ridges, 284, y, 12, 9); bump(ridges, 316, y, 12, 9); }
-    // 이마/눈두덩 위 잔비늘 (곡선을 따라)
-    for (let i = 0; i < 7; i++) {
-      const t = i / 6, x = 168 + t * 264, y = 402 - Math.sin(Math.PI * t) * 16;
-      bump(ridges, x, y, 10, 8);
-    }
-    // 볼(뺨) 비늘
-    for (let i = 0; i < 3; i++) { bump(ridges, 120 + i * 12, 545 + i * 16, 9, 7); bump(ridges, 480 - i * 12, 545 + i * 16, 9, 7); }
-    // 아래턱 스큐트 한 줄
-    for (let i = 0; i < 8; i++) { const x = 140 + i * 46; bump(lowerS, x, 726 + (i % 2) * 10, 11, 8); }
   }
   function toothInnerAt(i) {
     const g = el('teethLower').querySelector(`.tooth[data-i="${i}"]`);
@@ -493,11 +609,10 @@
   function enterGame(room) {
     show('game');
     el('stage').setAttribute('data-char', room.character);
+    applyCreature(room.character); // 캐릭터별 형태·눈·특징 적용
     buildTeeth(room.teeth);
     if (!Jaw.node) Jaw.init(el('upperJaw'));
     crocNode = el('croc'); birdNode = el('bird');
-    // 상어 지느러미 토글
-    el('dorsalFin').style.opacity = room.character === 'shark' ? '1' : '0';
     document.querySelectorAll('.tooth.pressed').forEach((t) => t.classList.remove('pressed'));
   }
 
