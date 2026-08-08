@@ -666,6 +666,12 @@
       );
       setTimeout(() => { splash(300, 700, 34); sfx.splash(); }, 480);
       await burst.finished.catch(() => {});
+    } else if (state.character === 'dino') {
+      // 🦖 쿵… 쿵… 발소리와 함께 성큼성큼 달려온다 (걸음마다 화면·수면이 울림)
+      scene.animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1.03)' }],
+        { duration: 3000, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(() => blink(), 1600);
+      await dinoStompIntro(croc);
     } else {
       sfxDrone(3200); // 다가오는 저음 드론 (고조)
       // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
@@ -831,6 +837,57 @@
       setTimeout(() => { tone(f, 0.26, 'sawtooth', 0.13); tone(f / 2, 0.26, 'triangle', 0.17); }, t);
       i++; t += gap; gap = Math.max(150, gap * 0.87);
     }
+  }
+
+  // 🦖 성큼성큼 달려오는 걸음 — 스텝마다 들썩이며 커지고, 착지 순간 쿵! (점점 크고 빠르게)
+  async function dinoStompIntro(croc) {
+    const steps = 6;
+    el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 2400, delay: 500, fill: 'forwards' });
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1); // 0(멀리) → 1(코앞)
+      const scale = 0.45 + t * 0.55;
+      const y = 340 - t * 340;
+      const dur = 520 - t * 170; // 다가올수록 걸음이 빨라진다
+      const sway = (i % 2 ? 1 : -1) * (12 - t * 5); // 좌우 번갈아 흔들리는 보행
+      const op = String(0.25 + t * 0.75);
+      const a = croc.animate(
+        [
+          { transform: `translateY(${y + 26}px) translateX(${sway}px) scale(${scale})`, opacity: op },
+          { transform: `translateY(${y - 10}px) translateX(${sway / 2}px) scale(${scale + 0.02})`, opacity: op, offset: 0.55 },
+          { transform: `translateY(${y}px) translateX(0px) scale(${scale})`, opacity: op },
+        ],
+        { duration: dur, easing: 'cubic-bezier(.3,.6,.3,1)', fill: 'forwards' }
+      );
+      // 착지 타이밍: 쿵 소리 + 화면 울림 + 수면 출렁·물튀김 (좌우 발 번갈아)
+      setTimeout(() => {
+        sfxStomp(0.1 + t * 0.26);
+        stompShake(2 + t * 9);
+        const fx = i % 2 ? 180 : 420;
+        finRipple(fx, 700); finRipple(600 - fx, 703);
+        if (t > 0.3) splash(fx, 700, Math.round(6 + t * 12));
+      }, dur * 0.55);
+      await a.finished.catch(() => {});
+      await sleep(70 - t * 40);
+    }
+  }
+  // 땅울림: 세로 위주 짧은 흔들림 (걸음 무게감)
+  function stompShake(px) {
+    el('stage').animate(
+      [
+        { transform: 'translate(0,0)' },
+        { transform: `translate(0,${px}px)` },
+        { transform: `translate(${px * 0.4}px,${-px * 0.5}px)` },
+        { transform: 'translate(0,0)' },
+      ],
+      { duration: 260, easing: 'ease-out' }
+    );
+  }
+  // 쿵! 발소리 (저음 붐 + 잔울림)
+  function sfxStomp(g) {
+    if (!state.sound) return;
+    if (!audioReady()) return;
+    tone(55, 0.22, 'sine', g, 28);
+    noise(0.09, g * 0.7);
   }
 
   function blink() {
