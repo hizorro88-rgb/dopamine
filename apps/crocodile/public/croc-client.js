@@ -236,17 +236,22 @@
   }
   function toothPath(w, h, down) {
     const s = down ? -1 : 1;
-    // 뿌리(0,0)에서 위(또는 아래)로 솟은 둥근 이빨
-    return `M ${-w / 2},0 L ${-w / 2},${-h * 0.4 * s} Q ${-w / 2},${-h * s} 0,${-h * s} Q ${w / 2},${-h * s} ${w / 2},${-h * 0.4 * s} L ${w / 2},0 Z`;
+    // 뿌리(0,0)에서 솟은 '날카로운 송곳니' (곡선으로 끝이 뾰족)
+    return `M ${-w / 2},0 Q ${-w * 0.36},${-h * 0.5 * s} ${-w * 0.1},${-h * 0.86 * s} `
+      + `Q 0,${-h * 1.03 * s} ${w * 0.1},${-h * 0.86 * s} `
+      + `Q ${w * 0.36},${-h * 0.5 * s} ${w / 2},0 Z`;
   }
+  // 이빨 높이를 살짝 불규칙하게 (사실감) — 인덱스 기반 결정론
+  function toothScale(i) { return 0.82 + 0.18 * (((i * 37 + 11) % 7) / 6); }
   function buildTeeth(n) {
     const lower = el('teethLower');
     const upper = el('teethUpper');
     lower.innerHTML = ''; upper.innerHTML = '';
     const spacing = (TEETH_RIGHT - TEETH_LEFT) / Math.max(1, n - 1);
-    const w = Math.min(40, Math.max(16, spacing * 0.66));
+    const w = Math.min(38, Math.max(15, spacing * 0.6));
     for (let i = 0; i < n; i++) {
       const x = toothX(i, n);
+      const hL = TOOTH_H * toothScale(i);
       // 아래 이빨 (누르는 버튼, 위로 솟음)
       const ly = toothArcY(i, n, GUM_Y, 22);
       const lg = document.createElementNS(SVGNS, 'g');
@@ -257,47 +262,61 @@
       inner.setAttribute('class', 'tooth-inner');
       const glow = document.createElementNS(SVGNS, 'ellipse');
       glow.setAttribute('class', 'tooth-glow');
-      glow.setAttribute('cx', 0); glow.setAttribute('cy', -TOOTH_H * 0.5);
-      glow.setAttribute('rx', w * 0.9); glow.setAttribute('ry', TOOTH_H * 0.75);
-      glow.setAttribute('fill', 'rgba(255,225,120,0.55)');
+      glow.setAttribute('cx', 0); glow.setAttribute('cy', -hL * 0.5);
+      glow.setAttribute('rx', w * 0.95); glow.setAttribute('ry', hL * 0.8);
+      glow.setAttribute('fill', 'rgba(255,120,70,0.5)');
       const p = document.createElementNS(SVGNS, 'path');
-      p.setAttribute('d', toothPath(w, TOOTH_H, false));
-      p.setAttribute('fill', 'var(--teeth)');
+      p.setAttribute('d', toothPath(w, hL, false));
+      p.setAttribute('fill', 'url(#toothGrad)');
       p.setAttribute('stroke', 'var(--teeth-edge)');
-      p.setAttribute('stroke-width', '3');
+      p.setAttribute('stroke-width', '1.5');
       inner.appendChild(glow); inner.appendChild(p);
       lg.appendChild(inner);
       lg.addEventListener('click', () => onToothClick(i));
       lower.appendChild(lg);
-      // 위 이빨 (아래로 향함, 위턱에 붙어 함께 회전)
-      const uy = toothArcY(i, n, UPPER_Y, 18);
+      // 위 이빨 (아래로 향함, 위턱에 붙어 함께 이동)
+      const uy = toothArcY(i, n, UPPER_Y, 16);
       const ug = document.createElementNS(SVGNS, 'g');
       ug.setAttribute('transform', `translate(${x.toFixed(1)},${uy.toFixed(1)})`);
       const up = document.createElementNS(SVGNS, 'path');
-      up.setAttribute('d', toothPath(w * 0.9, TOOTH_H * 0.82, true));
-      up.setAttribute('fill', 'var(--teeth)');
+      up.setAttribute('d', toothPath(w * 0.92, TOOTH_H * 0.9 * toothScale(i + 3), true));
+      up.setAttribute('fill', 'url(#toothGradD)');
       up.setAttribute('stroke', 'var(--teeth-edge)');
-      up.setAttribute('stroke-width', '3');
+      up.setAttribute('stroke-width', '1.5');
       ug.appendChild(up);
       upper.appendChild(ug);
     }
-    // 이마 요철 (스킨 장식)
-    buildRidges(n);
+    buildScutes();
   }
-  function buildRidges(n) {
+  // 비늘/골판(osteoderm) 스큐트 — 솟은 돌기(그림자+하이라이트)로 사실감
+  function buildScutes() {
     const ridges = el('ridges');
-    ridges.innerHTML = '';
-    const cnt = 5;
-    for (let i = 0; i < cnt; i++) {
-      const x = 175 + (i / (cnt - 1)) * 250;
-      const y = 418 - Math.sin(Math.PI * (i / (cnt - 1))) * 14;
-      const b = document.createElementNS(SVGNS, 'path');
-      b.setAttribute('d', `M ${x - 18},${y + 16} Q ${x},${y - 18} ${x + 18},${y + 16} Z`);
-      b.setAttribute('fill', 'var(--skin-2)');
-      b.setAttribute('stroke', 'var(--skin-edge)');
-      b.setAttribute('stroke-width', '2');
-      ridges.appendChild(b);
+    const lowerS = el('lowerScutes');
+    if (ridges) ridges.innerHTML = '';
+    if (lowerS) lowerS.innerHTML = '';
+    const bump = (parent, x, y, rx, ry) => {
+      if (!parent) return;
+      const sh = document.createElementNS(SVGNS, 'ellipse');
+      sh.setAttribute('cx', x); sh.setAttribute('cy', y + 2.5);
+      sh.setAttribute('rx', rx); sh.setAttribute('ry', ry);
+      sh.setAttribute('fill', 'var(--skin-shadow)'); sh.setAttribute('opacity', '0.6');
+      const hi = document.createElementNS(SVGNS, 'ellipse');
+      hi.setAttribute('cx', x); hi.setAttribute('cy', y - 1.5);
+      hi.setAttribute('rx', rx * 0.78); hi.setAttribute('ry', ry * 0.7);
+      hi.setAttribute('fill', 'var(--skin-1)'); hi.setAttribute('opacity', '0.8');
+      parent.appendChild(sh); parent.appendChild(hi);
+    };
+    // 콧등 중앙 스큐트 (세로 2열)
+    for (let r = 0; r < 4; r++) { const y = 486 + r * 26; bump(ridges, 284, y, 12, 9); bump(ridges, 316, y, 12, 9); }
+    // 이마/눈두덩 위 잔비늘 (곡선을 따라)
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6, x = 168 + t * 264, y = 402 - Math.sin(Math.PI * t) * 16;
+      bump(ridges, x, y, 10, 8);
     }
+    // 볼(뺨) 비늘
+    for (let i = 0; i < 3; i++) { bump(ridges, 120 + i * 12, 545 + i * 16, 9, 7); bump(ridges, 480 - i * 12, 545 + i * 16, 9, 7); }
+    // 아래턱 스큐트 한 줄
+    for (let i = 0; i < 8; i++) { const x = 140 + i * 46; bump(lowerS, x, 726 + (i % 2) * 10, 11, 8); }
   }
   function toothInnerAt(i) {
     const g = el('teethLower').querySelector(`.tooth[data-i="${i}"]`);
@@ -494,7 +513,6 @@
     croc.style.opacity = '0.12';
     el('waterFill').style.opacity = '0.98';
     await sleep(60);
-    flash('...', 700);
     // 스믈스믈 떠오름 (좌우로 살짝 흔들며)
     const rise = croc.animate(
       [
@@ -558,7 +576,7 @@
       );
     }
     const p = g.querySelector('path');
-    if (p) p.setAttribute('fill', safe ? '#cfe6d6' : '#e6b9b9');
+    if (p) p.setAttribute('fill', safe ? '#b7ad8c' : '#c98a8a');
   }
 
   // 입력 잠금 = 이빨 클릭 가능 여부 갱신
@@ -807,7 +825,7 @@
       g.classList.add('pressed'); g.classList.remove('pressable');
       const inner = g.querySelector('.tooth-inner');
       if (inner) inner.style.transform = 'translateY(44px)';
-      const p = g.querySelector('path'); if (p) p.setAttribute('fill', '#cfe6d6');
+      const p = g.querySelector('path'); if (p) p.setAttribute('fill', '#b7ad8c');
     }
   }
   function syncMidGame(room) {

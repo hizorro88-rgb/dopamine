@@ -164,19 +164,19 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 /* 무대 */
 .stage {
   position: relative; flex: 1; min-height: 0; overflow: hidden;
-  --sky-1: #10323f; --sky-2: #0a2531;
-  --water-1: #1d5f6b; --water-2: #0e3540; --water-edge: #7fe3d8;
-  --skin-1: #5bb06a; --skin-2: #2f7a44; --skin-edge: #1c4f2c;
-  --teeth: #fdfdf5; --teeth-edge: #d8d8c0;
+  --sky-1: #16261f; --sky-2: #0a1712;
+  --water-1: #24402c; --water-2: #0d2013; --water-edge: #6fae7a;
+  --skin-1: #7f8f52; --skin-2: #4c5c30; --skin-shadow: #2a3617; --skin-belly: #9aa268; --skin-edge: #121a09;
+  --teeth: #ece6d2; --teeth-edge: #b6a982;
 }
-/* 스킨: 악어(기본) */
-.stage[data-char="crocodile"] { --skin-1: #5bb06a; --skin-2: #2f7a44; --skin-edge: #1c4f2c; --sky-1:#10323f; --sky-2:#0a2531; --water-1:#1d5f6b; --water-2:#0e3540; --water-edge:#7fe3d8; }
-/* 상어 */
-.stage[data-char="shark"] { --skin-1: #93a9ba; --skin-2: #5a7284; --skin-edge: #33475a; --sky-1:#0e2a3d; --sky-2:#081b2b; --water-1:#144a72; --water-2:#07223b; --water-edge:#66b6ff; --teeth:#ffffff; }
-/* 공룡 */
-.stage[data-char="dino"] { --skin-1: #9b73d6; --skin-2: #63409c; --skin-edge: #3c2764; --sky-1:#241340; --sky-2:#160b2b; --water-1:#3a2472; --water-2:#1c0f3d; --water-edge:#c39bff; }
-/* 몬스터 */
-.stage[data-char="monster"] { --skin-1: #46c2b2; --skin-2: #2a897d; --skin-edge: #175149; --sky-1:#0f3330; --sky-2:#08201f; --water-1:#12615a; --water-2:#08312e; --water-edge:#7bf0e0; }
+/* 스킨: 악어(기본) — 늪지 올리브, 어둡고 사실적 */
+.stage[data-char="crocodile"] { --skin-1:#7f8f52; --skin-2:#4c5c30; --skin-shadow:#2a3617; --skin-belly:#9aa268; --skin-edge:#121a09; --sky-1:#16261f; --sky-2:#0a1712; --water-1:#24402c; --water-2:#0d2013; --water-edge:#6fae7a; }
+/* 상어 — 심해 회청색 */
+.stage[data-char="shark"] { --skin-1:#93a6b6; --skin-2:#516576; --skin-shadow:#2b3a47; --skin-belly:#c2ccd3; --skin-edge:#161f28; --sky-1:#0c2334; --sky-2:#05121e; --water-1:#123a5a; --water-2:#06182b; --water-edge:#5aa0d6; }
+/* 공룡 — 흙빛 다크 그린 */
+.stage[data-char="dino"] { --skin-1:#86913f; --skin-2:#525d26; --skin-shadow:#313914; --skin-belly:#a6ab5e; --skin-edge:#171a08; --sky-1:#241f10; --sky-2:#140f06; --water-1:#3a3a1a; --water-2:#1a1a0b; --water-edge:#b7a94c; }
+/* 몬스터 — 음산한 보라 */
+.stage[data-char="monster"] { --skin-1:#6b5aa0; --skin-2:#3f3168; --skin-shadow:#241a3e; --skin-belly:#8f80bd; --skin-edge:#130e24; --sky-1:#1a1230; --sky-2:#0c0720; --water-1:#2a1a55; --water-2:#12082c; --water-edge:#a888e0; }
 
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 /* 무대에서 탭을 받는 건 오직 '누를 수 있는 아래 이빨' 뿐 — 위턱/눈/물 등 장식이 탭을 가로채지 않도록. */

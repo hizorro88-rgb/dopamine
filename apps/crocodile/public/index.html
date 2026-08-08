@@ -135,73 +135,126 @@
               <stop offset="0" stop-color="var(--water-1)"/>
               <stop offset="1" stop-color="var(--water-2)"/>
             </linearGradient>
-            <radialGradient id="mouthGrad" cx="0.5" cy="0.25" r="0.95">
-              <stop offset="0" stop-color="#7a1230"/>
-              <stop offset="1" stop-color="#2c0512"/>
+            <radialGradient id="mouthGrad" cx="0.5" cy="0.18" r="1.0">
+              <stop offset="0" stop-color="#5e0c1e"/>
+              <stop offset="0.55" stop-color="#33060f"/>
+              <stop offset="1" stop-color="#0d0205"/>
             </radialGradient>
-            <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+            <!-- 위턱: 위(등쪽)가 밝고 아래(입가)가 어두운 명암 -->
+            <linearGradient id="bodyGrad" x1="0" y1="0" x2="0.15" y2="1">
               <stop offset="0" stop-color="var(--skin-1)"/>
-              <stop offset="1" stop-color="var(--skin-2)"/>
+              <stop offset="0.55" stop-color="var(--skin-2)"/>
+              <stop offset="1" stop-color="var(--skin-shadow)"/>
             </linearGradient>
+            <!-- 아래턱: 아래(턱밑=belly)가 밝은 카운터섀도 -->
             <linearGradient id="bodyGrad2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="var(--skin-2)"/>
-              <stop offset="1" stop-color="var(--skin-1)"/>
+              <stop offset="0" stop-color="var(--skin-shadow)"/>
+              <stop offset="0.5" stop-color="var(--skin-2)"/>
+              <stop offset="1" stop-color="var(--skin-belly)"/>
             </linearGradient>
+            <!-- 이빨: 뿌리 그림자 → 끝 하이라이트 -->
+            <linearGradient id="toothGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fbf7e6"/>
+              <stop offset="1" stop-color="#b6a982"/>
+            </linearGradient>
+            <linearGradient id="toothGradD" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#b6a982"/>
+              <stop offset="1" stop-color="#fbf7e6"/>
+            </linearGradient>
+            <radialGradient id="irisGrad" cx="0.5" cy="0.5" r="0.55">
+              <stop offset="0" stop-color="#f4d06a"/>
+              <stop offset="0.6" stop-color="#c8862a"/>
+              <stop offset="1" stop-color="#6e3f10"/>
+            </radialGradient>
+            <!-- 가죽 표면 질감(어두운 얼룩) -->
+            <filter id="scales" x="0%" y="0%" width="100%" height="100%">
+              <feTurbulence type="turbulence" baseFrequency="0.055 0.09" numOctaves="2" seed="8" result="t"/>
+              <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0"/>
+            </filter>
+            <!-- 윤곽을 살짝 울퉁불퉁하게(가죽) -->
+            <filter id="rough" x="-8%" y="-8%" width="116%" height="116%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.012 0.016" numOctaves="2" seed="5" result="w"/>
+              <feDisplacementMap in="SourceGraphic" in2="w" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+            <clipPath id="clipUpper"><use href="#upperBody"/></clipPath>
+            <clipPath id="clipLower"><use href="#lowerBody"/></clipPath>
           </defs>
 
           <!-- 배경 하늘 -->
           <rect x="0" y="0" width="600" height="1000" fill="url(#skyGrad)"/>
-          <!-- 뒤쪽 원경 물결 -->
           <g id="bgWaves" opacity="0.4"></g>
 
           <!-- 악어 전체 (정면). 인트로: 물 밑에서 떠오름 -->
           <g id="croc" class="croc">
-            <ellipse id="crocShadow" cx="300" cy="815" rx="245" ry="46" fill="#000" opacity="0.2"/>
+            <ellipse id="crocShadow" cx="300" cy="815" rx="250" ry="48" fill="#000" opacity="0.28"/>
 
-            <!-- 아래턱 (고정) : 입안 → 혀 → 아래몸통 → 아래이빨 순서 -->
+            <!-- 아래턱 (고정) -->
             <g id="lowerJaw">
-              <!-- 입 안(어두운 목구멍) : 위턱이 들리면 드러난다 (닫힘 상태에선 위턱에 가려짐) -->
-              <path id="mouthInner" d="M104,430 Q300,406 496,430 L496,628 Q300,668 104,628 Z" fill="url(#mouthGrad)"/>
-              <!-- 혀 -->
-              <path id="tongue" d="M200,600 Q300,565 400,600 Q380,650 300,652 Q220,650 200,600 Z" fill="#d24a68" opacity="0.92"/>
-              <!-- 아래 몸통/턱 -->
-              <path id="lowerBody" d="M78,602 Q300,556 522,602 Q566,672 542,792 Q300,868 58,792 Q34,672 78,602 Z" fill="url(#bodyGrad2)" stroke="var(--skin-edge)" stroke-width="5"/>
-              <!-- 아래턱 옆 무늬 -->
-              <path d="M120,720 Q300,760 480,720" fill="none" stroke="var(--skin-edge)" stroke-width="3" opacity="0.35"/>
+              <!-- 입 안(어두운 목구멍) -->
+              <path id="mouthInner" d="M104,430 Q300,404 496,430 L496,628 Q300,668 104,628 Z" fill="url(#mouthGrad)"/>
+              <!-- 목젖/혀 (짙고 젖은 느낌) -->
+              <path id="tongue" d="M198,602 Q300,566 402,602 Q384,652 300,655 Q216,652 198,602 Z" fill="#7d1424" opacity="0.9"/>
+              <path d="M214,606 Q300,582 386,606 Q330,624 300,624 Q270,624 214,606 Z" fill="#a5303f" opacity="0.5"/>
+              <!-- 아래 몸통/턱 (거친 윤곽) -->
+              <path id="lowerBody" filter="url(#rough)" d="M70,600 Q300,552 530,600 Q574,676 546,800 Q300,878 54,800 Q26,676 70,600 Z" fill="url(#bodyGrad2)" stroke="var(--skin-edge)" stroke-width="6"/>
+              <!-- 가죽 질감 오버레이 -->
+              <g clip-path="url(#clipLower)">
+                <rect x="0" y="400" width="600" height="500" fill="#000" filter="url(#scales)" opacity="0.16"/>
+                <!-- 턱밑 주름 -->
+                <path d="M110,700 Q300,742 490,700" fill="none" stroke="var(--skin-edge)" stroke-width="3" opacity="0.3"/>
+                <path d="M140,752 Q300,784 460,752" fill="none" stroke="var(--skin-edge)" stroke-width="3" opacity="0.22"/>
+              </g>
+              <!-- 아래 비늘/턱 스큐트 (JS가 채움) -->
+              <g id="lowerScutes"></g>
               <!-- 아래 이빨 (JS가 채움) — 위로 솟은 '누르는' 버튼 -->
               <g id="teethLower"></g>
             </g>
 
             <!-- 위턱 (인트로/물기: 수직으로 들렸다 내렸다) -->
             <g id="upperJaw">
-              <!-- 위 몸통/머리 -->
-              <path id="upperBody" d="M74,606 Q54,470 150,428 Q300,372 450,428 Q546,470 526,606 Q300,556 74,606 Z" fill="url(#bodyGrad)" stroke="var(--skin-edge)" stroke-width="5"/>
-              <!-- 이마 요철 -->
-              <g id="ridges"></g>
-              <!-- 콧구멍 -->
-              <g id="nostrils">
-                <ellipse cx="272" cy="452" rx="12" ry="9" fill="#141414" opacity="0.72"/>
-                <ellipse cx="328" cy="452" rx="12" ry="9" fill="#141414" opacity="0.72"/>
+              <!-- 위 몸통/머리 (거친 윤곽) -->
+              <path id="upperBody" filter="url(#rough)" d="M66,610 Q46,462 150,420 Q300,360 450,420 Q554,462 534,610 Q300,548 66,610 Z" fill="url(#bodyGrad)" stroke="var(--skin-edge)" stroke-width="6"/>
+              <!-- 가죽 질감 + 명암 오버레이 -->
+              <g clip-path="url(#clipUpper)">
+                <rect x="0" y="360" width="600" height="260" fill="#000" filter="url(#scales)" opacity="0.18"/>
+                <!-- 콧등 중앙 능선 하이라이트 -->
+                <path d="M300,440 Q300,520 300,590" stroke="var(--skin-1)" stroke-width="10" opacity="0.25" fill="none"/>
+                <!-- 입가 그림자 -->
+                <path d="M70,600 Q300,548 534,600" fill="none" stroke="#000" stroke-width="10" opacity="0.18"/>
               </g>
-              <!-- 눈 (머리 위 두 개) -->
+              <!-- 이마/콧등 스큐트 (JS가 채움) -->
+              <g id="ridges"></g>
+              <!-- 콧구멍 (솟은 언덕 + 콧구멍 구멍) -->
+              <g id="nostrils">
+                <ellipse cx="270" cy="452" rx="20" ry="15" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="3"/>
+                <ellipse cx="330" cy="452" rx="20" ry="15" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="3"/>
+                <path d="M264,450 Q270,458 276,450" fill="none" stroke="#0c0c08" stroke-width="4" stroke-linecap="round"/>
+                <path d="M324,450 Q330,458 336,450" fill="none" stroke="#0c0c08" stroke-width="4" stroke-linecap="round"/>
+              </g>
+              <!-- 눈 (파충류: 세로 동공 + 험상궂은 눈두덩) -->
               <g id="eyes">
-                <g id="eyeL" class="eye" transform="translate(205,452)">
-                  <ellipse class="eye-bg" cx="0" cy="0" rx="52" ry="54" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="5"/>
-                  <circle cx="0" cy="0" r="34" fill="#fff"/>
-                  <circle class="pupil" cx="4" cy="2" r="18" fill="#141414"/>
-                  <circle cx="11" cy="-6" r="6" fill="#fff"/>
-                  <path class="lid" d="M-54,0 Q0,-62 54,0 L54,-58 L-54,-58 Z" fill="var(--skin-1)"/>
+                <g id="eyeL" class="eye" transform="translate(212,436) rotate(-13)">
+                  <ellipse class="eye-bg" cx="0" cy="4" rx="46" ry="40" fill="url(#bodyGrad)" stroke="var(--skin-edge)" stroke-width="4"/>
+                  <path d="M-40,2 Q0,-24 40,2 Q0,20 -40,2 Z" fill="#efe0a6"/>
+                  <ellipse cx="0" cy="1" rx="19" ry="17" fill="url(#irisGrad)"/>
+                  <ellipse class="pupil" cx="0" cy="1" rx="4.5" ry="15" fill="#0a0a05"/>
+                  <circle cx="7" cy="-6" r="4" fill="#fff" opacity="0.9"/>
+                  <path class="lid" d="M-42,2 Q0,-26 42,2 L42,-30 L-42,-30 Z" fill="var(--skin-2)" stroke="var(--skin-edge)" stroke-width="3"/>
+                  <!-- 험상궂은 눈썹 능선 -->
+                  <path d="M-46,-14 Q-4,-30 44,-16 Q40,-30 -8,-34 Q-44,-30 -46,-14 Z" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="3"/>
                 </g>
-                <g id="eyeR" class="eye" transform="translate(395,452)">
-                  <ellipse class="eye-bg" cx="0" cy="0" rx="52" ry="54" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="5"/>
-                  <circle cx="0" cy="0" r="34" fill="#fff"/>
-                  <circle class="pupil" cx="4" cy="2" r="18" fill="#141414"/>
-                  <circle cx="11" cy="-6" r="6" fill="#fff"/>
-                  <path class="lid" d="M-54,0 Q0,-62 54,0 L54,-58 L-54,-58 Z" fill="var(--skin-1)"/>
+                <g id="eyeR" class="eye" transform="translate(388,436) rotate(13)">
+                  <ellipse class="eye-bg" cx="0" cy="4" rx="46" ry="40" fill="url(#bodyGrad)" stroke="var(--skin-edge)" stroke-width="4"/>
+                  <path d="M-40,2 Q0,-24 40,2 Q0,20 -40,2 Z" fill="#efe0a6"/>
+                  <ellipse cx="0" cy="1" rx="19" ry="17" fill="url(#irisGrad)"/>
+                  <ellipse class="pupil" cx="0" cy="1" rx="4.5" ry="15" fill="#0a0a05"/>
+                  <circle cx="7" cy="-6" r="4" fill="#fff" opacity="0.9"/>
+                  <path class="lid" d="M-42,2 Q0,-26 42,2 L42,-30 L-42,-30 Z" fill="var(--skin-2)" stroke="var(--skin-edge)" stroke-width="3"/>
+                  <path d="M46,-14 Q4,-30 -44,-16 Q-40,-30 8,-34 Q44,-30 46,-14 Z" fill="var(--skin-1)" stroke="var(--skin-edge)" stroke-width="3"/>
                 </g>
               </g>
               <!-- 상어 지느러미 (상어일 때만 표시) -->
-              <path id="dorsalFin" d="M262,392 L338,392 L300,300 Z" fill="var(--skin-2)" stroke="var(--skin-edge)" stroke-width="5" opacity="0"/>
+              <path id="dorsalFin" d="M262,372 L338,372 L300,272 Z" fill="var(--skin-2)" stroke="var(--skin-edge)" stroke-width="5" opacity="0"/>
               <!-- 위 이빨 (JS가 채움) — 아래로 향함 -->
               <g id="teethUpper"></g>
             </g>
@@ -218,8 +271,8 @@
 
           <!-- 물 (악어 앞쪽 반투명 수면) -->
           <g id="waterLayer">
-            <path id="waterFill" d="M0,700 L600,700 L600,1000 L0,1000 Z" fill="url(#waterGrad)" opacity="0.82"/>
-            <path id="waterEdge" d="M0,700 Q75,686 150,700 T300,700 T450,700 T600,700" fill="none" stroke="var(--water-edge)" stroke-width="6" opacity="0.65"/>
+            <path id="waterFill" d="M0,700 L600,700 L600,1000 L0,1000 Z" fill="url(#waterGrad)" opacity="0.85"/>
+            <path id="waterEdge" d="M0,700 Q75,686 150,700 T300,700 T450,700 T600,700" fill="none" stroke="var(--water-edge)" stroke-width="6" opacity="0.55"/>
           </g>
         </svg>
 
