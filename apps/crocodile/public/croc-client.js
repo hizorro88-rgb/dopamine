@@ -646,25 +646,46 @@
     await sleep(120);
 
     cineTitle(CREATURE_NAME[state.character] || '???');
-    sfxDrone(3200); // 다가오는 저음 드론 (고조)
 
-    // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
-    const approach = croc.animate(
-      [
-        { transform: 'translateY(340px) scale(0.5)', opacity: 0.1 },
-        { transform: 'translateY(250px) translateX(16px) scale(0.66)', opacity: 0.3, offset: 0.34 },
-        { transform: 'translateY(130px) translateX(-14px) scale(0.88)', opacity: 0.75, offset: 0.72 },
-        { transform: 'translateY(0) translateX(0) scale(1)', opacity: 1 },
-      ],
-      { duration: 3200, easing: 'cubic-bezier(.45,0,.22,1)', fill: 'forwards' }
-    );
-    scene.animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1.02)' }],
-      { duration: 3200, easing: 'ease-out', fill: 'forwards' });
-    bubbles(2800);
-    setTimeout(() => blink(), 1500);
-    setTimeout(() => { splash(300, 700, 28); sfx.splash(); }, 2650); // 수면 돌파
-    el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 1700, delay: 1300, fill: 'forwards' });
-    await approach.finished.catch(() => {});
+    if (state.character === 'shark') {
+      // 🦈 죠스식 등장: 지느러미가 수면을 가르며 지나가다 → 잠수 → 정적 → 코앞에서 솟구침
+      croc.style.opacity = '0.05'; // 본체는 거의 안 보이게 (지느러미만)
+      sfxJaws(3700);
+      scene.animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1.04)' }],
+        { duration: 3600, easing: 'ease-out', fill: 'forwards' });
+      await finSweep(); // 지느러미 1차(멀리) → 2차(가까이) → 중앙 잠수 → 정적…
+      el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 900, fill: 'forwards' });
+      // 폭발 부상: 짧고 강하게 솟구침
+      const burst = croc.animate(
+        [
+          { transform: 'translateY(340px) scale(0.55)', opacity: 0.15 },
+          { transform: 'translateY(120px) scale(0.85)', opacity: 0.7, offset: 0.55 },
+          { transform: 'translateY(0) scale(1)', opacity: 1 },
+        ],
+        { duration: 950, easing: 'cubic-bezier(.3,0,.2,1)', fill: 'forwards' }
+      );
+      setTimeout(() => { splash(300, 700, 34); sfx.splash(); }, 480);
+      await burst.finished.catch(() => {});
+    } else {
+      sfxDrone(3200); // 다가오는 저음 드론 (고조)
+      // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
+      const approach = croc.animate(
+        [
+          { transform: 'translateY(340px) scale(0.5)', opacity: 0.1 },
+          { transform: 'translateY(250px) translateX(16px) scale(0.66)', opacity: 0.3, offset: 0.34 },
+          { transform: 'translateY(130px) translateX(-14px) scale(0.88)', opacity: 0.75, offset: 0.72 },
+          { transform: 'translateY(0) translateX(0) scale(1)', opacity: 1 },
+        ],
+        { duration: 3200, easing: 'cubic-bezier(.45,0,.22,1)', fill: 'forwards' }
+      );
+      scene.animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1.02)' }],
+        { duration: 3200, easing: 'ease-out', fill: 'forwards' });
+      bubbles(2800);
+      setTimeout(() => blink(), 1500);
+      setTimeout(() => { splash(300, 700, 28); sfx.splash(); }, 2650); // 수면 돌파
+      el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 1700, delay: 1300, fill: 'forwards' });
+      await approach.finished.catch(() => {});
+    }
     croc.style.transform = 'translateY(0) scale(1)'; croc.style.opacity = '1';
 
     // 클로즈업 포효: 카메라가 확 들어갔다 나오며 입을 쫙
@@ -738,6 +759,78 @@
     o.start(t); o.stop(t + dur + 0.4);
     // 긴장 심박 (접근 중 낮은 펄스)
     for (let i = 0; i < 5; i++) setTimeout(() => tone(60, 0.12, 'sine', 0.12), (i + 1) * (ms / 6));
+  }
+
+  // 🦈 지느러미가 수면을 가르며 지나간다: 1차(멀리, 왼→오) → 2차(가까이, 오→중앙) → 잠수 → 정적…
+  async function finSweep() {
+    const scene = el('scene');
+    const water = el('waterLayer');
+    const g = svgEl('g', { opacity: 0 });
+    // 뒤로 휜 초승달꼴 등지느러미 + 뒤따르는 물살 자국
+    g.appendChild(svgEl('path', {
+      d: 'M-24,8 C-16,-28 0,-62 30,-80 C20,-46 24,-16 40,8 Q6,16 -24,8 Z',
+      fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 4,
+    }));
+    g.appendChild(svgEl('path', {
+      d: 'M-26,10 Q-58,16 -92,10', fill: 'none',
+      stroke: 'rgba(200,235,245,0.4)', 'stroke-width': 4, 'stroke-linecap': 'round',
+    }));
+    scene.insertBefore(g, water); // 수면 아래쪽은 물에 살짝 잠겨 보이게
+    const pass = (fromX, toX, y, scale, dur, flip) => {
+      g.setAttribute('opacity', '1');
+      const s = `scale(${flip ? -scale : scale}, ${scale})`; // 진행 방향으로 지느러미 뒤집기
+      const a = g.animate(
+        [
+          { transform: `translate(${fromX}px, ${y}px) ${s}` },
+          { transform: `translate(${(fromX + toX) / 2}px, ${y - 10}px) ${s}`, offset: 0.5 },
+          { transform: `translate(${toX}px, ${y}px) ${s}` },
+        ],
+        { duration: dur, easing: 'ease-in-out', fill: 'forwards' }
+      );
+      // 지나간 자리에 물살 리플
+      const steps = Math.floor(dur / 120);
+      for (let i = 0; i < steps; i++) {
+        setTimeout(() => finRipple(fromX + ((toX - fromX) * i) / steps, y + 6), i * 120);
+      }
+      return a.finished.catch(() => {});
+    };
+    await pass(-70, 670, 688, 0.55, 1500, false); // 1차: 멀리서 스윽
+    await pass(670, 300, 694, 1.0, 1300, true);   // 2차: 가까이, 화면 중앙까지
+    // 중앙에서 스르륵 잠수 (어디 갔지…?)
+    finRipple(300, 700); finRipple(288, 703);
+    const dive = g.animate(
+      [
+        { transform: 'translate(300px, 694px) scale(-1,1)', opacity: 1 },
+        { transform: 'translate(258px, 762px) scale(-0.8,0.8)', opacity: 0 },
+      ],
+      { duration: 600, easing: 'ease-in', fill: 'forwards' }
+    );
+    await dive.finished.catch(() => {});
+    g.remove();
+    await sleep(380); // 정적 — 긴장 한 박자
+  }
+  function finRipple(x, y) {
+    const layer = ensureParticleLayer();
+    const w = svgEl('g', { transform: `translate(${x},${y})` });
+    const e = svgEl('ellipse', { cx: 0, cy: 0, rx: 7, ry: 2.6, fill: 'none', stroke: 'rgba(200,235,245,0.55)', 'stroke-width': 2 });
+    w.appendChild(e); layer.appendChild(w);
+    const a = e.animate(
+      [{ transform: 'scale(1)', opacity: 0.65 }, { transform: 'scale(3.4)', opacity: 0 }],
+      { duration: 900, easing: 'ease-out' }
+    );
+    a.onfinish = () => w.remove();
+  }
+  // 🦈 두 음이 점점 빨라지는 추격 테마 (상어 전용)
+  function sfxJaws(ms) {
+    if (!state.sound) return;
+    if (!audioReady()) return;
+    let t = 0, gap = 560, i = 0;
+    const notes = [82.4, 87.3]; // E2 ↔ F2 반음 왕복
+    while (t < ms) {
+      const f = notes[i % 2];
+      setTimeout(() => { tone(f, 0.26, 'sawtooth', 0.13); tone(f / 2, 0.26, 'triangle', 0.17); }, t);
+      i++; t += gap; gap = Math.max(150, gap * 0.87);
+    }
   }
 
   function blink() {
