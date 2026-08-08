@@ -617,43 +617,127 @@
   }
 
   // 인트로: 물 밑에서 스믈스믈 떠올라 → 입을 '악!' 벌림
+  // 캐릭터 이름/포효
+  const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스', monster: '몬스터' };
+  const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!', monster: '크르릉!' };
+
+  // 🎬 시네마틱 인트로: 저 멀리서 카메라로 다가와 수면을 뚫고 포효 → 게임으로 페이드
   async function playIntro() {
     lockInput(true);
     const croc = el('croc');
+    const scene = el('scene');
+    const cinema = el('cinema');
     Jaw.breathe = false;
-    Jaw.setInstant(JAW.closed); // 입 다문 채로
-    // 물 밑 시작 (아래로 내려가 잠김)
+    Jaw.setInstant(JAW.closed);
+
+    // 컷씬 시작: 레터박스 내려오고 화면 어둡게
+    cinema.classList.add('on');
+    requestAnimationFrame(() => cinema.classList.add('bars', 'dark'));
+
+    // 딥: 크리쳐가 물속 저 멀리(작고 어둡게), 카메라 살짝 당겨짐
     croc.style.transition = 'none';
-    croc.style.transform = 'translateY(330px)';
-    croc.style.opacity = '0.12';
-    el('waterFill').style.opacity = '0.98';
-    await sleep(60);
-    // 스믈스믈 떠오름 (좌우로 살짝 흔들며)
-    const rise = croc.animate(
+    croc.style.transformOrigin = '50% 70%';
+    croc.style.transform = 'translateY(340px) scale(0.5)';
+    croc.style.opacity = '0.1';
+    scene.style.transformOrigin = '50% 60%';
+    scene.style.transition = 'none';
+    scene.style.transform = 'scale(1.18)';
+    el('waterFill').style.opacity = '0.99';
+    await sleep(120);
+
+    cineTitle(CREATURE_NAME[state.character] || '???');
+    sfxDrone(3200); // 다가오는 저음 드론 (고조)
+
+    // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
+    const approach = croc.animate(
       [
-        { transform: 'translateY(330px) translateX(-10px)', opacity: 0.12 },
-        { transform: 'translateY(210px) translateX(12px)', opacity: 0.4, offset: 0.4 },
-        { transform: 'translateY(90px) translateX(-8px)', opacity: 0.8, offset: 0.72 },
-        { transform: 'translateY(0) translateX(0)', opacity: 1 },
+        { transform: 'translateY(340px) scale(0.5)', opacity: 0.1 },
+        { transform: 'translateY(250px) translateX(16px) scale(0.66)', opacity: 0.3, offset: 0.34 },
+        { transform: 'translateY(130px) translateX(-14px) scale(0.88)', opacity: 0.75, offset: 0.72 },
+        { transform: 'translateY(0) translateX(0) scale(1)', opacity: 1 },
       ],
-      { duration: 2100, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
+      { duration: 3200, easing: 'cubic-bezier(.45,0,.22,1)', fill: 'forwards' }
     );
-    // 눈 깜빡임 (수면 위로 눈 나올 때)
-    setTimeout(() => blink(), 750);
-    setTimeout(() => { splash(300, 700, 22); sfx.splash(); }, 1350); // 수면 돌파 물보라
-    el('waterFill').animate([{ opacity: 0.98 }, { opacity: 0.82 }], { duration: 1300, delay: 900, fill: 'forwards' });
-    await rise.finished.catch(() => {});
-    croc.style.transform = 'translateY(0)'; croc.style.opacity = '1';
-    await sleep(180);
-    // 입을 '악!' 벌림
-    flash('악!', 800);
+    scene.animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1.02)' }],
+      { duration: 3200, easing: 'ease-out', fill: 'forwards' });
+    bubbles(2800);
+    setTimeout(() => blink(), 1500);
+    setTimeout(() => { splash(300, 700, 28); sfx.splash(); }, 2650); // 수면 돌파
+    el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 1700, delay: 1300, fill: 'forwards' });
+    await approach.finished.catch(() => {});
+    croc.style.transform = 'translateY(0) scale(1)'; croc.style.opacity = '1';
+
+    // 클로즈업 포효: 카메라가 확 들어갔다 나오며 입을 쫙
+    scene.animate([{ transform: 'scale(1.02)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }],
+      { duration: 720, easing: 'ease-out', fill: 'forwards' });
+    await sleep(120);
+    flash(CREATURE_ROAR[state.character] || '크아앙!', 900);
     sfx.roar();
     shake(el('stage'));
-    splash(300, 560, 18, 'rgba(180,230,255,0.8)');
-    await Jaw.to(JAW.wide, 340, easeOutBack);
-    await Jaw.to(JAW.idle, 500, easeOutCubic);
+    splash(300, 560, 22, 'rgba(180,230,255,0.85)');
+    await Jaw.to(JAW.wide, 320, easeOutBack);
+
+    // 페이드아웃 → 실제 게임: 레터박스 걷히고 카메라 원위치, UI 활성
+    cinema.classList.remove('bars', 'dark');
+    await Jaw.to(JAW.idle, 520, easeOutCubic);
+    setTimeout(() => { cinema.classList.remove('on'); scene.style.transform = ''; scene.style.transition = ''; }, 560);
     Jaw.breathe = true;
     lockInput(false);
+  }
+
+  function cineTitle(text) {
+    const t = el('cine-title');
+    t.textContent = text;
+    t.animate(
+      [
+        { opacity: 0, transform: 'translateY(14px) scale(0.96)', filter: 'blur(6px)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)', filter: 'blur(0)', offset: 0.25 },
+        { opacity: 1, offset: 0.68 },
+        { opacity: 0, transform: 'translateY(-8px)', filter: 'blur(3px)' },
+      ],
+      { duration: 2600, easing: 'ease' }
+    );
+  }
+
+  // 상승 거품 (접근 연출)
+  function bubbles(ms) {
+    const layer = ensureParticleLayer();
+    const t0 = performance.now();
+    const spawn = () => {
+      if (performance.now() - t0 > ms) return;
+      const b = document.createElementNS(SVGNS, 'circle');
+      const x = 120 + Math.random() * 360, r = 3 + Math.random() * 8;
+      b.setAttribute('cx', x); b.setAttribute('cy', 780); b.setAttribute('r', r);
+      b.setAttribute('fill', 'none'); b.setAttribute('stroke', 'rgba(180,230,240,0.5)'); b.setAttribute('stroke-width', 2);
+      layer.appendChild(b);
+      const rise = 300 + Math.random() * 260, drift = (Math.random() - 0.5) * 60;
+      const a = b.animate(
+        [{ transform: 'translate(0,0)', opacity: 0.7 }, { transform: `translate(${drift}px,${-rise}px)`, opacity: 0 }],
+        { duration: 1400 + Math.random() * 900, easing: 'ease-out' }
+      );
+      a.onfinish = () => b.remove();
+      setTimeout(spawn, 90 + Math.random() * 120);
+    };
+    spawn();
+  }
+
+  // 다가오는 저음 드론 (WebAudio, 서서히 고조)
+  function sfxDrone(ms) {
+    if (!state.sound) return;
+    const ac = audioReady(); if (!ac) return;
+    const t = ac.currentTime, dur = ms / 1000;
+    const o = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(42, t);
+    o.frequency.exponentialRampToValueAtTime(130, t + dur);
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(300, t); lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + dur * 0.82);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.3);
+    o.connect(lp).connect(g).connect(ac.destination);
+    o.start(t); o.stop(t + dur + 0.4);
+    // 긴장 심박 (접근 중 낮은 펄스)
+    for (let i = 0; i < 5; i++) setTimeout(() => tone(60, 0.12, 'sine', 0.12), (i + 1) * (ms / 6));
   }
 
   function blink() {

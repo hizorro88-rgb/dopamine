@@ -199,6 +199,20 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .tooth-glow { opacity: 0; transition: opacity .25s; }
 .tooth.pressed { pointer-events: none; }
 
+/* 🎬 시네마틱 인트로 컷씬 */
+.cinema { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s; z-index: 5; }
+.cinema.on { opacity: 1; }
+.cinema .bar { position: absolute; left: 0; right: 0; height: 15%; background: #000; transform: scaleY(0); transition: transform .55s cubic-bezier(.5,0,.2,1); }
+.cinema .bar.top { top: 0; transform-origin: top; }
+.cinema .bar.bottom { bottom: 0; transform-origin: bottom; }
+.cinema.bars .bar { transform: scaleY(1); }
+.cinema .vignette { position: absolute; inset: 0; opacity: 0; transition: opacity 1s;
+  background: radial-gradient(ellipse 70% 55% at 50% 58%, transparent 30%, rgba(0,0,0,.55) 72%, rgba(0,0,0,.92) 100%); }
+.cinema.dark .vignette { opacity: 1; }
+.cine-title { position: absolute; left: 0; right: 0; top: 30%; text-align: center;
+  font-size: clamp(30px, 8.5vw, 62px); font-weight: 900; letter-spacing: 2px; color: #fff;
+  text-shadow: 0 4px 0 rgba(0,0,0,.4), 0 0 30px rgba(0,0,0,.7); opacity: 0; }
+
 /* 무대 위 큰 텍스트 플래시 (악!, 물까?, 세이프! 등) */
 .stage-flash {
   position: absolute; inset: 0; display: grid; place-items: center;
