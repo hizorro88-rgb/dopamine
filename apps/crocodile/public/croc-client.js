@@ -403,88 +403,53 @@
   //  🖼 실사 무대 (PHOTO STAGE)
   //  인트로 영상의 '입 벌린' 마지막 컷을 배경으로 깔고, 사진 속 아랫니 아치를 따라
   //  누를 수 있는 이빨을 얹는다. 좌표는 사진(720×1280) 기준.
-  //   arch: 아랫니 뿌리(잇몸선) 아치 — [왼쪽끝x, 왼쪽끝y, 제어점x, 제어점y, 오른쪽끝x, 오른쪽끝y]
-  //     ⚠ 아랫니는 입 바닥에 일자로 놓인 게 아니라, 입 안쪽(양옆)까지 U 자로 타고 올라간다.
-  //       그래서 양 끝점 y 는 바닥(≈960)이 아니라 입꼬리 근처(≈810)다. 사진에서 실측한 값.
+  //   arch: 잇몸선을 지나는 점들 [[x,y], …] — 관리자 페이지(/dopaman/crocodile)에서 직접 그린다.
+  //     첫 이빨은 곡선 왼쪽 끝, 마지막 이빨은 오른쪽 끝에 고정되고 사이는 곡선 길이로 균등 분할된다.
+  //     실제 계산은 croc-curve.js(CrocCurve)가 담당 — 편집기 미리보기와 100% 같은 결과가 나온다.
   // ═══════════════════════════════════════════════════════════
   //   emptyGums: 아랫니를 지운 사진 → 진짜 이빨 오브젝트를 심는다(누르면 잇몸 속으로 사라짐)
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
+  //   아래 값은 서버(/api/croc/stage)를 못 읽었을 때 쓰는 기본값이다.
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [218, 830, 375, 1132, 528, 818], toothH: 60, toothW: 0.42, tilt: 0.48, maxTilt: 32, emptyGums: true },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62 },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78 },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0.48, maxTilt: 32, zoom: 1.62, emptyGums: true },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]], toothH: 78, toothW: 0.62, zoom: 1 },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]], toothH: 104, toothW: 0.78, zoom: 1 },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
-  // 아치(2차 베지어) 위의 점 — t: 0(왼쪽)~1(오른쪽)
-  function archPoint(a, t) {
-    const u = 1 - t;
-    return {
-      x: u * u * a[0] + 2 * u * t * a[2] + t * t * a[4],
-      y: u * u * a[1] + 2 * u * t * a[3] + t * t * a[5],
-    };
-  }
-  // 아치의 접선 → 이빨이 자라는 방향(잇몸 안쪽에서 바깥으로 = 법선)
-  function archNormal(a, t) {
-    const u = 1 - t;
-    const dx = 2 * u * (a[2] - a[0]) + 2 * t * (a[4] - a[2]);
-    const dy = 2 * u * (a[3] - a[1]) + 2 * t * (a[5] - a[3]);
-    const L = Math.hypot(dx, dy) || 1;
-    return { x: dy / L, y: -dx / L }; // 접선을 -90° 회전 → 항상 입 안쪽(위)을 향한다
-  }
-  // 아치를 '길이 기준'으로 균등 분할한다.
-  //   x 간격으로 나누면 U 자의 옆면(수직에 가까운 구간)에 이빨이 몰려버린다.
-  //   → 곡선 길이를 따라 나눠야 실제로 눈에 보이는 간격이 일정하다.
-  function archSamples(a, steps) {
-    const pts = [], cum = [0];
-    for (let k = 0; k <= steps; k++) {
-      const p = archPoint(a, k / steps); pts.push(p);
-      if (k) cum.push(cum[k - 1] + Math.hypot(p.x - pts[k - 1].x, p.y - pts[k - 1].y));
-    }
-    return { pts, cum, len: cum[steps] };
-  }
-  // 왼쪽 끝(0)~오른쪽 끝(1)을 곡선 길이로 균등 분할했을 때 i 번째 이빨의 t
-  function archEvenT(a, i, n) {
-    if (n <= 1) return 0.5;
-    const S = archSamples(a, 200), target = S.len * (i / (n - 1));
-    let k = 1; while (k < S.cum.length - 1 && S.cum[k] < target) k++;
-    const seg = S.cum[k] - S.cum[k - 1] || 1;
-    return ((k - 1) + (target - S.cum[k - 1]) / seg) / 200;
-  }
+
   function photoCfg() { return state.photo || null; }
-  // 이빨 배치표 (위치·기울기·크기) — 사진 좌표계. 개수가 바뀔 때만 다시 계산한다.
+  // 이빨 배치표 (위치·기울기·크기) — 사진 좌표계. 곡선이나 개수가 바뀔 때만 다시 계산한다.
   let _layoutKey = '', _layout = [];
   function photoLayout(n) {
     const cfg = photoCfg(); if (!cfg) return [];
-    const key = cfg.src + '|' + n;
+    const key = cfg.src + '|' + n + '|' + _stageRev;
     if (key === _layoutKey) return _layout;
-    const a = cfg.arch, S = archSamples(a, 200);
-    const sp = S.len / Math.max(1, n - 1); // 곡선을 따라 잰 이빨 간격
-    const w0 = Math.max(12, sp * cfg.toothW);
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      const t = archEvenT(a, i, n);
-      const p = archPoint(a, t), nv = archNormal(a, t);
-      const d = Math.abs(t - 0.5) * 2; // 0=입 앞쪽(가까움) … 1=입 안쪽(멀다)
-      // 안쪽으로 들어갈수록 원근으로 조금 작아진다 + 개체차
-      const persp = 1 - 0.26 * d;
-      // 기울기: 법선 그대로 쓰면 U 곡률 중심으로 모여 부챗살처럼 겹친다.
-      // 실제 악어 아랫니도 거의 수직으로 서 있으므로 각도를 눌러준다.
-      const raw = Math.atan2(nv.x, -nv.y) * 180 / Math.PI;
-      const mt = cfg.maxTilt == null ? 32 : cfg.maxTilt;
-      const ang = Math.max(-mt, Math.min(mt, raw * (cfg.tilt == null ? 1 : cfg.tilt)));
-      const rad = ang * Math.PI / 180;
-      out.push({
-        x: p.x, y: p.y,
-        ang, // 이빨은 로컬 -y 방향으로 자란다
-        nx: Math.sin(rad), ny: -Math.cos(rad),
-        w: w0 * persp,
-        h: cfg.toothH * persp * (0.84 + 0.3 * (((i * 53 + 17) % 11) / 10)),
-        sp,
-      });
-    }
-    _layoutKey = key; _layout = out;
-    return out;
+    _layout = window.CrocCurve.layout(cfg, n);
+    _layoutKey = key;
+    return _layout;
   }
+  // 입 클로즈업 배율 — 캐릭터별로 관리자 페이지에서 조절한다
+  function applyPhotoZoom() {
+    const cfg = photoCfg(), st = el('photo-stage');
+    if (!st) return;
+    const z = cfg && cfg.zoom ? Number(cfg.zoom) : 1;
+    st.style.setProperty('--photo-zoom', z);
+    st.classList.toggle('zoom', z > 1.001);
+  }
+  // 관리자가 저장한 무대 설정을 받아 덮어쓴다 (실패하면 위 기본값 그대로 동작)
+  let _stageRev = 0;
+  fetch('/api/croc/stage')
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j || !j.ok || !j.stages) return;
+      for (const k in PHOTO) if (j.stages[k]) Object.assign(PHOTO[k], j.stages[k]);
+      _stageRev++;
+      if (state.photo) {
+        applyPhotoZoom();
+        if (state.teeth) buildPhotoTeeth(state.teeth);
+      }
+    })
+    .catch(() => {});
 
   function buildPhotoTeeth(n) {
     const cfg = photoCfg(); if (!cfg) return;
@@ -844,8 +809,8 @@
     el('stage').classList.toggle('photo', !!state.photo);
     el('photo-stage').classList.toggle('on', !!state.photo);
     el('photo-stage').classList.toggle('real-teeth', !!(state.photo && state.photo.emptyGums));
-    // 이빨을 심은 무대는 입을 클로즈업해 이빨을 키운다 (누르기 쉽게)
-    el('photo-stage').classList.toggle('zoom', !!(state.photo && state.photo.emptyGums));
+    // 입 클로즈업 배율 (관리자 페이지에서 캐릭터별로 조절)
+    applyPhotoZoom();
     if (state.photo) {
       const img = el('photo-bg');
       if (img.getAttribute('src') !== state.photo.src) img.setAttribute('src', state.photo.src);

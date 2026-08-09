@@ -81,6 +81,7 @@ echo  ────────────────────────�
 echo   메인페이지:  http://localhost:3000/
 echo   핀볼:        http://localhost:3000/pinball
 echo   악어 룰렛:   http://localhost:3000/crocodile
+echo   잇몸 편집기: http://localhost:3000/dopaman/crocodile  ^(관리자 키 필요^)
 echo   도메인:      https://dopamine.me.kr/
 echo  ─────────────────────────────────────────────
 echo   서버/터널은 각각 새 창에서 돌아갑니다.

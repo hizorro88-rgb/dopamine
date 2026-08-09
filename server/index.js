@@ -248,15 +248,43 @@ function serveCroc(_req, res) {
     return res.status(500).send('crocodile index.html not found');
   }
   let m = 0;
-  for (const f of ['croc-client.js', 'croc-style.css', 'index.html']) {
+  for (const f of ['croc-client.js', 'croc-curve.js', 'croc-style.css', 'index.html']) {
     try { m = Math.max(m, fs.statSync(path.join(CROC_DIR, f)).mtimeMs); } catch {}
   }
   const v = Math.floor(m).toString(36);
-  html = html.replace(/(\/crocodile\/(?:croc-client\.js|croc-style\.css))(?=")/g, `$1?v=${v}`);
+  html = html.replace(/(\/crocodile\/(?:croc-client\.js|croc-curve\.js|croc-style\.css))(?=")/g, `$1?v=${v}`);
   res.set('Cache-Control', 'no-cache');
   res.type('html').send(html);
 }
 app.get(['/crocodile', '/crocodile/'], serveCroc);
+
+// ── 🐊 실사 무대 설정 (잇몸 곡선) ──
+//    관리자가 /dopaman/crocodile 에서 직접 곡선을 그려 저장하고,
+//    게임 클라이언트는 /api/croc/stage 로 읽어가 그 곡선 위에 이빨을 배치한다.
+const { StageStore: CrocStageStore } = require('../apps/crocodile/stage-config');
+const crocStage = new CrocStageStore();
+app.get('/api/croc/stage', (_req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.json({ ok: true, stages: crocStage.all() });
+});
+app.get('/api/admin/croc/stage', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ ok: true, stages: crocStage.all(), defaults: crocStage.defaults() });
+});
+app.post('/api/admin/croc/stage', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { character, ...patch } = req.body || {};
+  res.json(crocStage.update(character, patch));
+});
+app.post('/api/admin/croc/stage/reset', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json(crocStage.reset((req.body || {}).character));
+});
+// 잇몸 곡선 편집기 (숨은 경로 — 관리자 키가 있어야 실제 데이터가 열린다)
+app.get(['/dopaman/crocodile', '/dopaman/crocodile/'], (_req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(CROC_DIR, 'admin.html'));
+});
 
 // 이벤트 리플레이 (gzip 으로 미리 압축해둔 것을 그대로 서빙)
 app.get('/api/replay/:code', (req, res) => {

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>🐊 무대 편집기 — DOPAMINE</title>
+<link rel="stylesheet" href="/crocodile/croc-admin.css" />
+</head>
+<body>
+  <header class="bar">
+    <h1>🐊 악어 룰렛 · 잇몸 곡선 편집기</h1>
+    <div class="key">
+      <input id="admin-key" type="password" placeholder="관리자 키" autocomplete="off" />
+      <button id="btn-load" class="btn">불러오기</button>
+    </div>
+  </header>
+
+  <p id="msg" class="msg"></p>
+
+  <div id="app" class="app hidden">
+    <!-- 왼쪽: 사진 + 곡선 -->
+    <div class="canvas-wrap">
+      <div class="tabs" id="tabs"></div>
+      <div class="canvas" id="canvas">
+        <img id="bg" alt="" />
+        <svg id="svg" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="pTooth" x1="0" y1="0" x2="0.25" y2="1">
+              <stop offset="0" stop-color="#fdfaf0"/>
+              <stop offset="0.5" stop-color="#eae2cd"/>
+              <stop offset="1" stop-color="#b6a98c"/>
+            </linearGradient>
+          </defs>
+          <path id="curve" class="curve" d="" />
+          <g id="teeth"></g>
+          <g id="handles"></g>
+        </svg>
+      </div>
+      <p class="hint">
+        빈 곳을 <b>클릭</b>하면 그 자리(곡선상 가장 가까운 구간)에 점이 추가돼요 ·
+        점을 <b>끌어서</b> 이동 · 점을 <b>더블클릭</b>하면 삭제 (최소 2개)
+      </p>
+    </div>
+
+    <!-- 오른쪽: 조절판 -->
+    <div class="panel">
+      <section>
+        <h2>미리보기</h2>
+        <label class="row"><span>이빨 개수</span>
+          <input id="n" type="range" min="8" max="16" step="1" value="8" /><b id="n-val">8</b></label>
+        <label class="row check"><input id="show-teeth" type="checkbox" checked /> 이빨 표시</label>
+        <label class="row check"><input id="show-zoom" type="checkbox" /> 게임 화면처럼 확대해서 보기</label>
+      </section>
+
+      <section>
+        <h2>이빨 모양</h2>
+        <label class="row"><span>길이</span>
+          <input id="toothH" type="range" min="20" max="180" step="2" /><b id="toothH-val"></b></label>
+        <label class="row"><span>두께</span>
+          <input id="toothW" type="range" min="0.15" max="1.2" step="0.01" /><b id="toothW-val"></b></label>
+        <label class="row"><span>기울기</span>
+          <input id="tilt" type="range" min="0" max="1.2" step="0.02" /><b id="tilt-val"></b></label>
+        <label class="row"><span>최대 각도</span>
+          <input id="maxTilt" type="range" min="0" max="90" step="1" /><b id="maxTilt-val"></b></label>
+        <p class="note">기울기 0 = 전부 수직 · 1 = 잇몸선에 완전히 직각. 값이 크면 U자 안쪽에서 이빨끼리 겹칩니다.</p>
+      </section>
+
+      <section>
+        <h2>게임 화면</h2>
+        <label class="row"><span>입 확대</span>
+          <input id="zoom" type="range" min="1" max="2.6" step="0.02" /><b id="zoom-val"></b></label>
+        <label class="row check"><input id="emptyGums" type="checkbox" />
+          아랫니를 지운 사진 (진짜 이빨을 심음)</label>
+        <p class="note">체크 해제하면 사진에 있는 이빨 위에 누를 수 있는 마커만 얹습니다.</p>
+      </section>
+
+      <section class="actions">
+        <button id="btn-save" class="btn primary">저장</button>
+        <button id="btn-reset" class="btn ghost">기본값으로</button>
+        <span id="save-msg" class="save-msg"></span>
+      </section>
+
+      <section>
+        <h2>좌표</h2>
+        <textarea id="coords" rows="6" spellcheck="false"></textarea>
+        <button id="btn-apply-coords" class="btn ghost small">좌표 적용</button>
+        <p class="note">사진 720×1280 기준. 다른 데서 잰 값을 붙여넣을 수 있어요.</p>
+      </section>
+    </div>
+  </div>
+
+<script src="/crocodile/croc-curve.js"></script>
+<script src="/crocodile/croc-admin.js"></script>
+</body>
+</html>
