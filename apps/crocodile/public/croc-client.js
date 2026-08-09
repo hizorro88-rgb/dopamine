@@ -405,10 +405,12 @@
   //  누를 수 있는 이빨을 얹는다. 좌표는 사진(720×1280) 기준.
   //   arch: 아랫니 뿌리(잇몸선) 아치 — [왼쪽x, 왼쪽y, 중앙x, 중앙y(제어점), 오른쪽x, 오른쪽y]
   // ═══════════════════════════════════════════════════════════
+  //   emptyGums: 아랫니를 지운 사진 → 진짜 이빨 오브젝트를 심는다(누르면 잇몸 속으로 사라짐)
+  //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [232, 934, 366, 1064, 502, 940], toothH: 96, toothW: 0.72, bandUp: 175, bandDown: 210 },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62, bandUp: 150, bandDown: 200 },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78, bandUp: 185, bandDown: 205 },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [222, 952, 360, 1002, 488, 950], toothH: 100, toothW: 0.56, emptyGums: true },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62 },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78 },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
   // 아치(2차 베지어) 위의 점 — t: 0(왼쪽)~1(오른쪽)
@@ -425,8 +427,52 @@
     const cfg = photoCfg(); if (!cfg) return;
     const gum = el('photo-gum'), teeth = el('photo-teeth'), a = cfg.arch;
     gum.innerHTML = ''; teeth.innerHTML = '';
-    // 사진은 그대로 둔다 — 실제 이빨 아치 위에 '누를 수 있는' 마커만 얹는다.
-    // 누르면 그 자리에 이빨이 뽑힌 듯한 검은 구멍이 남는다.
+
+    // 🦷 아랫니를 지운 사진 → 잇몸선 위에 '진짜 이빨'을 심는다.
+    //    누르면 잇몸 속으로 실제로 쑥 들어가 사라진다 (아치 클립).
+    if (cfg.emptyGums) {
+      el('pGumClipPath').setAttribute('d',
+        `M-200,-400 L${PW + 200},-400 L${PW + 200},${a[5] + 6} `
+        + `Q${a[2]},${a[3] + 6} ${a[0] - 200},${a[1] + 6} Z`);
+      teeth.setAttribute('clip-path', 'url(#pGumClip)');
+      const sp = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
+      const w0 = Math.max(15, sp * cfg.toothW);
+      for (let i = 0; i < n; i++) {
+        const t = n <= 1 ? 0.5 : i / (n - 1);
+        const p = archPoint(a, t);
+        // 악어는 바깥쪽 송곳니가 길고 중앙이 짧다 + 개체차
+        const h = cfg.toothH * (0.55 + 0.62 * Math.abs(t - 0.5) * 2) * (0.8 + 0.32 * (((i * 53 + 17) % 11) / 10));
+        const w = w0 * (0.86 + 0.28 * Math.abs(t - 0.5) * 2);
+        const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
+        g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -w * 0.8, y: -h - 6, width: w * 1.6, height: h + 22, fill: 'transparent' }));
+        const inner = svgEl('g', { class: 'tooth-inner' });
+        // 내 차례 표시용 글로우 (평소엔 CSS 로 숨김)
+        inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.52, rx: w * 1.15, ry: h * 0.66, fill: 'rgba(255,236,170,.24)' }));
+        // 잇몸에 박힌 뿌리 그림자
+        inner.appendChild(svgEl('ellipse', { cx: 0, cy: -2, rx: w * 0.56, ry: 9, fill: 'rgba(60,20,26,.75)' }));
+        // 이빨 본체
+        inner.appendChild(svgEl('path', {
+          d: toothPath(w, h, false, 'conic'),
+          fill: 'url(#pTooth)', stroke: 'rgba(86,66,44,.5)', 'stroke-width': 1.4,
+        }));
+        // 왼쪽 하이라이트 + 오른쪽 음영 (입체감)
+        inner.appendChild(svgEl('path', {
+          d: `M${-w * 0.19},${-h * 0.12} Q${-w * 0.1},${-h * 0.58} ${-w * 0.02},${-h * 0.85}`,
+          fill: 'none', stroke: 'rgba(255,255,255,.6)', 'stroke-width': w * 0.15, 'stroke-linecap': 'round',
+        }));
+        inner.appendChild(svgEl('path', {
+          d: `M${w * 0.26},${-h * 0.1} Q${w * 0.17},${-h * 0.5} ${w * 0.05},${-h * 0.8}`,
+          fill: 'none', stroke: 'rgba(90,70,45,.28)', 'stroke-width': w * 0.13, 'stroke-linecap': 'round',
+        }));
+        g.appendChild(inner);
+        g.addEventListener('click', () => onToothClick(i));
+        teeth.appendChild(g);
+      }
+      return;
+    }
+
+    // (사진에 이빨이 그대로 있는 캐릭터) 실제 이빨 위에 마커만 얹는다
+    teeth.removeAttribute('clip-path');
     const spacing = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
     const w = Math.max(16, spacing * cfg.toothW);
     const h = cfg.toothH;
@@ -729,6 +775,7 @@
     state.photo = PHOTO[room.character] || null;
     el('stage').classList.toggle('photo', !!state.photo);
     el('photo-stage').classList.toggle('on', !!state.photo);
+    el('photo-stage').classList.toggle('real-teeth', !!(state.photo && state.photo.emptyGums));
     if (state.photo) {
       const img = el('photo-bg');
       if (img.getAttribute('src') !== state.photo.src) img.setAttribute('src', state.photo.src);
@@ -1137,7 +1184,8 @@
     if (inner && inner.parentElement.classList.contains('pressed')) return;
     // 즉시 잠금 + 살짝 눌린 피드백 (서버 이벤트가 본 연출을 재생)
     lockInput(true);
-    if (inner) inner.style.transform = photoCfg() ? 'scale(.82)' : 'translateY(6px)';
+    const pcf = photoCfg();
+    if (inner) inner.style.transform = (pcf && !pcf.emptyGums) ? 'scale(.82)' : 'translateY(6px)';
     sfx.tick();
     socket.emit('croc:press', { tooth: i });
     // 안전망: 서버가 이 press 를 무시했다면(스테일 턴 등) 잠금이 영원히 안 풀리는 것 방지
@@ -1156,7 +1204,17 @@
     if (!g) return;
     g.classList.add('pressed');
     g.classList.remove('pressable');
-    if (photoCfg()) {
+    const pc = photoCfg();
+    if (pc && pc.emptyGums) {
+      // 🦷 진짜 이빨이 잇몸 속으로 쑥 — 아치 클립 덕분에 잇몸선 아래로 사라진다
+      const inner0 = g.querySelector('.tooth-inner');
+      if (inner0) inner0.animate(
+        [{ transform: 'translateY(0)' }, { transform: 'translateY(-6px)', offset: 0.12 }, { transform: 'translateY(150px)' }],
+        { duration: 380, easing: 'cubic-bezier(.4,0,.3,1)', fill: 'forwards' }
+      );
+      return;
+    }
+    if (pc) {
       // 마커는 아래로 쏙 꺼지고, 그 자리에 이빨 빠진 자국이 드러난다
       const inner0 = g.querySelector('.tooth-inner');
       const hole = g.querySelector('.tooth-hole');
@@ -1199,8 +1257,19 @@
     const a = img.animate(frames, { duration: dur, easing: easing || 'ease-in-out', fill: 'forwards' });
     return a.finished.catch(() => {});
   }
+  // 연출이 끝나면 사진을 원래 상태로 (밝기·확대가 중간값에 멈추는 것 방지)
+  function photoReset() {
+    const img = el('photo-bg');
+    if (!img) return;
+    img.getAnimations().forEach((a) => a.cancel());
+    img.style.transform = '';
+    img.style.filter = '';
+  }
   // 실사 무대 드라마 — 사진을 다가오게/흔들리게 해서 '물 것 같은' 긴장을 만든다
   async function playPhotoDrama(kind, i) {
+    try { await playPhotoDramaInner(kind, i); } finally { photoReset(); }
+  }
+  async function playPhotoDramaInner(kind, i) {
     const n = state.teeth;
     const tip = photoToothTip(i, n);
     switch (kind) {
@@ -1649,7 +1718,12 @@
     const g = toothAt(i);
     if (g && !g.classList.contains('pressed')) {
       g.classList.add('pressed'); g.classList.remove('pressable');
-      if (photoCfg()) {
+      const pcm = photoCfg();
+      if (pcm && pcm.emptyGums) {
+        const i0 = g.querySelector('.tooth-inner'); if (i0) i0.style.transform = 'translateY(150px)';
+        return;
+      }
+      if (pcm) {
         const i0 = g.querySelector('.tooth-inner'); if (i0) i0.style.opacity = '0';
         const h0 = g.querySelector('.tooth-hole'); if (h0) h0.setAttribute('opacity', '1');
         return;
