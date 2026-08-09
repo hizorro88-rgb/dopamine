@@ -126,7 +126,7 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .opt-label { font-size: 12px; color: var(--ink-dim); font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
 .opt-row { display: flex; gap: 14px; }
 .opt-row .opt-group { flex: 1; }
-.char-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.char-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .char-btn {
   appearance: none; border: 2px solid var(--card-line); background: rgba(255,255,255,.04);
   border-radius: 14px; padding: 10px 4px; font-size: 30px; cursor: pointer; color: var(--ink);
@@ -175,8 +175,6 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .stage[data-char="shark"] { --skin-1:#6f7e8b; --skin-2:#3c4956; --skin-shadow:#222b35; --skin-belly:#cfd6da; --skin-edge:#0f161d; --sky-1:#2a3542; --sky-2:#6b4438; --water-1:#1d3548; --water-2:#0a1a28; --water-edge:#d8a37a; }
 /* 티라노 — 폭풍우 정글 늪 + 회베이지 (영상 톤) */
 .stage[data-char="dino"] { --skin-1:#9aa089; --skin-2:#5e6550; --skin-shadow:#383e2e; --skin-belly:#bcc0a8; --skin-edge:#1f2418; --sky-1:#3d464e; --sky-2:#252d34; --water-1:#4a4a30; --water-2:#23230f; --water-edge:#9aa27a; }
-/* 몬스터 — 칠흑 폭풍 호수의 검은 악마 (영상 톤) */
-.stage[data-char="monster"] { --skin-1:#3d424e; --skin-2:#242832; --skin-shadow:#121419; --skin-belly:#4d525f; --skin-edge:#04060a; --sky-1:#161a22; --sky-2:#090b11; --water-1:#1b222c; --water-2:#0a0e14; --water-edge:#5a6a80; }
 
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 /* 무대에서 탭을 받는 건 오직 '누를 수 있는 아래 이빨' 뿐 — 위턱/눈/물 등 장식이 탭을 가로채지 않도록. */

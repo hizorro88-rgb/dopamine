@@ -32,7 +32,7 @@ const COLORS = [
   '#4fd6d0', '#f56a9e', '#9fd15a', '#c0b0a0', '#7f8cff', '#ffd24a',
 ];
 
-const CHARACTERS = new Set(['crocodile', 'shark', 'dino', 'monster']);
+const CHARACTERS = new Set(['crocodile', 'shark', 'dino']);
 
 // 헷갈리는 문자(0/O,1/I) 제외
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

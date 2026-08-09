@@ -250,23 +250,6 @@
     g.appendChild(svgEl('rect', { x: -len / 2, y: -thick / 2, width: len, height: thick, rx: thick / 2, fill, stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
     return g;
   }
-  function hornSpike(cx, cy, rot) {
-    const g = svgEl('g', { transform: `translate(${cx},${cy}) rotate(${rot})` });
-    g.appendChild(svgEl('path', { d: 'M-15,12 L0,-56 L15,12 Q0,2 -15,12 Z', fill: 'var(--skin-2)', stroke: 'var(--skin-edge)', 'stroke-width': 3 }));
-    g.appendChild(svgEl('path', { d: 'M-6,8 L0,-40 L4,8 Z', fill: 'var(--skin-shadow)', opacity: 0.5 }));
-    return g;
-  }
-  // 👹 큰 곡선 뿔 (영상의 황소뿔 느낌 — 바깥으로 휘어 올라가 끝이 뾰족)
-  function curvedHorn(cx, cy, flip) {
-    const g = svgEl('g', { transform: `translate(${cx},${cy})${flip ? ' scale(-1,1)' : ''}` });
-    g.appendChild(svgEl('path', {
-      d: 'M6,18 C-28,6 -50,-30 -44,-78 C-41,-102 -26,-122 -6,-132 C-18,-106 -20,-82 -10,-56 C0,-30 8,-6 6,18 Z',
-      fill: '#15161d', stroke: '#04060a', 'stroke-width': 4,
-    }));
-    g.appendChild(svgEl('path', { d: 'M-2,6 C-24,-6 -38,-38 -34,-72', fill: 'none', stroke: '#2c2e3a', 'stroke-width': 4, opacity: 0.7, 'stroke-linecap': 'round' }));
-    return g;
-  }
-
   // ── 캐릭터별 배경 (오프닝 영상의 무대와 톤 맞춤) ──
   function treeMoss(x, flip) {
     // 이끼 늘어진 늪 나무 실루엣 (악어)
@@ -306,14 +289,6 @@
         const x = ((i * 89 + 31) % 600), y = (i * 61) % 480;
         add(svgEl('line', { x1: x, y1: y, x2: x - 13, y2: y + 95, stroke: 'rgba(205,215,220,0.10)', 'stroke-width': 2 }));
       }
-    } else if (char === 'monster') {
-      // 칠흑 호수: 침엽수 실루엣 지평선 + 폭풍 구름
-      for (let i = 0; i < 9; i++) {
-        const x = 25 + i * 69, h = 55 + ((i * 37) % 55);
-        add(svgEl('path', { d: `M${x - 27},702 L${x},${702 - h} L${x + 27},702 Z`, fill: 'rgba(4,7,11,0.85)' }));
-      }
-      add(svgEl('ellipse', { cx: 150, cy: 110, rx: 210, ry: 48, fill: 'rgba(8,10,16,0.6)' }));
-      add(svgEl('ellipse', { cx: 470, cy: 175, rx: 230, ry: 54, fill: 'rgba(8,10,16,0.5)' }));
     } else {
       // 악어(기본): 보름달 + 달빛 + 이끼 나무 + 물안개
       add(svgEl('circle', { cx: 468, cy: 148, r: 92, fill: 'rgba(200,215,235,0.09)' }));
@@ -419,26 +394,6 @@
         n.appendChild(svgEl('ellipse', { cx: 280, cy: 448, rx: 13, ry: 10, fill: '#0c0c08', opacity: 0.78 }));
         n.appendChild(svgEl('ellipse', { cx: 320, cy: 448, rx: 13, ry: 10, fill: '#0c0c08', opacity: 0.78 }));
         for (let i = 0; i < 8; i++) { const x = 140 + i * 46; scuteBump(ls, x, 724 + (i % 2) * 10, 11, 8); }
-      },
-    },
-    monster: {
-      upper: 'M62,612 Q42,470 132,428 Q210,400 300,398 Q390,400 468,428 Q558,470 538,612 Q300,556 62,612 Z',
-      lower: 'M66,600 Q300,548 534,600 Q580,678 550,802 Q300,880 50,802 Q20,678 66,600 Z',
-      mouthFill: 'url(#mouthGrad)', tongue: '#4a1030', dorsal: null, texU: 0.18, texL: 0.16,
-      tooth: { style: 'conic', wMul: 0.62, hMul: 1.06 },
-      buildEyes(g) { eyePredator(g, 210, 442, -10, '#ff4a3a'); eyePredator(g, 390, 442, 10, '#ff4a3a'); },
-      buildFeatures() {
-        const r = el('ridges'), ls = el('lowerScutes'), n = el('nostrils');
-        // 영상 속 악마처럼 크게 휘어 올라간 검은 황소뿔
-        r.appendChild(curvedHorn(178, 424, false));
-        r.appendChild(curvedHorn(422, 424, true));
-        r.appendChild(capsule(210, 418, 58, 15, 20, 'var(--skin-1)'));
-        r.appendChild(capsule(390, 418, 58, 15, -20, 'var(--skin-1)'));
-        for (let k = 0; k < 4; k++) { const y = 490 + k * 26; scuteBump(r, 285, y, 12, 9); scuteBump(r, 315, y, 12, 9); }
-        for (let i = 0; i < 3; i++) { scuteBump(r, 120 + i * 10, 545 + i * 16, 9, 7); scuteBump(r, 480 - i * 10, 545 + i * 16, 9, 7); }
-        n.appendChild(svgEl('ellipse', { cx: 272, cy: 456, rx: 15, ry: 11, fill: '#0c0c08', opacity: 0.7 }));
-        n.appendChild(svgEl('ellipse', { cx: 328, cy: 456, rx: 15, ry: 11, fill: '#0c0c08', opacity: 0.7 }));
-        for (let i = 0; i < 8; i++) { const x = 140 + i * 46; scuteBump(ls, x, 726 + (i % 2) * 10, 11, 8); }
       },
     },
   };
@@ -704,8 +659,8 @@
 
   // 인트로: 물 밑에서 스믈스믈 떠올라 → 입을 '악!' 벌림
   // 캐릭터 이름/포효
-  const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스', monster: '몬스터' };
-  const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!', monster: '크르릉!' };
+  const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스' };
+  const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!' };
 
   // 🎞 실사 영상 재생기 — 오프닝({캐릭터}.mp4)과 물기 엔딩({캐릭터}-bite.mp4) 공용.
   //    파일이 없거나 재생 불가면 false → 기존 SVG 연출로 폴백.
@@ -820,11 +775,6 @@
         { duration: 3000, easing: 'ease-out', fill: 'forwards' });
       setTimeout(() => blink(), 1600);
       await dinoStompIntro(croc);
-    } else if (state.character === 'monster') {
-      // 👹 공포 등장: 어둠 속 붉은 눈 → 번개가 칠 때마다 실루엣이 확 가까워져 있다
-      scene.animate([{ transform: 'scale(1.16)' }, { transform: 'scale(1.02)' }],
-        { duration: 3200, easing: 'ease-out', fill: 'forwards' });
-      await monsterIntro(croc);
     } else {
       sfxDrone(3200); // 다가오는 저음 드론 (고조)
       // 접근: 점점 커지며 좌우로 스웨이하며 다가옴 + 카메라 서서히 줌인
@@ -1041,54 +991,6 @@
     if (!audioReady()) return;
     tone(55, 0.22, 'sine', g, 28);
     noise(0.09, g * 0.7);
-  }
-
-  // 👹 공포 등장: 어둠 속 멀리 붉은 눈 한 쌍 → 번개가 칠 때마다 실루엣이 '순간이동'처럼 다가온다
-  async function monsterIntro(croc) {
-    const layer = ensureParticleLayer();
-    croc.style.transform = 'translateY(310px) scale(0.6)';
-    croc.style.opacity = '0.03';
-    // 멀리 어둠 속 붉은 눈 (작게 = 멀리 있음)
-    const g = svgEl('g', { transform: 'translate(300,560)' });
-    const eL = svgEl('ellipse', { cx: -26, cy: 0, rx: 9, ry: 6.5, fill: '#ff2d1a', opacity: 0 });
-    const eR = svgEl('ellipse', { cx: 26, cy: 0, rx: 9, ry: 6.5, fill: '#ff2d1a', opacity: 0 });
-    g.appendChild(eL); g.appendChild(eR); layer.appendChild(g);
-    const setEyes = (o) => { eL.setAttribute('opacity', o); eR.setAttribute('opacity', o); };
-    await sleep(300);
-    setEyes(0.95); tone(220, 0.3, 'sine', 0.08, 90); // 눈 점등
-    await sleep(650);
-    setEyes(0); await sleep(150); setEyes(1); // 깜빡…
-    await sleep(600);
-    // 번개 3연발 — 칠 때마다 훨씬 가까워져 있다 (트랜지션 없이 순간이동)
-    const jumps = [
-      { y: 200, s: 0.75, o: 0.5 },
-      { y: 90, s: 0.9, o: 0.75 },
-      { y: 0, s: 1, o: 1 },
-    ];
-    for (let k = 0; k < jumps.length; k++) {
-      const j = jumps[k];
-      lightning(k === jumps.length - 1);
-      if (k === 0) g.remove(); // 번개가 치면 먼 눈 대신 실루엣이 보인다
-      croc.style.transform = `translateY(${j.y}px) scale(${j.s})`;
-      croc.style.opacity = String(j.o);
-      await sleep(k === jumps.length - 1 ? 520 : 430 + Math.random() * 240);
-    }
-    el('waterFill').animate([{ opacity: 0.99 }, { opacity: 0.82 }], { duration: 700, fill: 'forwards' });
-    splash(300, 700, 20); sfx.splash();
-  }
-  // ⚡ 번개: 흰 플래시 두 번 깜빡 + 천둥
-  function lightning(big) {
-    const s = el('stage');
-    const ov = document.createElement('div');
-    ov.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:4;background:radial-gradient(circle at 50% 18%, rgba(255,255,255,.95), rgba(200,220,255,.35) 55%, transparent 80%);';
-    s.appendChild(ov);
-    ov.animate(
-      [{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 0.25, offset: 0.22 }, { opacity: 0.85, offset: 0.34 }, { opacity: 0 }],
-      { duration: big ? 700 : 450, easing: 'ease-out' }
-    ).onfinish = () => ov.remove();
-    noise(big ? 0.5 : 0.3, big ? 0.3 : 0.2);
-    tone(70, big ? 0.6 : 0.35, 'sawtooth', big ? 0.2 : 0.12, 40);
-    if (big) shake(s);
   }
 
   function blink() {
