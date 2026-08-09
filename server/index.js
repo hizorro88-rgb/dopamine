@@ -338,6 +338,19 @@ process.on('unhandledRejection', (err) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// 포트가 이미 사용 중이면(이전 서버가 아직 떠 있으면) 스택트레이스 대신 원인과 해결법을 알려주고 종료.
+// (autodeploy 가 5초마다 재시작하므로, 명확한 메시지가 없으면 원인 파악이 어렵다)
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error('');
+    console.error(`❌ 포트 ${PORT} 가 이미 사용 중입니다 — 이전 서버가 아직 떠 있습니다.`);
+    console.error('   해결: 이전 서버 창을 닫거나, 윈도우 cmd 에서  taskkill /f /im node.exe  실행 후 다시 시작하세요.');
+    console.error('   (scripts\\start-all.bat 은 시작 전에 이전 서버를 자동으로 확인·정리합니다)');
+    console.error('');
+    process.exit(1);
+  }
+  throw err;
+});
 server.listen(PORT, () => {
   console.log(`🎱 핀볼 공뽑기 서버 실행 중: http://localhost:${PORT}`);
 });

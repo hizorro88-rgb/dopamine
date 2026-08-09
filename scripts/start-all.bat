@@ -36,6 +36,22 @@ if not exist node_modules (
   call npm install
 )
 
+rem ── 포트 3000 이 이미 사용 중이면(이전 서버가 떠 있으면) 정리하고 시작 ──
+set BUSYPID=
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":3000 "') do set BUSYPID=%%p
+if defined BUSYPID (
+  echo  [경고] 포트 3000 이 이미 사용 중입니다 ^(PID %BUSYPID%^) — 이전 서버가 떠 있는 것 같습니다.
+  choice /c YN /m "  이전 서버를 종료하고 계속할까요"
+  if errorlevel 2 (
+    echo  취소했습니다. 이전 서버 창을 직접 닫은 뒤 다시 실행하세요.
+    pause
+    exit /b 1
+  )
+  for /f "tokens=5" %%p in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":3000 "') do taskkill /f /pid %%p >nul 2>nul
+  timeout /t 2 /nobreak >nul
+  echo  이전 서버를 종료했습니다.
+)
+
 rem 1) 서버 (자동배포 모드) — 새 창에서 실행
 start "DOPAMINE 서버" cmd /k "chcp 65001 >nul & node scripts\autodeploy.js"
 
