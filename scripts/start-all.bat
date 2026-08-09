@@ -49,6 +49,18 @@ if defined BUSYPID (
   )
   for /f "tokens=5" %%p in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":3000 "') do taskkill /f /pid %%p >nul 2>nul
   timeout /t 2 /nobreak >nul
+  rem 정리됐는지 재확인 — 관리자 권한 프로세스는 일반 권한으로 못 죽인다
+  set STILLBUSY=
+  for /f "tokens=5" %%p in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":3000 "') do set STILLBUSY=%%p
+  if defined STILLBUSY (
+    echo.
+    echo  [실패] 이전 서버를 종료하지 못했습니다 ^(액세스 거부 — 관리자 권한 프로세스^).
+    echo  해결: 이 파일^(start-all.bat^)을 우클릭 - "관리자 권한으로 실행" 하거나,
+    echo        관리자 터미널에서  taskkill /f /im node.exe  실행 후 다시 시작하세요.
+    echo.
+    pause
+    exit /b 1
+  )
   echo  이전 서버를 종료했습니다.
 )
 
