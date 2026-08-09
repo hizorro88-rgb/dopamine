@@ -403,12 +403,14 @@
   //  🖼 실사 무대 (PHOTO STAGE)
   //  인트로 영상의 '입 벌린' 마지막 컷을 배경으로 깔고, 사진 속 아랫니 아치를 따라
   //  누를 수 있는 이빨을 얹는다. 좌표는 사진(720×1280) 기준.
-  //   arch: 아랫니 뿌리(잇몸선) 아치 — [왼쪽x, 왼쪽y, 중앙x, 중앙y(제어점), 오른쪽x, 오른쪽y]
+  //   arch: 아랫니 뿌리(잇몸선) 아치 — [왼쪽끝x, 왼쪽끝y, 제어점x, 제어점y, 오른쪽끝x, 오른쪽끝y]
+  //     ⚠ 아랫니는 입 바닥에 일자로 놓인 게 아니라, 입 안쪽(양옆)까지 U 자로 타고 올라간다.
+  //       그래서 양 끝점 y 는 바닥(≈960)이 아니라 입꼬리 근처(≈810)다. 사진에서 실측한 값.
   // ═══════════════════════════════════════════════════════════
   //   emptyGums: 아랫니를 지운 사진 → 진짜 이빨 오브젝트를 심는다(누르면 잇몸 속으로 사라짐)
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [203, 956, 360, 1002, 509, 952], toothH: 100, toothW: 0.5, emptyGums: true },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [218, 830, 375, 1132, 528, 818], toothH: 60, toothW: 0.42, tilt: 0.48, maxTilt: 32, emptyGums: true },
     shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62 },
     dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78 },
   };
@@ -421,7 +423,68 @@
       y: u * u * a[1] + 2 * u * t * a[3] + t * t * a[5],
     };
   }
+  // 아치의 접선 → 이빨이 자라는 방향(잇몸 안쪽에서 바깥으로 = 법선)
+  function archNormal(a, t) {
+    const u = 1 - t;
+    const dx = 2 * u * (a[2] - a[0]) + 2 * t * (a[4] - a[2]);
+    const dy = 2 * u * (a[3] - a[1]) + 2 * t * (a[5] - a[3]);
+    const L = Math.hypot(dx, dy) || 1;
+    return { x: dy / L, y: -dx / L }; // 접선을 -90° 회전 → 항상 입 안쪽(위)을 향한다
+  }
+  // 아치를 '길이 기준'으로 균등 분할한다.
+  //   x 간격으로 나누면 U 자의 옆면(수직에 가까운 구간)에 이빨이 몰려버린다.
+  //   → 곡선 길이를 따라 나눠야 실제로 눈에 보이는 간격이 일정하다.
+  function archSamples(a, steps) {
+    const pts = [], cum = [0];
+    for (let k = 0; k <= steps; k++) {
+      const p = archPoint(a, k / steps); pts.push(p);
+      if (k) cum.push(cum[k - 1] + Math.hypot(p.x - pts[k - 1].x, p.y - pts[k - 1].y));
+    }
+    return { pts, cum, len: cum[steps] };
+  }
+  // 왼쪽 끝(0)~오른쪽 끝(1)을 곡선 길이로 균등 분할했을 때 i 번째 이빨의 t
+  function archEvenT(a, i, n) {
+    if (n <= 1) return 0.5;
+    const S = archSamples(a, 200), target = S.len * (i / (n - 1));
+    let k = 1; while (k < S.cum.length - 1 && S.cum[k] < target) k++;
+    const seg = S.cum[k] - S.cum[k - 1] || 1;
+    return ((k - 1) + (target - S.cum[k - 1]) / seg) / 200;
+  }
   function photoCfg() { return state.photo || null; }
+  // 이빨 배치표 (위치·기울기·크기) — 사진 좌표계. 개수가 바뀔 때만 다시 계산한다.
+  let _layoutKey = '', _layout = [];
+  function photoLayout(n) {
+    const cfg = photoCfg(); if (!cfg) return [];
+    const key = cfg.src + '|' + n;
+    if (key === _layoutKey) return _layout;
+    const a = cfg.arch, S = archSamples(a, 200);
+    const sp = S.len / Math.max(1, n - 1); // 곡선을 따라 잰 이빨 간격
+    const w0 = Math.max(12, sp * cfg.toothW);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const t = archEvenT(a, i, n);
+      const p = archPoint(a, t), nv = archNormal(a, t);
+      const d = Math.abs(t - 0.5) * 2; // 0=입 앞쪽(가까움) … 1=입 안쪽(멀다)
+      // 안쪽으로 들어갈수록 원근으로 조금 작아진다 + 개체차
+      const persp = 1 - 0.26 * d;
+      // 기울기: 법선 그대로 쓰면 U 곡률 중심으로 모여 부챗살처럼 겹친다.
+      // 실제 악어 아랫니도 거의 수직으로 서 있으므로 각도를 눌러준다.
+      const raw = Math.atan2(nv.x, -nv.y) * 180 / Math.PI;
+      const mt = cfg.maxTilt == null ? 32 : cfg.maxTilt;
+      const ang = Math.max(-mt, Math.min(mt, raw * (cfg.tilt == null ? 1 : cfg.tilt)));
+      const rad = ang * Math.PI / 180;
+      out.push({
+        x: p.x, y: p.y,
+        ang, // 이빨은 로컬 -y 방향으로 자란다
+        nx: Math.sin(rad), ny: -Math.cos(rad),
+        w: w0 * persp,
+        h: cfg.toothH * persp * (0.84 + 0.3 * (((i * 53 + 17) % 11) / 10)),
+        sp,
+      });
+    }
+    _layoutKey = key; _layout = out;
+    return out;
+  }
 
   function buildPhotoTeeth(n) {
     const cfg = photoCfg(); if (!cfg) return;
@@ -431,26 +494,25 @@
     // 🦷 아랫니를 지운 사진 → 잇몸선 위에 '진짜 이빨'을 심는다.
     //    누르면 잇몸 속으로 실제로 쑥 들어가 사라진다 (아치 클립).
     if (cfg.emptyGums) {
-      el('pGumClipPath').setAttribute('d',
-        `M-200,-400 L${PW + 200},-400 L${PW + 200},${a[5] + 6} `
-        + `Q${a[2]},${a[3] + 6} ${a[0] - 200},${a[1] + 6} Z`);
-      teeth.setAttribute('clip-path', 'url(#pGumClip)');
-      const sp = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
-      const w0 = Math.max(11, sp * cfg.toothW); // 이빨 자체는 날씬하게 → 사이 간격 확보
+      // 클립은 이빨마다 자기 로컬 좌표계로 건다(#pToothClip) — 잇몸선이 기울어진
+      // 입 안쪽 이빨도 제 각도대로 잇몸 속으로 사라진다.
+      teeth.removeAttribute('clip-path');
+      const L = photoLayout(n);
       for (let i = 0; i < n; i++) {
-        const t = n <= 1 ? 0.5 : i / (n - 1);
-        const p = archPoint(a, t);
-        // 악어는 바깥쪽 송곳니가 길고 중앙이 짧다 + 개체차
-        const h = cfg.toothH * (0.55 + 0.62 * Math.abs(t - 0.5) * 2) * (0.8 + 0.32 * (((i * 53 + 17) % 11) / 10));
-        const w = w0 * (0.86 + 0.28 * Math.abs(t - 0.5) * 2);
-        const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
-        const hitW = Math.max(w * 1.6, sp * 0.96); // 터치 영역은 이빨보다 훨씬 넉넉하게
-        g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -hitW / 2, y: -h - 14, width: hitW, height: h + 46, fill: 'transparent' }));
+        const { x, y, ang, w, h, sp } = L[i];
+        const g = svgEl('g', {
+          class: 'tooth', 'data-i': i,
+          transform: `translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${ang.toFixed(1)})`,
+        });
+        // 터치 영역은 이빨보다 훨씬 넉넉하게 (간격의 96% 까지)
+        const hitW = Math.max(w * 1.7, sp * 0.96);
+        g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -hitW / 2, y: -h - 16, width: hitW, height: h + 48, fill: 'transparent' }));
+        const clip = svgEl('g', { 'clip-path': 'url(#pToothClip)' });
         const inner = svgEl('g', { class: 'tooth-inner' });
         // 내 차례 표시용 글로우 (평소엔 CSS 로 숨김)
-        inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.52, rx: w * 1.15, ry: h * 0.66, fill: 'rgba(255,236,170,.24)' }));
+        inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.5, rx: w * 0.92, ry: h * 0.6, fill: 'rgba(255,236,170,.2)' }));
         // 잇몸에 박힌 뿌리 그림자
-        inner.appendChild(svgEl('ellipse', { cx: 0, cy: -2, rx: w * 0.56, ry: 9, fill: 'rgba(60,20,26,.75)' }));
+        inner.appendChild(svgEl('ellipse', { cx: 0, cy: -2, rx: w * 0.56, ry: 7, fill: 'rgba(60,20,26,.7)' }));
         // 이빨 본체
         inner.appendChild(svgEl('path', {
           d: toothPath(w, h, false, 'conic'),
@@ -465,7 +527,8 @@
           d: `M${w * 0.26},${-h * 0.1} Q${w * 0.17},${-h * 0.5} ${w * 0.05},${-h * 0.8}`,
           fill: 'none', stroke: 'rgba(90,70,45,.28)', 'stroke-width': w * 0.13, 'stroke-linecap': 'round',
         }));
-        g.appendChild(inner);
+        clip.appendChild(inner);
+        g.appendChild(clip);
         g.addEventListener('click', () => onToothClick(i));
         teeth.appendChild(g);
       }
@@ -501,6 +564,10 @@
   // 실사 무대에서의 이빨 끝 좌표 (침 파티클·이름표용)
   function photoToothTip(i, n) {
     const cfg = photoCfg(); if (!cfg) return { x: PW / 2, y: PH / 2 };
+    if (cfg.emptyGums) {
+      const L = photoLayout(n), t0 = L[Math.min(i, L.length - 1)];
+      if (t0) return { x: t0.x + t0.nx * t0.h * 0.9, y: t0.y + t0.ny * t0.h * 0.9 };
+    }
     const t = n <= 1 ? 0.5 : i / (n - 1);
     const p = archPoint(cfg.arch, t);
     return { x: p.x, y: p.y - cfg.toothH * 0.9 };

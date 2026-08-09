@@ -142,7 +142,11 @@
                 <stop offset="0.5" stop-color="#eae2cd"/>
                 <stop offset="1" stop-color="#b6a98c"/>
               </linearGradient>
-              <clipPath id="pGumClip"><path id="pGumClipPath" d=""/></clipPath>
+              <!-- 이빨 하나하나의 로컬 좌표계(=기울어진 잇몸선 기준) 위쪽만 보이게 —
+                   눌리면 아래(잇몸 속)로 내려가며 잘려서 사라진다 -->
+              <clipPath id="pToothClip" clipPathUnits="userSpaceOnUse">
+                <rect x="-400" y="-2400" width="800" height="2400"/>
+              </clipPath>
             </defs>
             <g id="photo-gum"></g>
             <g id="photo-teeth"></g>
