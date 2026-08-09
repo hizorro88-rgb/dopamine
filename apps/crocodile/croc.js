@@ -69,17 +69,18 @@ function sanitizeCheer(e) {
 /**
  * 안전한 이빨을 눌렀을 때의 '드라마' 연출을 서버가 결정한다.
  * 긴장(tension) = 지금까지 누른 비율. 후반부일수록 페이크가 잦고 강해진다.
- * 반환: 'none' | 'twitch' | 'drool' | 'chomp-fake' | 'bird'
+ * 반환: 'none' | 'twitch' | 'drool' | 'headshake' | 'chomp-fake' | 'bird'
  */
 function rollDrama(pressedCount, teethCount) {
   const tension = pressedCount / teethCount; // 0 ~ 1
   const r = Math.random();
   // 초반엔 잔잔(none 위주), 후반엔 큰 페이크(chomp-fake/bird)가 자주 나온다.
-  if (r < 0.34 - tension * 0.18) return 'none'; // 아무 일 없음 (초반 34% → 후반 16%)
-  if (r < 0.55) return 'drool'; // 침이 뚝뚝
-  if (r < 0.72) return 'twitch'; // 입이 움찔움찔
+  if (r < 0.30 - tension * 0.16) return 'none'; // 아무 일 없음 (초반 30% → 후반 14%)
+  if (r < 0.48) return 'drool'; // 침이 뚝뚝
+  if (r < 0.62) return 'twitch'; // 입이 움찔움찔
+  if (r < 0.76) return 'headshake'; // 고개를 좌우로 도리도리 (물었나? 싶은 페이크)
   // 큰 연출: 긴장이 높을수록 chomp-fake(확 다물다 멈춤) / bird(악어새 방해) 비중↑
-  if (r < 0.72 + tension * 0.2) return 'bird'; // 악어새가 날아와 입을 벌려둠
+  if (r < 0.76 + tension * 0.16) return 'bird'; // 악어새가 날아와 입을 벌려둠
   return 'chomp-fake'; // 확 다물다가 코앞에서 멈춤 (최고 페이크)
 }
 

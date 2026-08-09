@@ -269,6 +269,7 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 }
 .result-overlay.show { display: grid; animation: screen-in .35s ease both; }
 .result-card {
+  position: relative; /* 붉은 도장(우상단) 기준 */
   background: linear-gradient(160deg, #16323c, #0c222b);
   border: 1px solid var(--card-line); border-radius: 24px; padding: 32px 26px;
   text-align: center; max-width: 420px; width: 100%; box-shadow: var(--shadow);
@@ -280,6 +281,80 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .result-name { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
 .result-sub { color: var(--ink-dim); margin-bottom: 22px; }
 .result-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* ══════════ 💀 좌절 연출 (결과 화면) ══════════ */
+/* 잿빛 세상: 게임 무대가 흑백으로 물들고 채도를 잃는다 */
+#screen-game.despair .stage { filter: grayscale(1) brightness(.45) contrast(1.1); transition: filter 1.4s ease; }
+
+.despair-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* 잿빛 비 */
+.despair-fx .rain { position: absolute; inset: 0; }
+.despair-fx .rain i {
+  position: absolute; top: -12%; width: 2px; height: 90px;
+  background: linear-gradient(transparent, rgba(190,205,220,.5));
+  animation: rain-fall linear infinite;
+}
+@keyframes rain-fall { to { transform: translateY(125vh); } }
+/* 화면 균열 */
+.despair-fx .cracks { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.despair-fx .cracks.show { animation: crack-in .5s cubic-bezier(.2,1.4,.4,1) forwards; }
+@keyframes crack-in { from { opacity: 0; transform: scale(1.1); } to { opacity: .85; transform: scale(1); } }
+.despair-fx .cracks path { stroke: rgba(255,255,255,.75); fill: none; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(0,0,0,.9)); }
+
+/* 결과 카드가 충격으로 휘청 */
+.result-card.slam { animation: card-slam .7s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes card-slam {
+  0% { transform: scale(1.6) rotate(-3deg); opacity: 0; }
+  40% { transform: scale(.94) rotate(1.5deg); opacity: 1; }
+  60% { transform: scale(1.02) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+/* 카드 우측 상단에 쾅 찍히는 붉은 도장 (이름을 가리지 않도록) */
+.result-name-wrap { position: static; }
+.result-stamp {
+  position: absolute; top: 14px; right: 10px; opacity: 0;
+  font-size: 26px; font-weight: 900; letter-spacing: 4px; color: #ff3b46;
+  border: 4px solid #ff3b46; border-radius: 8px; padding: 1px 10px;
+  text-shadow: 0 0 8px rgba(255,60,70,.5); box-shadow: 0 0 14px rgba(255,60,70,.3);
+  white-space: nowrap; pointer-events: none;
+}
+.result-stamp.show { animation: stamp-slam .5s cubic-bezier(.2,1.6,.4,1) forwards; }
+@keyframes stamp-slam {
+  0% { opacity: 0; transform: scale(4) rotate(-30deg); }
+  70% { opacity: .95; transform: scale(.92) rotate(-14deg); }
+  100% { opacity: .95; transform: scale(1) rotate(-12deg); }
+}
+/* 물린 사람 이름이 부들부들 */
+.result-name.tremble { animation: tremble .12s linear 14; }
+@keyframes tremble {
+  0%,100% { transform: translate(0,0); } 25% { transform: translate(-2px,1px); }
+  50% { transform: translate(2px,-1px); } 75% { transform: translate(-1px,-1px); }
+}
+
+/* ── 후원 버튼 (핀볼과 같은 금빛 고동) ── */
+.donate-btn {
+  display: block; text-align: center; text-decoration: none;
+  padding: 15px 20px; border-radius: 14px; font-size: 17px; font-weight: 900;
+  color: #241703; background: linear-gradient(135deg, #ffe9a8, #f5b73d 45%, #e0902a);
+  box-shadow: 0 6px 22px rgba(245,183,61,.45);
+  animation: donate-pulse .9s ease-in-out infinite;
+}
+.donate-btn:active { transform: scale(.96); }
+.donate-btn.hidden, .donate-hint.hidden { display: none; }
+@keyframes donate-pulse {
+  0%, 100% { box-shadow: 0 6px 22px rgba(245,183,61,.45); filter: brightness(1); }
+  50% { box-shadow: 0 6px 40px rgba(255,214,90,.95); filter: brightness(1.12); }
+}
+.donate-hint { text-align: center; font-size: 12.5px; color: var(--ink-dim); margin-top: -2px; }
+
+/* 후원 QR 모달 */
+.qr-modal { position: fixed; inset: 0; z-index: 95; display: none; place-items: center; background: rgba(0,0,0,.8); padding: 20px; }
+.qr-modal.show { display: grid; }
+.qr-modal-card { background: #16323c; border: 1px solid var(--card-line); border-radius: 20px; padding: 22px; text-align: center; max-width: 340px; width: 100%; }
+.qr-modal-title { font-weight: 800; margin-bottom: 14px; }
+.qr-modal-box { background: #fff; border-radius: 12px; padding: 10px; display: inline-block; }
+.qr-modal-box svg { width: 200px !important; height: 200px !important; }
+.qr-modal-url { font-size: 11px; color: var(--ink-dim); margin: 10px 0 14px; word-break: break-all; }
 
 /* 토스트 */
 .toast {

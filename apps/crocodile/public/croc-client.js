@@ -442,6 +442,14 @@
     const ts = c.tooth || { style: 'conic', wMul: 0.58, hMul: 1 };
     const lower = el('teethLower'), upper = el('teethUpper');
     lower.innerHTML = ''; upper.innerHTML = '';
+    // 잇몸선(이빨 뿌리가 그리는 아치) 위쪽만 보이도록 클립 — 눌린 이빨이 잇몸 속으로 쏙 들어간다
+    const gumClip = el('clipGumPath');
+    if (gumClip) {
+      gumClip.setAttribute('d',
+        `M-60,${GUM_Y} L${TEETH_LEFT},${GUM_Y} `
+        + `Q${(TEETH_LEFT + TEETH_RIGHT) / 2},${GUM_Y - 44} ${TEETH_RIGHT},${GUM_Y} `
+        + `L660,${GUM_Y} L660,-60 L-60,-60 Z`);
+    }
     const spacing = (TEETH_RIGHT - TEETH_LEFT) / Math.max(1, n - 1);
     const w = Math.min(46, Math.max(13, spacing * ts.wMul));
     for (let i = 0; i < n; i++) {
@@ -567,28 +575,37 @@
   // ═══════════════════════════════════════════════════════════
   function renderLobby(room) {
     el('lobby-code').textContent = room.code;
-    // QR
-    try {
-      const url = location.origin + '/crocodile?room=' + room.code;
-      const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
-      el('qr-box').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
-    } catch {}
-    // 참가자
+    // QR — 방 코드가 바뀔 때만 다시 그린다 (옵션 변경 때마다 새로 그리면 깜빡인다)
+    if (state._qrCode !== room.code) {
+      state._qrCode = room.code;
+      try {
+        const url = location.origin + '/crocodile?room=' + room.code;
+        const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+        el('qr-box').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+      } catch {}
+    }
+    // 참가자 — 실제로 목록이 바뀐 경우에만 다시 그린다.
+    // (이빨 수·모드 변경으로도 croc:room 이 오는데, 매번 새로 그리면 등장 애니가 재생돼 깜빡인다)
     el('player-count').textContent = room.players.length;
     el('spec-count').textContent = room.spectators ? '👀 ' + room.spectators : '';
-    const ul = el('player-list'); ul.innerHTML = '';
-    room.players.forEach((p) => {
-      const li = document.createElement('li');
-      li.className = 'player-item' + (p.disconnected ? ' off' : '');
-      const isHost = p.id === room.hostId;
-      const isMe = p.id === state.myId;
-      li.innerHTML =
-        `<span class="pl-dot" style="background:${p.color}"></span>` +
-        `<span class="pl-name">${escapeHtml(p.name)}</span>` +
-        (isHost ? '<span class="pl-tag">방장</span>' : '') +
-        (isMe ? '<span class="pl-tag me">나</span>' : '');
-      ul.appendChild(li);
-    });
+    const sig = room.players.map((p) => `${p.id}|${p.name}|${p.color}|${p.disconnected ? 1 : 0}`).join(',')
+      + '#' + room.hostId;
+    if (sig !== state._playerSig) {
+      state._playerSig = sig;
+      const ul = el('player-list'); ul.innerHTML = '';
+      room.players.forEach((p) => {
+        const li = document.createElement('li');
+        li.className = 'player-item' + (p.disconnected ? ' off' : '');
+        const isHost = p.id === room.hostId;
+        const isMe = p.id === state.myId;
+        li.innerHTML =
+          `<span class="pl-dot" style="background:${p.color}"></span>` +
+          `<span class="pl-name">${escapeHtml(p.name)}</span>` +
+          (isHost ? '<span class="pl-tag">방장</span>' : '') +
+          (isMe ? '<span class="pl-tag me">나</span>' : '');
+        ul.appendChild(li);
+      });
+    }
     // 호스트 패널 vs 대기 안내
     const amHost = room.hostId === state.myId && state.role === 'player';
     el('host-panel').classList.toggle('show', amHost);
@@ -602,6 +619,7 @@
     state.teeth = room.teeth; state.character = room.character;
     // 무대 스킨 미리 반영
     el('stage').setAttribute('data-char', room.character);
+    prefetchVideos(room.character); // 로비에서 미리 조회 → 시작 순간 바로 영상 재생
   }
 
   // 호스트 옵션 조작
@@ -645,16 +663,11 @@
     buildTeeth(room.teeth);
     if (!Jaw.node) Jaw.init(el('upperJaw'));
     crocNode = el('croc'); birdNode = el('bird');
+    // 크리쳐는 일단 숨긴다 — 영상/컷씬이 시작되기 전에 잠깐이라도 보이지 않도록
+    // (영상 경로는 브릿지에서, 컷씬 경로는 인트로 첫 프레임에서 각자 다시 켠다)
+    crocNode.style.opacity = '0';
     document.querySelectorAll('.tooth.pressed').forEach((t) => t.classList.remove('pressed'));
-    // 🎞 영상 존재 여부를 미리 확인해둔다 — 물기(클라이맥스) 순간에 HEAD 지연이 없도록
-    for (const sfxName of ['', '-bite']) {
-      const key = room.character + sfxName;
-      if (videoAvail[key] === undefined) {
-        fetch('/crocodile/intro/' + key + '.mp4', { method: 'HEAD' })
-          .then((r) => { videoAvail[key] = r.ok; })
-          .catch(() => { videoAvail[key] = false; });
-      }
-    }
+    prefetchVideos(room.character); // 영상 존재 여부 미리 확인 (지연 없이 재생)
   }
 
   // 인트로: 물 밑에서 스믈스믈 떠올라 → 입을 '악!' 벌림
@@ -706,6 +719,19 @@
     return playVideoFile(url);
   }
   const tryVideoIntro = () => tryCharVideo('');
+  // 캐릭터 영상 존재 여부를 미리 조회해둔다 (로비에서 호출 → 시작 순간 지연 없음)
+  function prefetchVideos(char) {
+    for (const suffix of ['', '-bite']) {
+      const key = char + suffix;
+      if (videoAvail[key] !== undefined) continue;
+      fetch('/crocodile/intro/' + key + '.mp4', { method: 'HEAD' })
+        .then((r) => { videoAvail[key] = r.ok; })
+        .catch(() => { videoAvail[key] = false; });
+    }
+  }
+  // 🎬 검은 커튼: 게임 화면으로 넘어가는 즉시 덮어, 영상이 뜨기 전에 크리쳐가 보이는 것을 막는다
+  const showCurtain = () => el('intro-video-wrap').classList.add('show');
+  const hideCurtain = () => el('intro-video-wrap').classList.remove('show', 'fade');
 
   // 🎬 시네마틱 인트로: 저 멀리서 카메라로 다가와 수면을 뚫고 포효 → 게임으로 페이드
   async function playIntro() {
@@ -717,7 +743,9 @@
     Jaw.setInstant(JAW.closed);
 
     // 🎞 실사 영상이 있으면 그것부터 — 끝나면 포효 브릿지로 게임에 착지
-    if (await tryVideoIntro()) {
+    const hasVideo = await tryVideoIntro();
+    if (!hasVideo) hideCurtain(); // 영상이 없으면 커튼을 걷고 컷씬으로
+    if (hasVideo) {
       croc.style.transition = 'none';
       croc.style.transform = 'translateY(0) scale(1)';
       croc.style.opacity = '1';
@@ -1032,7 +1060,7 @@
     const inner = g.querySelector('.tooth-inner');
     if (inner) {
       inner.animate(
-        [{ transform: inner.style.transform || 'translateY(0)' }, { transform: 'translateY(44px)' }],
+        [{ transform: inner.style.transform || 'translateY(0)' }, { transform: 'translateY(78px)' }],
         { duration: 220, easing: 'cubic-bezier(.3,1.4,.5,1)', fill: 'forwards' }
       );
     }
@@ -1081,6 +1109,11 @@
         await Jaw.to(JAW.idle, 220, easeOutBack);
         break;
       }
+      case 'headshake': {
+        // 고개를 좌우로 도리도리 — 물었나?! 싶다가 아니었음
+        await headShake(toothIndex);
+        break;
+      }
       case 'bird': {
         flash('🐦 악어새!', 1100);
         await birdSaves();
@@ -1106,6 +1139,42 @@
         await Jaw.to(JAW.idle, 200, easeOutBack);
       }
     }
+  }
+
+  // 🙅 고개를 좌우로 도리도리 — 턱을 살짝 물듯 내렸다가 몸통째 흔든다 (물린 줄 알았지?)
+  async function headShake(toothIndex) {
+    const croc = el('croc');
+    const tp = toothTipXY(toothIndex, state.teeth);
+    drool(tp.x, tp.y);
+    sfx.tension();
+    // 반쯤 다물며 "무는 척"
+    await Jaw.to(JAW.idle + 46, 190, easeOutCubic);
+    flash('물었나…?!', 800, true);
+    // 물고 흔드는 것처럼 고개를 좌우로 도리도리
+    croc.style.transformOrigin = '50% 88%';
+    const shakeAnim = croc.animate(
+      [
+        { transform: 'rotate(0deg) translateX(0)' },
+        { transform: 'rotate(-5.5deg) translateX(-12px)', offset: 0.16 },
+        { transform: 'rotate(5deg) translateX(12px)', offset: 0.34 },
+        { transform: 'rotate(-4.5deg) translateX(-9px)', offset: 0.52 },
+        { transform: 'rotate(4deg) translateX(8px)', offset: 0.7 },
+        { transform: 'rotate(-2deg) translateX(-4px)', offset: 0.86 },
+        { transform: 'rotate(0deg) translateX(0)' },
+      ],
+      { duration: 900, easing: 'ease-in-out' }
+    );
+    // 흔들 때마다 침이 튄다
+    for (let k = 0; k < 4; k++) {
+      setTimeout(() => drool(200 + Math.random() * 200, tp.y + Math.random() * 30), 120 + k * 190);
+    }
+    sfx.fake();
+    await shakeAnim.finished.catch(() => {});
+    croc.style.transform = 'translateY(0) scale(1)';
+    // 다시 활짝 — 아무 일도 없었다
+    await Jaw.to(JAW.idle - 6, 320, easeOutBack);
+    flash('아니네…', 620, true);
+    await Jaw.to(JAW.idle, 260, easeOutCubic);
   }
 
   // 악어새가 날아와 입을 못 다물게 함
@@ -1345,11 +1414,6 @@
       hideResult();
       show('lobby'); renderLobby(room);
     }
-    // 결과 화면이 떠 있는 동안 방장이 바뀌면(기존 방장 퇴장) 다시하기 버튼 표시를 갱신
-    if (el('result-overlay').classList.contains('show')) {
-      const amHost = room.hostId === state.myId && state.role === 'player';
-      el('btn-again').style.display = amHost ? '' : 'none';
-    }
   });
 
   function markPressed(i) {
@@ -1357,7 +1421,7 @@
     if (g && !g.classList.contains('pressed')) {
       g.classList.add('pressed'); g.classList.remove('pressable');
       const inner = g.querySelector('.tooth-inner');
-      if (inner) inner.style.transform = 'translateY(44px)';
+      if (inner) inner.style.transform = 'translateY(78px)';
       const p = g.querySelector('path'); if (p) p.setAttribute('fill', '#b7ad8c');
     }
   }
@@ -1375,6 +1439,7 @@
     if (state._midJoinTimer) { clearTimeout(state._midJoinTimer); state._midJoinTimer = null; }
     state.teeth = ev.teeth;
     if (state.room) state.room.turnId = ev.turnId;
+    showCurtain(); // 무대를 그리기 전에 먼저 덮는다 — 영상이 항상 맨 처음에 나오도록
     if (state.screen !== 'game') enterGame(state.room || { character: state.character, teeth: ev.teeth });
     else { applyCreature(state.character); buildTeeth(ev.teeth); }
     hideResult();
@@ -1485,10 +1550,59 @@
   // ═══════════════════════════════════════════════════════════
   //  결과 오버레이
   // ═══════════════════════════════════════════════════════════
+  // 💀 좌절 연출: 세상이 잿빛으로 + 화면 균열 + 잿빛 비 + 무너지는 트럼본
+  function despair(strong) {
+    el('screen-game').classList.add('despair'); // 무대 흑백
+    // 잿빛 비
+    const rain = el('despair-rain');
+    rain.innerHTML = '';
+    for (let i = 0; i < 46; i++) {
+      const d = document.createElement('i');
+      d.style.left = Math.random() * 100 + '%';
+      d.style.animationDuration = (0.7 + Math.random() * 0.7) + 's';
+      d.style.animationDelay = (Math.random() * 1.2) + 's';
+      d.style.opacity = 0.25 + Math.random() * 0.5;
+      rain.appendChild(d);
+    }
+    // 화면 균열 — 중앙에서 사방으로 갈라진다
+    const cr = el('despair-cracks');
+    let paths = '';
+    for (let i = 0; i < 7; i++) {
+      const ang = (Math.PI * 2 * i) / 7 + Math.random() * 0.5;
+      let x = 200, y = 400, d = `M${x},${y}`;
+      for (let s = 0; s < 5; s++) {
+        x += Math.cos(ang) * (70 + Math.random() * 60) + (Math.random() - 0.5) * 50;
+        y += Math.sin(ang) * (110 + Math.random() * 90) + (Math.random() - 0.5) * 60;
+        d += ` L${x.toFixed(0)},${y.toFixed(0)}`;
+      }
+      paths += `<path d="${d}" stroke-width="${(3.5 - i * 0.35).toFixed(1)}"/>`;
+    }
+    cr.innerHTML = paths;
+    cr.classList.remove('show'); void cr.offsetWidth; cr.classList.add('show');
+    // 사운드: 무너지는 하강음 (sad trombone 느낌) + 낮은 쿵
+    if (state.sound && audioReady()) {
+      [[233, 0.42], [207, 0.42], [185, 0.42], [155, 0.95]].forEach(([f, dur], i) => {
+        setTimeout(() => tone(f, dur, 'sawtooth', 0.13, f * 0.82), i * 330);
+      });
+      tone(70, 0.7, 'sine', 0.2, 34);
+      noise(0.4, 0.14);
+    }
+    if (strong) vibe([300, 90, 200, 90, 500]); // 물린 본인은 길게 부르르
+  }
+  function clearDespair() {
+    el('screen-game').classList.remove('despair');
+    el('despair-cracks').classList.remove('show');
+    el('despair-rain').innerHTML = '';
+    el('result-stamp').classList.remove('show');
+    el('result-name').classList.remove('tremble');
+  }
+
   function showResult(ev) {
     const ov = el('result-overlay');
     const isMeLoser = ev.loserId === state.myId;
     const survivorMe = ev.survivorId && ev.survivorId === state.myId;
+    const card = el('result-card');
+    clearDespair();
     if (ev.mode === 'survival' && ev.survivorName) {
       el('result-emoji').textContent = survivorMe ? '👑' : '🏆';
       el('result-title').textContent = '최후의 생존자!';
@@ -1497,22 +1611,52 @@
       el('result-name').style.color = ev.survivorColor || '#63d29a';
       el('result-sub').textContent = isMeLoser ? '아쉽게 마지막에 물렸어요 😵' : '끝까지 살아남았습니다!';
       confetti(); sfx.win();
+      // 생존자에겐 축하, 물린 사람에겐 좌절
+      if (isMeLoser) despair(true);
     } else {
       el('result-emoji').textContent = isMeLoser ? '😱' : '💀';
-      el('result-title').textContent = '당첨!';
+      el('result-title').textContent = isMeLoser ? '당신입니다…' : '당첨!';
       el('result-title').className = 'result-title lose';
       el('result-name').textContent = ev.loserName;
       el('result-name').style.color = ev.loserColor || '#ff5464';
-      el('result-sub').textContent = isMeLoser ? '앗! 당신이 물렸어요 🐊' : '악어에게 물렸습니다!';
+      el('result-sub').textContent = isMeLoser
+        ? '앗! 당신이 물렸어요 🐊 오늘은 운이 없네요…'
+        : `${CREATURE_NAME[ev.character] || '악어'}에게 물렸습니다!`;
+      despair(isMeLoser);
+      el('result-name').classList.add('tremble');
+      setTimeout(() => { el('result-stamp').classList.add('show'); sfx.chomp(); }, 480);
     }
-    // 방장만 다시하기
-    const amHost = state.room && state.room.hostId === state.myId && state.role === 'player';
-    el('btn-again').style.display = amHost ? '' : 'none';
+    card.classList.remove('slam'); void card.offsetWidth; card.classList.add('slam');
     ov.classList.add('show');
   }
-  function hideResult() { el('result-overlay').classList.remove('show'); }
-  el('btn-again').addEventListener('click', () => { hideResult(); socket.emit('croc:again'); });
+  function hideResult() {
+    el('result-overlay').classList.remove('show');
+    clearDespair();
+  }
   el('btn-result-home').addEventListener('click', () => { hideResult(); leaveRoom(); });
+
+  // ☕ 후원 버튼 — 서버에 DONATION_URL 이 설정돼 있으면 표시 (핀볼과 동일 방식)
+  const isMobileUA = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  fetch('/api/config').then((r) => r.json()).then((cfg) => {
+    if (!cfg || !cfg.donationUrl) return;
+    const a = el('btn-donate');
+    a.href = cfg.donationUrl;
+    if (cfg.donationLabel) a.textContent = '☕ ' + cfg.donationLabel;
+    a.classList.remove('hidden');
+    el('donate-hint').classList.remove('hidden');
+    a.addEventListener('click', (e) => {
+      if (isMobileUA) return; // 모바일: 카카오페이 링크 그대로 열림
+      e.preventDefault();     // PC: 링크가 404 이므로 QR 로 안내
+      try {
+        const box = el('donate-qr-box');
+        const qr = qrcode(0, 'M'); qr.addData(cfg.donationUrl); qr.make();
+        box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 3 });
+        el('donate-qr-url').textContent = cfg.donationUrl;
+        el('donate-qr-modal').classList.add('show');
+      } catch { window.open(cfg.donationUrl, '_blank'); }
+    });
+  }).catch(() => {});
+  el('btn-donate-qr-close').addEventListener('click', () => el('donate-qr-modal').classList.remove('show'));
 
   // 소리 토글
   el('btn-sound').addEventListener('click', () => {
