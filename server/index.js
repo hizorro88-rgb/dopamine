@@ -68,7 +68,15 @@ const qs = (req) => {
   const i = req.originalUrl.indexOf('?');
   return i >= 0 ? req.originalUrl.slice(i) : '';
 };
-app.get('/', (req, res) => res.redirect(302, '/pinball' + qs(req)));
+// 루트: 게임 선택 랜딩 페이지 (1. 핀볼 / 2. 악어 룰렛).
+// 단, 옛 초대·리플레이 링크(dopamine.me.kr/?room=… 등)는 핀볼로 리다이렉트해 호환 유지.
+app.get('/', (req, res) => {
+  if (req.query.room || req.query.event || req.query.replay) {
+    return res.redirect(302, '/pinball' + qs(req));
+  }
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(PUBLIC_DIR, 'home.html'));
+});
 app.get('/dopaman', (req, res) => res.redirect(302, '/dopaman/pinball' + qs(req)));
 
 const donors = new DonorStore();

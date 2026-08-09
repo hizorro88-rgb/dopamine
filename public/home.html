@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f1a" />
+  <title>DOPAMINE — 게임 선택</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎰%3C/text%3E%3C/svg%3E" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+      color: #eef2f6;
+      background:
+        radial-gradient(900px 500px at 50% -10%, #1d2740 0%, #121a2c 45%, #0b0f1a 100%);
+      min-height: 100dvh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 7vh 20px 40px;
+    }
+    .logo { font-size: 46px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+    h1 {
+      margin: 12px 0 4px; font-size: 38px; letter-spacing: 6px; font-weight: 900;
+      background: linear-gradient(180deg, #ffe9a8, #f5b73d 55%, #b97d18);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      text-shadow: 0 2px 12px rgba(245,183,61,.25);
+    }
+    .sub { color: #93a0b4; margin: 0 0 34px; font-size: 15px; }
+    .games { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 460px; }
+    .game {
+      display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit;
+      border-radius: 20px; padding: 20px 20px; position: relative; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 10px 34px rgba(0,0,0,.45);
+      transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .game:active { transform: scale(.97); }
+    @media (hover:hover) {
+      .game:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.28); box-shadow: 0 16px 44px rgba(0,0,0,.55); }
+    }
+    .game .num {
+      position: absolute; top: 10px; right: 14px; font-size: 13px; font-weight: 800;
+      color: rgba(255,255,255,.35); letter-spacing: 1px;
+    }
+    .game .emoji { font-size: 52px; line-height: 1; flex: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+    .game .txt { flex: 1; min-width: 0; }
+    .game .name { display: block; font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+    .game .desc { display: block; font-size: 13.5px; color: rgba(255,255,255,.75); line-height: 1.5; }
+    .game .go { flex: none; font-size: 22px; opacity: .6; }
+    .pinball { background: linear-gradient(135deg, #2a2440 0%, #1a1530 55%, #241031 100%); }
+    .pinball .name { color: #ffd76a; }
+    .croc { background: linear-gradient(135deg, #16301f 0%, #0f2317 55%, #0d2a2a 100%); }
+    .croc .name { color: #7fe3a0; }
+    .foot { margin-top: auto; padding-top: 40px; color: rgba(255,255,255,.28); font-size: 12px; letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+  <div class="logo">🎰</div>
+  <h1>DOPAMINE</h1>
+  <p class="sub">친구들과 함께하는 도파민 터지는 게임들</p>
+
+  <nav class="games">
+    <a class="game pinball" href="/pinball">
+      <span class="num">GAME 01</span>
+      <span class="emoji">🎱</span>
+      <span class="txt">
+        <span class="name">인생을 건 핀볼</span>
+        <span class="desc">물리엔진 공뽑기 레이스 — 아이템전·맵 에디터·최대 500명 이벤트 추첨</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+    <a class="game croc" href="/crocodile">
+      <span class="num">GAME 02</span>
+      <span class="emoji">🐊</span>
+      <span class="txt">
+        <span class="name">악어 룰렛</span>
+        <span class="desc">순서대로 이빨을 눌러라, 물리면 당첨! — 악어·상어·티라노 실사 영상 오프닝</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+  </nav>
+
+  <div class="foot">DOPAMINE.ME.KR</div>
+</body>
+</html>
