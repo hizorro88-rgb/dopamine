@@ -18,12 +18,12 @@ const DEFAULTS = {
     toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true,
   },
   shark: {
-    arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]],
-    toothH: 78, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1, emptyGums: false,
+    arch: [[227, 785], [287, 828], [370, 843], [455, 828], [513, 785]],
+    toothH: 58, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, emptyGums: false,
   },
   dino: {
-    arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]],
-    toothH: 104, toothW: 0.78, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1, emptyGums: false,
+    arch: [[250, 890], [300, 933], [370, 953], [440, 941], [490, 890]],
+    toothH: 72, toothW: 0.72, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, emptyGums: false,
   },
 };
 

@@ -412,8 +412,8 @@
   //   아래 값은 서버(/api/croc/stage)를 못 읽었을 때 쓰는 기본값이다.
   const PHOTO = {
     crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]], toothH: 78, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1 },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]], toothH: 104, toothW: 0.78, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1 },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[227, 785], [287, 828], [370, 843], [455, 828], [513, 785]], toothH: 58, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5 },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[250, 890], [300, 933], [370, 953], [440, 941], [490, 890]], toothH: 72, toothW: 0.72, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5 },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
 
@@ -453,7 +453,7 @@
 
   function buildPhotoTeeth(n) {
     const cfg = photoCfg(); if (!cfg) return;
-    const gum = el('photo-gum'), teeth = el('photo-teeth'), a = cfg.arch;
+    const gum = el('photo-gum'), teeth = el('photo-teeth');
     gum.innerHTML = ''; teeth.innerHTML = '';
 
     // 🦷 아랫니를 지운 사진 → 잇몸선 위에 '진짜 이빨'을 심는다.
@@ -502,13 +502,10 @@
 
     // (사진에 이빨이 그대로 있는 캐릭터) 실제 이빨 위에 마커만 얹는다
     teeth.removeAttribute('clip-path');
-    const spacing = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
-    const w = Math.max(16, spacing * cfg.toothW);
-    const h = cfg.toothH;
+    const L = photoLayout(n);
     for (let i = 0; i < n; i++) {
-      const t = n <= 1 ? 0.5 : i / (n - 1);
-      const p = archPoint(a, t);
-      const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
+      const { x, y, w, h } = L[i];
+      const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})` });
       // 탭 영역 (투명) — 사진 이빨 하나 크기
       g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -w * 0.62, y: -h, width: w * 1.24, height: h * 1.2, fill: 'transparent' }));
       const inner = svgEl('g', { class: 'tooth-inner' });
@@ -533,9 +530,9 @@
       const L = photoLayout(n), t0 = L[Math.min(i, L.length - 1)];
       if (t0) return { x: t0.x + t0.nx * t0.h * 0.9, y: t0.y + t0.ny * t0.h * 0.9 };
     }
-    const t = n <= 1 ? 0.5 : i / (n - 1);
-    const p = archPoint(cfg.arch, t);
-    return { x: p.x, y: p.y - cfg.toothH * 0.9 };
+    const L = photoLayout(n), t0 = L[Math.min(i, L.length - 1)];
+    if (!t0) return { x: PW / 2, y: PH / 2 };
+    return { x: t0.x + t0.nx * t0.h * 0.9, y: t0.y + t0.ny * t0.h * 0.9 };
   }
 
   const DEFAULT_MOUTH = 'M104,430 Q300,404 496,430 L496,628 Q300,668 104,628 Z';
@@ -615,7 +612,61 @@
     }
   }
   // 이빨 조회는 두 무대(실사/SVG) 공용 — 현재 켜진 쪽에서 찾는다
+  // ═══════════════════════════════════════════════════════════
+  //  캐릭터 특수 규칙 연출
+  //   🦖 공룡 — 누른 이빨을 '썩은 이빨까지의 거리'에 따라 물들인다 (뜨겁다/차갑다)
+  //   🦈 상어 — 빠졌던 이빨이 다시 돋아난다
+  // ═══════════════════════════════════════════════════════════
+  const HEAT = {
+    hot:  { color: '#ff3b30', label: '🔥 바로 옆이야!', ring: 'rgba(255,59,48,.85)' },
+    warm: { color: '#ff9f2e', label: '🌡 가까워…',      ring: 'rgba(255,159,46,.8)' },
+    cool: { color: '#4fa8ff', label: '💧 좀 머네',       ring: 'rgba(79,168,255,.75)' },
+    cold: { color: '#8fd8ff', label: '🧊 한참 멀어',     ring: 'rgba(143,216,255,.65)' },
+  };
   function teethRoot() { return photoCfg() ? el('photo-teeth') : el('teethLower'); }
+  /** 누른 이빨 자리에 온도 표식을 남긴다 (판이 끝날 때까지 유지 → 추리 단서) */
+  function markHeat(i, level) {
+    const g = toothAt(i); const h = HEAT[level];
+    if (!g || !h) return;
+    g.querySelectorAll('.heat-mark').forEach((e) => e.remove());
+    const r = photoCfg() ? 15 : 17;
+    const mk = svgEl('g', { class: 'heat-mark' });
+    mk.appendChild(svgEl('circle', { cx: 0, cy: -r * 0.6, r: r, fill: h.color, opacity: 0.28 }));
+    mk.appendChild(svgEl('circle', {
+      cx: 0, cy: -r * 0.6, r: r * 0.62, fill: 'none', stroke: h.ring, 'stroke-width': 3.2,
+    }));
+    g.appendChild(mk);
+    mk.animate([{ transform: 'scale(0.2)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+      { duration: 320, easing: 'cubic-bezier(.3,1.5,.5,1)' });
+  }
+  /** 방에 저장된 온도 기록을 한꺼번에 다시 그린다 (재접속·관전 진입용) */
+  function restoreHeats() {
+    const heats = state.room && state.room.heats;
+    if (!heats) return;
+    for (const k in heats) markHeat(Number(k), heats[k]);
+  }
+  /** 🦈 빠졌던 이빨이 쑥 돋아난다 */
+  async function regrowTooth(i) {
+    if (state.room && state.room.pressed) state.room.pressed[i] = false;
+    const g = toothAt(i);
+    if (!g) return;
+    g.classList.remove('pressed');
+    g.querySelectorAll('.heat-mark').forEach((e) => e.remove());
+    const inner = g.querySelector('.tooth-inner');
+    const hole = g.querySelector('.tooth-hole');
+    if (hole) hole.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' });
+    if (inner) {
+      inner.style.opacity = '';
+      inner.style.transform = ''; // markPressed 가 인라인으로 박아둔 값도 지운다
+      inner.getAnimations().forEach((a) => a.cancel());
+      inner.animate(
+        [{ transform: 'translateY(150px)' }, { transform: 'translateY(-8px)', offset: 0.75 }, { transform: 'translateY(0)' }],
+        { duration: 620, easing: 'cubic-bezier(.25,1.1,.4,1)', fill: 'forwards' }
+      );
+    }
+    sfx.press();
+    await sleep(120);
+  }
   function toothAt(i) { return teethRoot().querySelector(`.tooth[data-i="${i}"]`); }
   function toothInnerAt(i) {
     const g = toothAt(i);
@@ -758,6 +809,7 @@
     // 옵션 UI 반영
     document.querySelectorAll('.char-btn').forEach((b) =>
       b.classList.toggle('sel', b.dataset.char === room.character));
+    el('char-rule').innerHTML = CHAR_RULE[room.character] || '';
     el('teeth-val').textContent = room.teeth;
     // 이빨 수가 인원 자동인지 표시하고, 한 명당 몇 번쯤 누르게 되는지 알려준다.
     //   함정이 균등하게 숨어 있으므로 게임은 평균 (n+1)/2 번째에 끝난다 → 이빨을 다 누르진 않는다.
@@ -838,6 +890,12 @@
   // 인트로: 물 밑에서 스믈스믈 떠올라 → 입을 '악!' 벌림
   // 캐릭터 이름/포효
   const CREATURE_NAME = { crocodile: '악어', shark: '상어', dino: '티라노사우루스' };
+  // 캐릭터마다 규칙이 다르다 — 로비에서 미리 알려준다
+  const CHAR_RULE = {
+    crocodile: '🐊 <b>순수 운.</b> 물까 말까 하는 페이크가 제일 심한 녀석이에요.',
+    shark: '🦈 <b>이빨이 다시 자라요.</b> 하나 누를 때마다 빠진 자리에 새 이빨이 돋고, 그때마다 썩은 이빨도 다시 숨어요. 남은 개수가 안 줄어서 끝이 안 보입니다.',
+    dino: '🦖 <b>뜨겁다 / 차갑다.</b> 누른 이빨이 썩은 이빨에서 몇 칸 떨어졌는지 색으로 알려줘요. 후반엔 안전한 곳이 사라집니다.',
+  };
   const CREATURE_ROAR = { crocodile: '으르렁!', shark: '촤아악!', dino: '크아앙!' };
 
   // 🎞 실사 영상 재생기 — 오프닝({캐릭터}.mp4)과 물기 엔딩({캐릭터}-bite.mp4) 공용.
@@ -1754,6 +1812,7 @@
     if (room.state === 'playing' && state.screen === 'game') {
       // 눌린 상태 동기화 (표시만)
       if (room.pressed) room.pressed.forEach((v, i) => { if (v) markPressed(i); });
+      restoreHeats(); // 🦖 공룡: 지금까지 나온 뜨겁다/차갑다 단서도 그대로 보여준다
       if (!state.busy) updateTurn(room.turnId);
       updateProgress();
     }
@@ -1787,6 +1846,7 @@
     Jaw.breathe = false; Jaw.setInstant(JAW.idle); Jaw.breathe = true;
     el('croc').style.transform = 'translateY(0)'; el('croc').style.opacity = '1';
     if (room.pressed) room.pressed.forEach((v, i) => { if (v) markPressed(i); });
+    restoreHeats();
     updateTurn(room.turnId);
     updateProgress();
     lockInput(false);
@@ -1822,7 +1882,20 @@
     eyesLookAt(ev.tooth); // 크리쳐 눈동자가 눌린 이빨을 쳐다봄
     sfx.press();
     await sleep(140);
+    // 🦖 공룡: 썩은 이빨까지의 거리를 색으로 남긴다 (드라마보다 먼저 보여줘야 단서가 산다)
+    if (ev.heat) {
+      if (state.room) { state.room.heats = state.room.heats || {}; state.room.heats[ev.heat.tooth] = ev.heat.level; }
+      markHeat(ev.heat.tooth, ev.heat.level);
+      flash(HEAT[ev.heat.level].label, 900, ev.heat.level === 'cool' || ev.heat.level === 'cold');
+      await sleep(520);
+    }
     await playDrama(ev.drama, ev.tooth);
+    // 🦈 상어: 빠졌던 이빨 하나가 다시 돋는다 → 남은 개수가 안 줄어든다
+    if (ev.regrow != null) {
+      await regrowTooth(ev.regrow);
+      flash('🦈 새 이빨이 돋았다!', 900);
+      await sleep(280);
+    }
     // 잔잔히 넘어간 턴에도 가끔 안도 텍스트 (드라마 있던 턴은 자체 연출이 있음)
     if (ev.drama === 'none' && Math.random() < 0.6) {
       flash(SAFE_TEXTS[Math.floor(Math.random() * SAFE_TEXTS.length)], 620, true);
@@ -1865,7 +1938,7 @@
 
   // 썩은 이빨 찾기: 다음 판 재장전
   socket.on('croc:reload', async (ev) => {
-    if (state.room) state.room.turnId = ev.turnId;
+    if (state.room) { state.room.turnId = ev.turnId; state.room.heats = {}; } // 새 판 → 단서 초기화
     await playReload(ev);
     updateTurn(state.room ? state.room.turnId : ev.turnId);
     updateProgress();
@@ -1999,8 +2072,9 @@
       el('result-title').className = 'result-title lose';
       el('result-name').textContent = ev.loserName;
       el('result-name').style.color = ev.loserColor || '#ff5464';
+      const emo = { crocodile: '🐊', shark: '🦈', dino: '🦖' }[ev.character] || '🐊';
       el('result-sub').textContent = isMeLoser
-        ? '앗! 당신이 물렸어요 🐊 오늘은 운이 없네요…'
+        ? `앗! 당신이 물렸어요 ${emo} 오늘은 운이 없네요…`
         : `${CREATURE_NAME[ev.character] || '악어'}에게 물렸습니다!`;
       despair(isMeLoser);
       el('result-name').classList.add('tremble');

@@ -135,6 +135,12 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .char-btn span { font-size: 12px; font-weight: 700; }
 .char-btn:active { transform: scale(.92); }
 .char-btn.sel { border-color: var(--gold); background: rgba(255,210,74,.12); }
+/* 캐릭터별 규칙 안내 */
+.char-rule { margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--ink-dim);
+  background: rgba(0,0,0,.2); border-radius: 10px; padding: 9px 11px; letter-spacing: 0; }
+.char-rule b { color: var(--ink); }
+/* 🦖 뜨겁다/차갑다 표식 */
+.heat-mark { pointer-events: none; }
 /* 이빨 수가 인원수에 맞춰 자동으로 정해졌음을 알리는 꼬리표 */
 .auto-tag { display: none; margin-left: 6px; padding: 2px 7px; border-radius: 999px;
   background: rgba(120,200,255,.16); color: #8fd2ff; font-size: 10px; font-weight: 800; letter-spacing: 0; }

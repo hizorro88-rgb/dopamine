@@ -72,8 +72,29 @@ function recommendTeeth(playerCount) {
   if (p === 3) return 12;
   return MAX_TEETH;
 }
+/**
+ * 캐릭터마다 규칙이 다르다 (스킨만 다르면 고를 이유가 없으니까).
+ *  🐊 악어  — 순수 운. 함정은 고정, 재미는 '물까 말까' 페이크 연출에서 나온다.
+ *  🦈 상어  — 이빨 재생. 상어 이빨은 빠지면 새로 난다. 안전한 이빨을 누를 때마다
+ *             빠졌던 자리 하나에 새 이빨이 돋고, 그때마다 썩은 이빨이 '지금 남아 있는
+ *             이빨' 중에서 다시 정해진다. 남은 개수가 안 줄어드니 끝이 안 보인다.
+ *             무한정 길어지지 않게 판당 재생 횟수를 이빨 수의 75% 로 제한한다.
+ *             (시뮬레이션: 이빨 16개 기준 평균 8.5회 → 12.9회, 최대 32회)
+ *  🦖 공룡  — 열 힌트. 안전한 이빨을 누르면 썩은 이빨에서 몇 칸 떨어졌는지 알려준다.
+ *             운이 아니라 좁혀나가는 게임이 되고, 후반엔 안전지대가 사라져 조여온다.
+ */
 function sanitizeCharacter(c) {
   return CHARACTERS.has(c) ? c : 'crocodile';
+}
+function regrowBudget(room) {
+  return room.character === 'shark' ? Math.ceil(room.teeth * 0.75) : 0;
+}
+/** 누른 이빨이 함정에서 몇 칸 떨어졌는지 → 온도 (공룡 전용) */
+function heatLevel(dist) {
+  if (dist <= 1) return 'hot';
+  if (dist <= 2) return 'warm';
+  if (dist <= 4) return 'cool';
+  return 'cold';
 }
 /**
  * 게임 방식
@@ -325,6 +346,8 @@ class CrocRooms {
     room.turnPtr = 0;
     room.lastVictim = null;
     room.found = []; // 썩은 이빨을 찾아 빠져나간 사람들 (찾은 순서)
+    room.heats = {}; // 🦖 공룡: 이빨index → 'hot'|'warm'|'cool'|'cold'
+    room.regrowLeft = regrowBudget(room); // 🦈 상어: 남은 재생 횟수
     if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
     this.broadcast(room);
     this.nsp.to(room.code).emit('croc:begin', {
@@ -392,6 +415,8 @@ class CrocRooms {
         // rotten: 찾은 사람은 빠져나가고 → 이빨 리셋 + 새 썩은 이빨 재장전 후 계속
         room.pressed = new Array(room.teeth).fill(false);
         room.trap = Math.floor(Math.random() * room.teeth);
+        room.heats = {};
+        room.regrowLeft = regrowBudget(room);
         // 다음 살아있는 플레이어로 턴 이동
         this.advanceTurn(room);
         // 리셋된 판을 클라에 알린다 (연출이 끝난 뒤 새 판 시작).
@@ -414,7 +439,34 @@ class CrocRooms {
       return;
     }
 
-    // 🟢 안전한 이빨 — 드라마 연출 결정 후 다음 턴
+    // 🟢 안전한 이빨 — 캐릭터 특수 규칙 → 드라마 연출 결정 → 다음 턴
+    const extra = {};
+
+    // 🦖 공룡: 함정에서 몇 칸 떨어졌는지 알려준다 (추리 요소)
+    if (room.character === 'dino') {
+      const dist = Math.abs(i - room.trap);
+      const level = heatLevel(dist);
+      room.heats[i] = level;
+      extra.heat = { tooth: i, level, dist };
+    }
+
+    // 🦈 상어: 빠졌던 이빨 하나가 다시 돋고, 썩은 이빨이 재배치된다.
+    //   재배치는 '아직 안 누른 이빨' 중 균등 추첨이라 매 턴 확률은 정확히 1/남은개수다.
+    if (room.character === 'shark' && room.regrowLeft > 0) {
+      const gone = [];
+      for (let k = 0; k < room.teeth; k++) if (room.pressed[k] && k !== i) gone.push(k);
+      if (gone.length) {
+        const back = gone[Math.floor(Math.random() * gone.length)];
+        room.pressed[back] = false;
+        room.regrowLeft--;
+        delete room.heats[back];
+        const un = [];
+        for (let k = 0; k < room.teeth; k++) if (!room.pressed[k]) un.push(k);
+        room.trap = un[Math.floor(Math.random() * un.length)];
+        extra.regrow = back;
+      }
+    }
+
     const pressedCount = room.pressed.filter(Boolean).length;
     const remaining = room.teeth - pressedCount;
     const drama = rollDrama(pressedCount, room.teeth);
@@ -429,6 +481,7 @@ class CrocRooms {
       pressedCount,
       remaining,
       nextTurnId,
+      ...extra,
     });
     room.lastActivity = Date.now();
   }
@@ -585,6 +638,7 @@ class CrocRooms {
       // 진행 중이면 현재 판 상태 (중간 합류/관전용) — trap 은 절대 안 보낸다
       turnId: room.state === 'playing' ? room.order[room.turnPtr] : null,
       pressed: room.state === 'playing' ? room.pressed.slice() : null,
+      heats: room.state === 'playing' && room.heats ? { ...room.heats } : null,
       lastVictim: room.lastVictim || null,
     });
   }
