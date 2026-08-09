@@ -135,10 +135,15 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .char-btn span { font-size: 12px; font-weight: 700; }
 .char-btn:active { transform: scale(.92); }
 .char-btn.sel { border-color: var(--gold); background: rgba(255,210,74,.12); }
+/* 이빨 수가 인원수에 맞춰 자동으로 정해졌음을 알리는 꼬리표 */
+.auto-tag { display: none; margin-left: 6px; padding: 2px 7px; border-radius: 999px;
+  background: rgba(120,200,255,.16); color: #8fd2ff; font-size: 10px; font-weight: 800; letter-spacing: 0; }
+.auto-tag.show { display: inline-block; }
+.opt-hint { margin-top: 7px; font-size: 11px; color: var(--ink-dim); letter-spacing: 0; }
 .stepper { display: flex; align-items: center; gap: 12px; }
 .stepper span { font-size: 24px; font-weight: 900; min-width: 40px; text-align: center; }
 .seg { display: flex; background: rgba(0,0,0,.25); border-radius: 12px; padding: 4px; gap: 4px; }
-.seg-btn { flex: 1; appearance: none; border: none; background: transparent; color: var(--ink-dim); padding: 10px 6px; border-radius: 9px; font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit; }
+.seg-btn { flex: 1; appearance: none; border: none; background: transparent; color: var(--ink-dim); padding: 10px 4px; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .seg-btn.sel { background: var(--card-line); color: var(--ink); }
 .guest-wait { display: none; text-align: center; color: var(--ink-dim); padding: 20px; font-weight: 700; }
 .guest-wait.show { display: block; }

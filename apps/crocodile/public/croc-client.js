@@ -759,6 +759,14 @@
     document.querySelectorAll('.char-btn').forEach((b) =>
       b.classList.toggle('sel', b.dataset.char === room.character));
     el('teeth-val').textContent = room.teeth;
+    // 이빨 수가 인원 자동인지 표시하고, 한 명당 몇 번쯤 누르게 되는지 알려준다.
+    //   함정이 균등하게 숨어 있으므로 게임은 평균 (n+1)/2 번째에 끝난다 → 이빨을 다 누르진 않는다.
+    el('teeth-auto').classList.toggle('show', room.teethAuto !== false);
+    const np = Math.max(1, (room.players || []).length);
+    const perPlayer = ((room.teeth + 1) / 2 / np).toFixed(1);
+    el('teeth-hint').textContent = room.mode === 'rotten'
+      ? `${np - 1}명이 찾을 때까지 · 약 ${Math.round((room.teeth + 1) / 2 * (np - 1))}번`
+      : `${np}명 · 1인당 약 ${perPlayer}회면 끝`;
     document.querySelectorAll('#mode-seg .seg-btn').forEach((b) =>
       b.classList.toggle('sel', b.dataset.mode === room.mode));
     state.teeth = room.teeth; state.character = room.character;
@@ -1574,14 +1582,14 @@
     ov.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 600, easing: 'ease-out' }).onfinish = () => ov.remove();
   }
 
-  // 서바이벌: 물린 뒤 이빨 리셋 → 다시 입 벌림
+  // 썩은 이빨 찾기: 한 명이 찾아 빠져나간 뒤 이빨 리셋 → 다시 입 벌림
   async function playReload(ev) {
     if (photoCfg()) {
       const img = el('photo-bg');
       img.animate([{ filter: 'brightness(.2)' }, { filter: 'brightness(1)' }], { duration: 500, fill: 'forwards' });
       await photoAnim([{ transform: 'scale(2.1)' }, { transform: 'scale(1)' }], 600, 'cubic-bezier(.3,1.2,.5,1)');
       buildTeeth(ev.teeth || state.teeth);
-      flash('다시…!', 700);
+      flash(ev.remaining ? `아직 ${ev.remaining}명 남았다…` : '다시…!', 900);
       sfx.roar();
       lockInput(false);
       return;
@@ -1589,7 +1597,7 @@
     buildTeeth(ev.teeth || state.teeth);
     Jaw.setInstant(JAW.closed);
     await sleep(150);
-    flash('악!', 600);
+    flash(ev.remaining ? `아직 ${ev.remaining}명 남았다…` : '악!', 700);
     sfx.roar();
     await Jaw.to(JAW.wide, 300, easeOutBack);
     await Jaw.to(JAW.idle, 400, easeOutCubic);
@@ -1676,7 +1684,9 @@
     if (p) {
       avatar.style.background = p.color;
       if (state.myTurn) {
-        el('turn-text').innerHTML = '👉 <b>당신 차례!</b> 이빨을 눌러요';
+        el('turn-text').innerHTML = state.room && state.room.mode === 'rotten'
+          ? '👉 <b>당신 차례!</b> 썩은 이빨을 찾아요'
+          : '👉 <b>당신 차례!</b> 이빨을 눌러요';
         banner.classList.add('mine');
       } else {
         el('turn-text').innerHTML = `<b>${escapeHtml(p.name)}</b> 님 차례`;
@@ -1699,8 +1709,13 @@
     }
     const pressed = room.pressed.filter(Boolean).length;
     const remain = room.teeth - pressed;
-    const modeTxt = room.mode === 'survival' ? '서바이벌' : '한 명 당첨';
-    el('progress-info').textContent = `${modeTxt} · 이빨 ${room.teeth}개 중 ${pressed}개 눌림 · 남은 ${remain}개`;
+    if (room.mode === 'rotten') {
+      const left = (room.players || []).filter((p) => p.alive !== false).length;
+      el('progress-info').textContent =
+        `🦷 썩은 이빨 찾기 · 아직 못 찾은 사람 ${left}명 · 남은 이빨 ${remain}개`;
+    } else {
+      el('progress-info').textContent = `한 명 당첨 · 이빨 ${room.teeth}개 중 ${pressed}개 눌림 · 남은 ${remain}개`;
+    }
     // 🔥 긴장 레이어: 눌린 비율이 높아질수록 화면 가장자리가 붉게
     if (tn) tn.style.opacity = String(Math.min(0.85, Math.pow(pressed / room.teeth, 1.4)));
   }
@@ -1840,10 +1855,15 @@
       } else {
         await playBite(ev);
       }
+      // 🦷 썩은 이빨 찾기: 물리긴 했지만 '찾아낸' 것 — 그 사람은 여기서 빠져나간다(안전)
+      if (ev.mode === 'rotten' && !ev.gameOver) {
+        flash(`🦷 찾았다! ${ev.victimName} 탈출!`, 1400);
+        if (ev.victimId === state.myId) { confetti(); sfx.win(); }
+      }
     })();
   });
 
-  // 서바이벌: 다음 판 리셋
+  // 썩은 이빨 찾기: 다음 판 재장전
   socket.on('croc:reload', async (ev) => {
     if (state.room) state.room.turnId = ev.turnId;
     await playReload(ev);
@@ -1946,7 +1966,24 @@
     const survivorMe = ev.survivorId && ev.survivorId === state.myId;
     const card = el('result-card');
     clearDespair();
-    if (ev.mode === 'survival' && ev.survivorName) {
+    if (ev.mode === 'rotten') {
+      // 🦷 썩은 이빨 찾기 — 끝까지 못 찾고 혼자 남은 사람이 당첨(벌칙).
+      //    나머지는 전부 찾아서 빠져나간 사람들이라 축하 대상이다.
+      const n = (ev.found || []).length;
+      el('result-emoji').textContent = isMeLoser ? '😱' : '🦷';
+      el('result-title').textContent = isMeLoser ? '못 찾았습니다…' : '끝까지 못 찾은 사람!';
+      el('result-title').className = 'result-title lose';
+      el('result-name').textContent = ev.loserName;
+      el('result-name').style.color = ev.loserColor || '#ff5464';
+      el('result-sub').textContent = isMeLoser
+        ? `${n}명은 썩은 이빨을 찾아 빠져나갔어요 😵 당신만 남았습니다`
+        : `${ev.finderName} 님이 마지막 썩은 이빨을 찾아냈어요! 🦷`;
+      el('result-name').classList.add('tremble');
+      setTimeout(() => { el('result-stamp').classList.add('show'); sfx.chomp(); }, 480);
+      // 좌절 연출은 끝까지 못 찾은 당사자에게만. 찾아서 빠져나간 사람들은 축하.
+      if (isMeLoser) despair(true);
+      else { confetti(); sfx.win(); }
+    } else if (ev.mode === 'survival' && ev.survivorName) {
       el('result-emoji').textContent = survivorMe ? '👑' : '🏆';
       el('result-title').textContent = '최후의 생존자!';
       el('result-title').className = 'result-title win';

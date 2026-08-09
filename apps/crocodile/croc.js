@@ -53,11 +53,37 @@ function sanitizeTeeth(v) {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(Math.max(n, MIN_TEETH), MAX_TEETH) : DEFAULT_TEETH;
 }
+/**
+ * 인원수에 맞는 이빨 수 추천.
+ *
+ * 함정은 이빨 중 하나에 균등하게 숨으므로 한 판은 평균 (n+1)/2 번째에 끝난다.
+ * 즉 이빨을 다 누르는 일은 없다 — 16개라도 4명이면 1인당 2.1회뿐이다.
+ * 20개까지 늘려봤지만 이빨 간격이 17~28px 로 좁아져 누르기 불편해 16을 상한으로 둔다.
+ * 판을 길게 하고 싶으면 이빨 수가 아니라 'rotten'(썩은 이빨 찾기) 모드를 쓴다 —
+ * 한 명이 찾을 때마다 재장전되므로 인원수만큼 판이 이어진다.
+ *
+ *   2명 → 8개 · 3명 → 12개 · 4명 이상 → 16개
+ *
+ * 호스트가 직접 조절하면(room.teethManual) 더는 건드리지 않는다.
+ */
+function recommendTeeth(playerCount) {
+  const p = Math.max(1, playerCount);
+  if (p <= 2) return 8;
+  if (p === 3) return 12;
+  return MAX_TEETH;
+}
 function sanitizeCharacter(c) {
   return CHARACTERS.has(c) ? c : 'crocodile';
 }
+/**
+ * 게임 방식
+ *  'single' — 한 명 당첨: 함정 이빨을 누른 사람이 걸린다. 한 방에 끝.
+ *  'rotten' — 썩은 이빨 찾기: 악어가 이가 아프다. 돌아가며 눌러 '썩은 이빨'을 찾는다.
+ *             찾은 사람은 그 자리에서 빠져나가고(안전), 이빨이 재장전돼 계속된다.
+ *             끝까지 못 찾고 혼자 남은 사람이 당첨. (옛 이름 'survival' 도 받아준다)
+ */
 function sanitizeMode(m) {
-  return m === 'survival' ? 'survival' : 'single';
+  return m === 'rotten' || m === 'survival' ? 'rotten' : 'single';
 }
 
 // 이모지 응원 화이트리스트 (핀볼 cheers 와 동일 취지)
@@ -225,6 +251,7 @@ class CrocRooms {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
       room.teeth = sanitizeTeeth(teeth);
+      room.teethManual = true; // 직접 정했으면 인원이 바뀌어도 자동으로 안 건드린다
       this.broadcast(room);
     });
     socket.on('croc:setMode', ({ mode } = {}) => {
@@ -297,6 +324,7 @@ class CrocRooms {
     room.order = shuffle([...room.players.keys()]);
     room.turnPtr = 0;
     room.lastVictim = null;
+    room.found = []; // 썩은 이빨을 찾아 빠져나간 사람들 (찾은 순서)
     if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
     this.broadcast(room);
     this.nsp.to(room.code).emit('croc:begin', {
@@ -316,11 +344,17 @@ class CrocRooms {
 
     if (i === room.trap) {
       // 🔴 함정 이빨! 진짜 쾅.
+      //   single  — 이걸 누른 사람이 당첨(벌칙).
+      //   rotten  — 이걸 누른 사람이 '썩은 이빨을 찾은' 것. 물리긴 하지만 그 자리에서
+      //             빠져나가 안전하고, 끝까지 못 찾고 혼자 남는 사람이 당첨이 된다.
       const victim = room.players.get(byId);
       if (victim) victim.alive = false;
       room.lastVictim = byId;
+      if (room.mode === 'rotten' && by) room.found.push({ id: byId, name: by.name, color: by.color });
       const alive = [...room.players.values()].filter((p) => p.alive);
       const gameOver = room.mode === 'single' || alive.length <= 1;
+      // 남은 한 명 = 끝까지 못 찾은 사람 (rotten 모드의 당첨자)
+      const lastOne = alive.length === 1 ? this.pubPlayer(room, alive[0].id) : null;
 
       this.nsp.to(room.code).emit('croc:bite', {
         tooth: i,
@@ -330,25 +364,32 @@ class CrocRooms {
         character: room.character,
         mode: room.mode,
         gameOver,
-        survivorId: gameOver && alive.length === 1 ? alive[0].id : null,
+        remaining: alive.length, // rotten: 아직 못 찾은 사람 수
+        survivorId: gameOver && lastOne ? lastOne.id : null,
       });
 
       if (gameOver) {
         room.state = 'over';
-        const survivor = alive.length === 1 ? this.pubPlayer(room, alive[0].id) : null;
+        // rotten 모드에서 당첨자는 '마지막까지 못 찾은 사람'. 없으면(혼자 하던 판 등)
+        // single 과 똑같이 방금 누른 사람이 당첨.
+        const loser = room.mode === 'rotten' && lastOne
+          ? lastOne
+          : { id: byId, name: by ? by.name : '?', color: by ? by.color : '#e0555f' };
         this.nsp.to(room.code).emit('croc:over', {
           mode: room.mode,
-          loserId: byId,
-          loserName: by ? by.name : '?',
-          loserColor: by ? by.color : '#e0555f',
-          survivorId: survivor ? survivor.id : null,
-          survivorName: survivor ? survivor.name : null,
-          survivorColor: survivor ? survivor.color : null,
+          loserId: loser.id,
+          loserName: loser.name,
+          loserColor: loser.color,
+          // 방금 썩은 이빨을 찾아낸 사람 (rotten 연출용)
+          finderId: byId,
+          finderName: by ? by.name : '?',
+          finderColor: by ? by.color : '#63d29a',
+          found: room.found ? room.found.slice() : [],
           character: room.character,
         });
         this.broadcast(room);
       } else {
-        // survival: 물린 사람 탈락 → 이빨 리셋 + 새 함정 재장전 후 계속
+        // rotten: 찾은 사람은 빠져나가고 → 이빨 리셋 + 새 썩은 이빨 재장전 후 계속
         room.pressed = new Array(room.teeth).fill(false);
         room.trap = Math.floor(Math.random() * room.teeth);
         // 다음 살아있는 플레이어로 턴 이동
@@ -364,6 +405,7 @@ class CrocRooms {
           this.nsp.to(room.code).emit('croc:reload', {
             teeth: room.teeth,
             turnId: room.order[room.turnPtr],
+            remaining: [...room.players.values()].filter((p) => p.alive).length,
             alive: room.order.map((id) => this.pubPlayer(room, id)).filter(Boolean).map((p) => ({ id: p.id, alive: p.alive })),
           });
           this.broadcast(room);
@@ -418,7 +460,14 @@ class CrocRooms {
     });
     this.socketRoom.set(socket.id, room.code);
     socket.join(room.code);
+    this.autoTeeth(room);
     this.broadcast(room);
+  }
+
+  /** 대기실에서 인원이 바뀌면 이빨 수를 인원에 맞게 맞춰준다 (호스트가 직접 정했으면 그대로) */
+  autoTeeth(room) {
+    if (room.state !== 'lobby' || room.teethManual) return;
+    room.teeth = recommendTeeth(room.players.size);
   }
 
   uniqueName(room, name, excludeId = null) {
@@ -500,6 +549,7 @@ class CrocRooms {
     if (room.state === 'playing' && wasCurrent && room.order.length) {
       this.nsp.to(room.code).emit('croc:turn', { turnId: room.order[room.turnPtr] });
     }
+    this.autoTeeth(room);
     this.broadcast(room);
   }
 
@@ -522,6 +572,8 @@ class CrocRooms {
       state: room.state,
       character: room.character,
       teeth: room.teeth,
+      teethAuto: !room.teethManual, // 인원수에 맞춰 자동으로 정해진 값인지
+      teethRange: [MIN_TEETH, MAX_TEETH],
       mode: room.mode,
       maxPlayers: MAX_PLAYERS,
       players: [...room.players.values()].map((p) => ({
