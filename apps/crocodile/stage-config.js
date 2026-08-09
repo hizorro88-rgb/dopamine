@@ -15,15 +15,15 @@ const DATA_FILE = path.join(__dirname, '..', '..', 'data', 'croc-stage.json');
 const DEFAULTS = {
   crocodile: {
     arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]],
-    toothH: 60, toothW: 0.42, tilt: 0.48, maxTilt: 32, zoom: 1.62, emptyGums: true,
+    toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true,
   },
   shark: {
     arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]],
-    toothH: 78, toothW: 0.62, tilt: 0.48, maxTilt: 32, zoom: 1, emptyGums: false,
+    toothH: 78, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1, emptyGums: false,
   },
   dino: {
     arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]],
-    toothH: 104, toothW: 0.78, tilt: 0.48, maxTilt: 32, zoom: 1, emptyGums: false,
+    toothH: 104, toothW: 0.78, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1, emptyGums: false,
   },
 };
 
@@ -60,7 +60,8 @@ class StageStore {
       if (patch.arch !== undefined) cur.arch = validArch(patch.arch);
       if (patch.toothH !== undefined) cur.toothH = num(patch.toothH, 8, 400, '이빨 길이');
       if (patch.toothW !== undefined) cur.toothW = num(patch.toothW, 0.1, 2, '이빨 두께', true);
-      if (patch.tilt !== undefined) cur.tilt = num(patch.tilt, 0, 1.5, '기울기', true);
+      if (patch.tilt !== undefined) cur.tilt = num(patch.tilt, 0, 1.5, '잇몸선 따라가기', true);
+      if (patch.jitter !== undefined) cur.jitter = num(patch.jitter, 0, 45, '삐뚤빼뚤', true);
       if (patch.maxTilt !== undefined) cur.maxTilt = num(patch.maxTilt, 0, 90, '최대 기울기');
       if (patch.zoom !== undefined) cur.zoom = num(patch.zoom, 1, 3, '확대', true);
       if (patch.emptyGums !== undefined) cur.emptyGums = !!patch.emptyGums;

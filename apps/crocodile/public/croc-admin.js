@@ -73,7 +73,7 @@
   }
 
   // ── 조절판 ↔ 설정 ────────────────────────────────────────
-  const SLIDERS = ['toothH', 'toothW', 'tilt', 'maxTilt', 'zoom'];
+  const SLIDERS = ['toothH', 'toothW', 'jitter', 'tilt', 'maxTilt', 'zoom'];
   function syncControls() {
     const c = cfg();
     for (const k of SLIDERS) { $(k).value = c[k]; $(k + '-val').textContent = c[k]; }
@@ -223,7 +223,7 @@
     const j = await post('/api/admin/croc/stage', {
       character: cur,
       arch: c.arch, toothH: c.toothH, toothW: c.toothW,
-      tilt: c.tilt, maxTilt: c.maxTilt, zoom: c.zoom, emptyGums: c.emptyGums,
+      jitter: c.jitter, tilt: c.tilt, maxTilt: c.maxTilt, zoom: c.zoom, emptyGums: c.emptyGums,
     });
     if (!j.ok) return saveMsg(j.error || '저장 실패', true);
     stages[cur] = j.stage;

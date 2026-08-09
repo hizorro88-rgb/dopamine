@@ -81,9 +81,18 @@
     return c;
   }
 
+  /** 인덱스로만 결정되는 난수 0~1 (다시 그려도 같은 이빨은 항상 같은 모양) */
+  function hash01(i, salt) {
+    var x = Math.sin((i + 1) * 127.1 + salt * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
   /**
    * 이빨 배치표.
-   * @param {object} cfg  {arch, toothH, toothW, tilt, maxTilt}
+   * @param {object} cfg  {arch, toothH, toothW, tilt, jitter, maxTilt}
+   *   tilt   잇몸선 기울기를 얼마나 따라갈지 (0 = 전부 12시 방향)
+   *   jitter 이빨마다 무작위로 흔드는 각도(도) — 삐뚤빼뚤한 느낌
+   *   maxTilt 12시에서 최대 몇 도까지 벌어질 수 있는지 (30 ≈ 11시/1시)
    * @param {number} n    이빨 개수
    * @returns {Array<{x,y,ang,nx,ny,w,h,sp,t}>}  사진(720×1280) 좌표계
    */
@@ -93,8 +102,9 @@
     var C = cumLen(L), total = C[C.length - 1] || 1;
     var sp = total / Math.max(1, n - 1); // 곡선을 따라 잰 이빨 간격
     var w0 = Math.max(12, sp * (cfg.toothW == null ? 0.42 : cfg.toothW));
-    var tiltK = cfg.tilt == null ? 0.48 : cfg.tilt;
-    var maxTilt = cfg.maxTilt == null ? 32 : cfg.maxTilt;
+    var tiltK = cfg.tilt == null ? 0 : cfg.tilt;
+    var jitter = cfg.jitter == null ? 12 : cfg.jitter;
+    var maxTilt = cfg.maxTilt == null ? 30 : cfg.maxTilt;
     var baseH = cfg.toothH == null ? 60 : cfg.toothH;
 
     var out = [], k = 1;
@@ -110,8 +120,11 @@
       var dl = Math.hypot(dx, dy) || 1;
       var raw = Math.atan2(dy / dl, dx / dl) * 180 / Math.PI - 90; // 접선을 -90° 회전
       while (raw < -180) raw += 360; while (raw > 180) raw -= 360;
-      // 법선을 그대로 쓰면 곡률 중심으로 모여 부챗살처럼 겹친다 → 각도를 눌러준다
-      var ang = Math.max(-maxTilt, Math.min(maxTilt, raw * tiltK));
+      // 이빨 끝은 12시를 향하는 게 기본(tilt 0). 잇몸선 법선을 그대로 따르면
+      // U 자 곡률 중심으로 모여 부챗살처럼 눕기 때문에 tilt 로 얼마나 따라갈지 정하고,
+      // 대신 이빨마다 무작위로 조금씩 흔들어(jitter) 삐뚤빼뚤하게 보이게 한다.
+      var ang = raw * tiltK + (hash01(i, 7) * 2 - 1) * jitter;
+      ang = Math.max(-maxTilt, Math.min(maxTilt, ang));
       var rad = ang * Math.PI / 180;
       var t = n === 1 ? 0.5 : i / (n - 1);
       var d = Math.abs(t - 0.5) * 2;      // 0=입 앞쪽(가깝다) … 1=입 안쪽(멀다)

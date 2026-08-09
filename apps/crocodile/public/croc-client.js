@@ -411,9 +411,9 @@
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   //   아래 값은 서버(/api/croc/stage)를 못 읽었을 때 쓰는 기본값이다.
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0.48, maxTilt: 32, zoom: 1.62, emptyGums: true },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]], toothH: 78, toothW: 0.62, zoom: 1 },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]], toothH: 104, toothW: 0.78, zoom: 1 },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[228, 820], [300, 832], [374, 834], [449, 828], [526, 812]], toothH: 78, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1 },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[256, 908], [314, 940], [373, 952], [431, 944], [490, 916]], toothH: 104, toothW: 0.78, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1 },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
 
