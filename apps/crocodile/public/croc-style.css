@@ -176,6 +176,27 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 /* 티라노 — 폭풍우 정글 늪 + 회베이지 (영상 톤) */
 .stage[data-char="dino"] { --skin-1:#9aa089; --skin-2:#5e6550; --skin-shadow:#383e2e; --skin-belly:#bcc0a8; --skin-edge:#1f2418; --sky-1:#3d464e; --sky-2:#252d34; --water-1:#4a4a30; --water-2:#23230f; --water-edge:#9aa27a; }
 
+/* 🖼 실사 무대 (사진이 있으면 SVG 크리쳐 대신 이걸 쓴다) */
+.photo-stage { position: absolute; inset: 0; display: none; overflow: hidden; }
+.photo-stage.on { display: block; }
+.photo-stage img { width: 100%; height: 100%; object-fit: cover; display: block; will-change: transform, filter; }
+.photo-stage #photo-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.photo-stage #photo-teeth .tooth.pressable { pointer-events: auto; cursor: pointer; }
+/* 실사 무대의 이빨 마커: 평소엔 안 보이고, 내 차례에만 은은히 빛나며 콩닥인다 */
+.photo-stage #photo-teeth .tooth .tooth-inner { opacity: 0; transition: opacity .3s; }
+.photo-stage #photo-teeth .tooth.pressable .tooth-inner { opacity: 1; animation: tooth-mark 1.15s ease-in-out infinite; }
+.photo-stage #photo-teeth .tooth-glow { opacity: 1; }
+@keyframes tooth-mark {
+  0%, 100% { opacity: .55; transform: scale(.92); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+/* 실사 무대에선 SVG 크리쳐를 감춘다 */
+.stage.photo #scene { display: none; }
+/* 캐릭터별 입안·잇몸 톤 (사진에서 뽑은 색) */
+.stage[data-char="crocodile"] { --p-maw: #3a1c20; --p-gum-1: #6d4048; --p-gum-2: #46292f; }
+.stage[data-char="shark"] { --p-maw: #5a2830; --p-gum-1: #c08087; --p-gum-2: #8d565d; }
+.stage[data-char="dino"] { --p-maw: #3f1a20; --p-gum-1: #8d5b64; --p-gum-2: #55333c; }
+
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 /* 무대에서 탭을 받는 건 오직 '누를 수 있는 아래 이빨' 뿐 — 위턱/눈/물 등 장식이 탭을 가로채지 않도록. */
 #teethLower .tooth.pressable { pointer-events: auto; }

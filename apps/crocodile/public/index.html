@@ -124,6 +124,31 @@
 
       <!-- 무대: 물 + 악어 -->
       <div class="stage" id="stage">
+        <!-- 🖼 실사 무대: 인트로 영상 마지막 장면(입 벌린 컷)을 배경으로, 그 이빨 자리에 버튼을 얹는다 -->
+        <div id="photo-stage" class="photo-stage">
+          <img id="photo-bg" alt="" />
+          <svg id="photo-svg" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <!-- 잇몸 띠: 위(입안 어둠) → 가운데(잇몸) → 아래(투명, 사진 턱이 드러남) -->
+              <linearGradient id="pGum" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="var(--p-maw)" stop-opacity="1"/>
+                <stop offset="0.42" stop-color="var(--p-maw)" stop-opacity="1"/>
+                <stop offset="0.58" stop-color="var(--p-gum-1)" stop-opacity="1"/>
+                <stop offset="0.80" stop-color="var(--p-gum-2)" stop-opacity="0.85"/>
+                <stop offset="1" stop-color="var(--p-gum-2)" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="pTooth" x1="0" y1="0" x2="0.25" y2="1">
+                <stop offset="0" stop-color="#fffdf2"/>
+                <stop offset="0.55" stop-color="#e8dfc4"/>
+                <stop offset="1" stop-color="#a8977a"/>
+              </linearGradient>
+              <clipPath id="pGumClip"><path id="pGumClipPath" d=""/></clipPath>
+            </defs>
+            <g id="photo-gum"></g>
+            <g id="photo-teeth"></g>
+            <g id="photo-fx"></g>
+          </svg>
+        </div>
         <svg id="scene" viewBox="0 0 600 1000" preserveAspectRatio="xMidYMid meet" aria-label="악어 무대">
           <defs>
             <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">

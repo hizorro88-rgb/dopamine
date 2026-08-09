@@ -149,11 +149,12 @@
   // ═══════════════════════════════════════════════════════════
   let particleLayer = null;
   function ensureParticleLayer() {
-    if (particleLayer && particleLayer.isConnected) return particleLayer;
-    const scene = el('scene');
+    // 실사 무대에선 사진 위 오버레이(photo-fx)에, 아니면 SVG 씬에 그린다
+    const host = photoCfg() ? el('photo-fx') : el('scene');
+    if (particleLayer && particleLayer.isConnected && particleLayer.parentNode === host) return particleLayer;
     particleLayer = document.createElementNS(SVGNS, 'g');
     particleLayer.setAttribute('id', 'particles');
-    scene.appendChild(particleLayer);
+    host.appendChild(particleLayer);
     return particleLayer;
   }
   function drool(x, y) {
@@ -398,6 +399,66 @@
     },
   };
 
+  // ═══════════════════════════════════════════════════════════
+  //  🖼 실사 무대 (PHOTO STAGE)
+  //  인트로 영상의 '입 벌린' 마지막 컷을 배경으로 깔고, 사진 속 아랫니 아치를 따라
+  //  누를 수 있는 이빨을 얹는다. 좌표는 사진(720×1280) 기준.
+  //   arch: 아랫니 뿌리(잇몸선) 아치 — [왼쪽x, 왼쪽y, 중앙x, 중앙y(제어점), 오른쪽x, 오른쪽y]
+  // ═══════════════════════════════════════════════════════════
+  const PHOTO = {
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [232, 934, 366, 1064, 502, 940], toothH: 96, toothW: 0.72, bandUp: 175, bandDown: 210 },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62, bandUp: 150, bandDown: 200 },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78, bandUp: 185, bandDown: 205 },
+  };
+  const PW = 720, PH = 1280; // 사진 좌표계
+  // 아치(2차 베지어) 위의 점 — t: 0(왼쪽)~1(오른쪽)
+  function archPoint(a, t) {
+    const u = 1 - t;
+    return {
+      x: u * u * a[0] + 2 * u * t * a[2] + t * t * a[4],
+      y: u * u * a[1] + 2 * u * t * a[3] + t * t * a[5],
+    };
+  }
+  function photoCfg() { return state.photo || null; }
+
+  function buildPhotoTeeth(n) {
+    const cfg = photoCfg(); if (!cfg) return;
+    const gum = el('photo-gum'), teeth = el('photo-teeth'), a = cfg.arch;
+    gum.innerHTML = ''; teeth.innerHTML = '';
+    // 사진은 그대로 둔다 — 실제 이빨 아치 위에 '누를 수 있는' 마커만 얹는다.
+    // 누르면 그 자리에 이빨이 뽑힌 듯한 검은 구멍이 남는다.
+    const spacing = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
+    const w = Math.max(16, spacing * cfg.toothW);
+    const h = cfg.toothH;
+    for (let i = 0; i < n; i++) {
+      const t = n <= 1 ? 0.5 : i / (n - 1);
+      const p = archPoint(a, t);
+      const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
+      // 탭 영역 (투명) — 사진 이빨 하나 크기
+      g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -w * 0.62, y: -h, width: w * 1.24, height: h * 1.2, fill: 'transparent' }));
+      const inner = svgEl('g', { class: 'tooth-inner' });
+      // 내 차례일 때만 은은히 빛나는 마커 (평소엔 투명)
+      inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.45, rx: w * 0.52, ry: h * 0.5, fill: 'rgba(255,226,140,.5)' }));
+      inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.45, rx: w * 0.34, ry: h * 0.34, fill: 'rgba(255,255,255,.5)' }));
+      g.appendChild(inner);
+      // 눌린 뒤 남는 자국: 검은 구멍 + 잇몸 그림자 (처음엔 안 보임)
+      const hole = svgEl('g', { class: 'tooth-hole', opacity: 0 });
+      hole.appendChild(svgEl('ellipse', { cx: 0, cy: -h * 0.16, rx: w * 0.46, ry: h * 0.36, fill: '#120608' }));
+      hole.appendChild(svgEl('ellipse', { cx: 0, cy: -h * 0.30, rx: w * 0.30, ry: h * 0.22, fill: '#000', opacity: 0.85 }));
+      hole.appendChild(svgEl('ellipse', { cx: 0, cy: 2, rx: w * 0.5, ry: h * 0.1, fill: 'var(--p-gum-2)', opacity: 0.9 }));
+      g.appendChild(hole);
+      g.addEventListener('click', () => onToothClick(i));
+      teeth.appendChild(g);
+    }
+  }
+  // 실사 무대에서의 이빨 끝 좌표 (침 파티클·이름표용)
+  function photoToothTip(i, n) {
+    const cfg = photoCfg(); if (!cfg) return { x: PW / 2, y: PH / 2 };
+    const t = n <= 1 ? 0.5 : i / (n - 1);
+    const p = archPoint(cfg.arch, t);
+    return { x: p.x, y: p.y - cfg.toothH * 0.9 };
+  }
+
   const DEFAULT_MOUTH = 'M104,430 Q300,404 496,430 L496,628 Q300,668 104,628 Z';
   function applyCreature(char) {
     const c = CREATURES[char] || CREATURES.crocodile;
@@ -438,6 +499,7 @@
   function toothScale(i) { return 0.82 + 0.18 * (((i * 37 + 11) % 7) / 6); }
 
   function buildTeeth(n) {
+    if (photoCfg()) { buildPhotoTeeth(n); return; } // 🖼 실사 무대
     const c = state.creature || CREATURES.crocodile;
     const ts = c.tooth || { style: 'conic', wMul: 0.58, hMul: 1 };
     const lower = el('teethLower'), upper = el('teethUpper');
@@ -473,11 +535,15 @@
       upper.appendChild(ug);
     }
   }
+  // 이빨 조회는 두 무대(실사/SVG) 공용 — 현재 켜진 쪽에서 찾는다
+  function teethRoot() { return photoCfg() ? el('photo-teeth') : el('teethLower'); }
+  function toothAt(i) { return teethRoot().querySelector(`.tooth[data-i="${i}"]`); }
   function toothInnerAt(i) {
-    const g = el('teethLower').querySelector(`.tooth[data-i="${i}"]`);
+    const g = toothAt(i);
     return g ? g.querySelector('.tooth-inner') : null;
   }
   function toothTipXY(i, n) {
+    if (photoCfg()) return photoToothTip(i, n); // 🖼 실사 무대 좌표
     // 위 이빨 끝(침이 떨어지는 지점) 근사 — viewBox 좌표 (현재 위턱 이동량 반영)
     const x = toothX(i, n);
     const y = toothArcY(i, n, UPPER_Y, 14) + TOOTH_H * 0.82 + Jaw.offset;
@@ -659,7 +725,16 @@
   function enterGame(room) {
     show('game');
     el('stage').setAttribute('data-char', room.character);
-    applyCreature(room.character); // 캐릭터별 형태·눈·특징 적용
+    // 🖼 실사 무대가 있으면 그것을, 없으면 기존 SVG 크리쳐를 쓴다
+    state.photo = PHOTO[room.character] || null;
+    el('stage').classList.toggle('photo', !!state.photo);
+    el('photo-stage').classList.toggle('on', !!state.photo);
+    if (state.photo) {
+      const img = el('photo-bg');
+      if (img.getAttribute('src') !== state.photo.src) img.setAttribute('src', state.photo.src);
+      img.style.transform = ''; img.style.filter = '';
+    }
+    applyCreature(room.character); // 캐릭터별 형태·눈·특징 적용 (SVG 폴백용)
     buildTeeth(room.teeth);
     if (!Jaw.node) Jaw.init(el('upperJaw'));
     crocNode = el('croc'); birdNode = el('bird');
@@ -745,6 +820,30 @@
     // 🎞 실사 영상이 있으면 그것부터 — 끝나면 포효 브릿지로 게임에 착지
     const hasVideo = await tryVideoIntro();
     if (!hasVideo) hideCurtain(); // 영상이 없으면 커튼을 걷고 컷씬으로
+    if (hasVideo && photoCfg()) {
+      // 🖼 영상의 마지막 컷이 곧 이 사진 — 살짝 줌아웃하며 그대로 이어붙는다
+      const img = el('photo-bg');
+      img.style.filter = '';
+      photoAnim([{ transform: 'scale(1.08)' }, { transform: 'scale(1)' }], 700, 'ease-out');
+      flash(CREATURE_ROAR[state.character] || '크아앙!', 900);
+      sfx.roar();
+      shake(el('stage'));
+      Jaw.breathe = false;
+      lockInput(false);
+      return;
+    }
+    if (photoCfg()) {
+      // 영상이 없을 때: 사진이 확 다가오며 포효
+      hideCurtain();
+      const img = el('photo-bg');
+      img.style.filter = '';
+      await photoAnim([{ transform: 'scale(1.5)', opacity: 0.15 }, { transform: 'scale(1)', opacity: 1 }], 1500, 'cubic-bezier(.3,0,.2,1)');
+      flash(CREATURE_ROAR[state.character] || '크아앙!', 900);
+      sfx.roar();
+      shake(el('stage'));
+      lockInput(false);
+      return;
+    }
     if (hasVideo) {
       croc.style.transition = 'none';
       croc.style.transform = 'translateY(0) scale(1)';
@@ -1038,7 +1137,7 @@
     if (inner && inner.parentElement.classList.contains('pressed')) return;
     // 즉시 잠금 + 살짝 눌린 피드백 (서버 이벤트가 본 연출을 재생)
     lockInput(true);
-    if (inner) inner.style.transform = 'translateY(6px)';
+    if (inner) inner.style.transform = photoCfg() ? 'scale(.82)' : 'translateY(6px)';
     sfx.tick();
     socket.emit('croc:press', { tooth: i });
     // 안전망: 서버가 이 press 를 무시했다면(스테일 턴 등) 잠금이 영원히 안 풀리는 것 방지
@@ -1053,14 +1152,23 @@
   }
 
   function pressToothVisual(i, safe) {
-    const g = el('teethLower').querySelector(`.tooth[data-i="${i}"]`);
+    const g = toothAt(i);
     if (!g) return;
     g.classList.add('pressed');
     g.classList.remove('pressable');
+    if (photoCfg()) {
+      // 마커는 아래로 쏙 꺼지고, 그 자리에 이빨 빠진 자국이 드러난다
+      const inner0 = g.querySelector('.tooth-inner');
+      const hole = g.querySelector('.tooth-hole');
+      if (inner0) inner0.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(26px)', opacity: 0 }],
+        { duration: 240, easing: 'ease-in', fill: 'forwards' });
+      if (hole) hole.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 90, fill: 'forwards' });
+      return;
+    }
     const inner = g.querySelector('.tooth-inner');
     if (inner) {
       inner.animate(
-        [{ transform: inner.style.transform || 'translateY(0)' }, { transform: 'translateY(78px)' }],
+        [{ transform: inner.style.transform || 'translateY(0)' }, { transform: `translateY(${photoCfg() ? 130 : 78}px)` }],
         { duration: 220, easing: 'cubic-bezier(.3,1.4,.5,1)', fill: 'forwards' }
       );
     }
@@ -1076,7 +1184,7 @@
   function refreshPressable() {
     const canPress = state.myTurn && !state.busy && state.role === 'player' &&
       state.room && state.room.state === 'playing';
-    document.querySelectorAll('#teethLower .tooth').forEach((g) => {
+    teethRoot().querySelectorAll('.tooth').forEach((g) => {
       const i = Number(g.dataset.i);
       const pressedNow = state.room && state.room.pressed && state.room.pressed[i];
       if (g.classList.contains('pressed') || pressedNow) { g.classList.remove('pressable'); return; }
@@ -1084,10 +1192,114 @@
     });
   }
 
+  // ── 🖼 실사 무대 카메라 워크 (사진 자체를 움직여 연출한다) ──
+  function photoAnim(frames, dur, easing) {
+    const img = el('photo-bg');
+    if (!img) return Promise.resolve();
+    const a = img.animate(frames, { duration: dur, easing: easing || 'ease-in-out', fill: 'forwards' });
+    return a.finished.catch(() => {});
+  }
+  // 실사 무대 드라마 — 사진을 다가오게/흔들리게 해서 '물 것 같은' 긴장을 만든다
+  async function playPhotoDrama(kind, i) {
+    const n = state.teeth;
+    const tip = photoToothTip(i, n);
+    switch (kind) {
+      case 'drool': {
+        for (let k = 0; k < 3; k++) {
+          setTimeout(() => { drool(tip.x + (k - 1) * 40, tip.y - 40); sfx.drip(); }, k * 140);
+        }
+        await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], 620);
+        break;
+      }
+      case 'twitch': {
+        sfx.tension();
+        await photoAnim([
+          { transform: 'scale(1)' }, { transform: 'scale(1.05) translateY(6px)' },
+          { transform: 'scale(1.01) translateY(-2px)' }, { transform: 'scale(1)' },
+        ], 540);
+        break;
+      }
+      case 'headshake': {
+        // 무는 척 확 다가왔다가 고개를 좌우로 도리도리
+        sfx.tension();
+        flash('물었나…?!', 800, true);
+        await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.1)' }], 200, 'ease-out');
+        sfx.fake();
+        for (let k = 0; k < 4; k++) setTimeout(() => drool(200 + Math.random() * 320, tip.y), 60 + k * 170);
+        await photoAnim([
+          { transform: 'scale(1.1) rotate(0deg)' },
+          { transform: 'scale(1.1) rotate(-3.2deg) translateX(-16px)', offset: 0.2 },
+          { transform: 'scale(1.1) rotate(3deg) translateX(16px)', offset: 0.42 },
+          { transform: 'scale(1.1) rotate(-2.4deg) translateX(-11px)', offset: 0.64 },
+          { transform: 'scale(1.1) rotate(1.8deg) translateX(8px)', offset: 0.84 },
+          { transform: 'scale(1.1) rotate(0deg) translateX(0)' },
+        ], 880);
+        flash('아니네…', 620, true);
+        await photoAnim([{ transform: 'scale(1.1)' }, { transform: 'scale(1)' }], 420, 'ease-out');
+        break;
+      }
+      case 'bird': {
+        // 악어새가 날아와 훼방 — 사진 위로 새가 지나가고 크리쳐가 주춤
+        flash('🐦 악어새!', 1000);
+        sfx.bird();
+        flyCheer('🐦');
+        await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.06) translateY(8px)' }], 240, 'ease-out');
+        shake(el('stage'));
+        await sleep(220);
+        flash('휴~', 600, true);
+        await photoAnim([{ transform: 'scale(1.06) translateY(8px)' }, { transform: 'scale(1)' }], 480, 'ease-out');
+        break;
+      }
+      case 'chomp-fake': {
+        // 코앞까지 확 덮쳤다가 멈춤 — 최고 페이크
+        drool(tip.x, tip.y);
+        sfx.tension();
+        flash('앗...?!', 700);
+        const img = el('photo-bg');
+        img.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.45)' }], { duration: 170, fill: 'forwards' });
+        await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.34)' }], 170, 'cubic-bezier(.3,0,.2,1)');
+        sfx.fake();
+        shake(el('stage'));
+        await sleep(300);
+        img.animate([{ filter: 'brightness(.45)' }, { filter: 'brightness(1)' }], { duration: 420, fill: 'forwards' });
+        await photoAnim([{ transform: 'scale(1.34)' }, { transform: 'scale(1)' }], 460, 'cubic-bezier(.3,1.3,.5,1)');
+        flash('세이프…', 600, true);
+        break;
+      }
+      default: {
+        await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.015)' }, { transform: 'scale(1)' }], 420);
+      }
+    }
+  }
+  // 실사 무대 물기 — 사진이 화면을 삼키며 암전
+  async function playPhotoBite(ev) {
+    lockInput(true);
+    pressToothVisual(ev.tooth, false);
+    const tip = photoToothTip(ev.tooth, state.teeth);
+    const img = el('photo-bg');
+    drool(tip.x, tip.y); drool(tip.x - 30, tip.y);
+    sfx.tension();
+    flash('물까…?', 1100);
+    await photoAnim([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }], 760, 'ease-in-out');
+    await sleep(140);
+    // 망설임
+    await photoAnim([{ transform: 'scale(1.12)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1.12)' }], 380);
+    await sleep(200);
+    // 쾅!
+    sfx.chomp();
+    shake(el('stage'));
+    redFlash();
+    flash('쾅!!', 900);
+    img.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.2)' }], { duration: 240, fill: 'forwards' });
+    await photoAnim([{ transform: 'scale(1.16)' }, { transform: 'scale(2.1)' }], 240, 'cubic-bezier(.4,0,.9,.4)');
+    await sleep(520);
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  드라마 연출 (서버가 지시 → 전원 동일 재생)
   // ═══════════════════════════════════════════════════════════
   async function playDrama(kind, toothIndex) {
+    if (photoCfg()) return playPhotoDrama(kind, toothIndex); // 🖼 실사 무대
     const n = state.teeth;
     switch (kind) {
       case 'drool': {
@@ -1220,6 +1432,7 @@
 
   // 진짜 물기 — 느린 긴장 → 망설임 → 쾅!
   async function playBite(ev) {
+    if (photoCfg()) return playPhotoBite(ev); // 🖼 실사 무대
     lockInput(true);
     Jaw.breathe = false;
     pressToothVisual(ev.tooth, false);
@@ -1259,6 +1472,16 @@
 
   // 서바이벌: 물린 뒤 이빨 리셋 → 다시 입 벌림
   async function playReload(ev) {
+    if (photoCfg()) {
+      const img = el('photo-bg');
+      img.animate([{ filter: 'brightness(.2)' }, { filter: 'brightness(1)' }], { duration: 500, fill: 'forwards' });
+      await photoAnim([{ transform: 'scale(2.1)' }, { transform: 'scale(1)' }], 600, 'cubic-bezier(.3,1.2,.5,1)');
+      buildTeeth(ev.teeth || state.teeth);
+      flash('다시…!', 700);
+      sfx.roar();
+      lockInput(false);
+      return;
+    }
     buildTeeth(ev.teeth || state.teeth);
     Jaw.setInstant(JAW.closed);
     await sleep(150);
@@ -1292,20 +1515,25 @@
   // 누른 사람 이름표가 이빨 위로 떠오른다 (전원 화면 공통)
   function nameTag(i, name, color) {
     const layer = ensureParticleLayer();
-    const x = Math.min(520, Math.max(80, toothX(i, state.teeth)));
+    const photo = photoCfg();
+    const tip = photo ? photoToothTip(i, state.teeth) : null;
+    const x = photo
+      ? Math.min(PW - 90, Math.max(90, tip.x))
+      : Math.min(520, Math.max(80, toothX(i, state.teeth)));
     const g = svgEl('g', {});
     const t = svgEl('text', {
-      x: 0, y: 0, 'text-anchor': 'middle', 'font-size': 32, 'font-weight': 800,
+      x: 0, y: 0, 'text-anchor': 'middle', 'font-size': photo ? 42 : 32, 'font-weight': 800,
       fill: color || '#fff', stroke: 'rgba(0,0,0,0.7)', 'stroke-width': 5, 'paint-order': 'stroke',
     });
     t.textContent = name || '';
     g.appendChild(t); layer.appendChild(g);
+    const baseY = photo ? tip.y - 30 : GUM_Y - 60;
     const a = g.animate(
       [
-        { transform: `translate(${x}px, ${GUM_Y - 60}px)`, opacity: 0 },
-        { transform: `translate(${x}px, ${GUM_Y - 100}px)`, opacity: 1, offset: 0.22 },
-        { transform: `translate(${x}px, ${GUM_Y - 108}px)`, opacity: 1, offset: 0.6 },
-        { transform: `translate(${x}px, ${GUM_Y - 140}px)`, opacity: 0 },
+        { transform: `translate(${x}px, ${baseY}px)`, opacity: 0 },
+        { transform: `translate(${x}px, ${baseY - 42}px)`, opacity: 1, offset: 0.22 },
+        { transform: `translate(${x}px, ${baseY - 50}px)`, opacity: 1, offset: 0.6 },
+        { transform: `translate(${x}px, ${baseY - 84}px)`, opacity: 0 },
       ],
       { duration: 1500, easing: 'ease-out' }
     );
@@ -1313,6 +1541,7 @@
   }
   // 눌린 이빨 쪽으로 눈동자가 스윽 (전 캐릭터 공통 — .pupil)
   function eyesLookAt(i) {
+    if (photoCfg()) return; // 실사 무대엔 SVG 눈이 없다
     const dx = ((toothX(i, state.teeth) - 300) / 300) * 9;
     document.querySelectorAll('#eyes .pupil').forEach((p) => {
       p.animate(
@@ -1417,11 +1646,16 @@
   });
 
   function markPressed(i) {
-    const g = el('teethLower').querySelector(`.tooth[data-i="${i}"]`);
+    const g = toothAt(i);
     if (g && !g.classList.contains('pressed')) {
       g.classList.add('pressed'); g.classList.remove('pressable');
+      if (photoCfg()) {
+        const i0 = g.querySelector('.tooth-inner'); if (i0) i0.style.opacity = '0';
+        const h0 = g.querySelector('.tooth-hole'); if (h0) h0.setAttribute('opacity', '1');
+        return;
+      }
       const inner = g.querySelector('.tooth-inner');
-      if (inner) inner.style.transform = 'translateY(78px)';
+      if (inner) inner.style.transform = `translateY(${photoCfg() ? 130 : 78}px)`;
       const p = g.querySelector('path'); if (p) p.setAttribute('fill', '#b7ad8c');
     }
   }
