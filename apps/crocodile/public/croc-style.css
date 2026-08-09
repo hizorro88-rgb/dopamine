@@ -180,6 +180,8 @@ input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .photo-stage { position: absolute; inset: 0; display: none; overflow: hidden; }
 .photo-stage.on { display: block; }
 .photo-stage img { width: 100%; height: 100%; object-fit: cover; display: block; will-change: transform, filter; }
+/* 🔍 입 클로즈업: 사진과 이빨을 함께 확대해 이빨이 커지고 간격이 벌어진다(터치 편의 + 박력) */
+.photo-stage.zoom { transform: scale(var(--photo-zoom, 1.62)); transform-origin: 50% 74%; }
 .photo-stage #photo-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .photo-stage #photo-teeth .tooth.pressable { pointer-events: auto; cursor: pointer; }
 /* 사진에 이빨이 남아있는 캐릭터: 마커만 얹으므로 평소엔 숨기고 내 차례에만 빛낸다 */

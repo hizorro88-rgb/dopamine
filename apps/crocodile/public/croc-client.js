@@ -408,7 +408,7 @@
   //   emptyGums: 아랫니를 지운 사진 → 진짜 이빨 오브젝트를 심는다(누르면 잇몸 속으로 사라짐)
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [222, 952, 360, 1002, 488, 950], toothH: 100, toothW: 0.56, emptyGums: true },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [203, 956, 360, 1002, 509, 952], toothH: 100, toothW: 0.5, emptyGums: true },
     shark:     { src: '/crocodile/stage/shark.jpg',     arch: [228, 820, 370, 852, 526, 812],  toothH: 78, toothW: 0.62 },
     dino:      { src: '/crocodile/stage/dino.jpg',      arch: [256, 908, 372, 992, 490, 916],  toothH: 104, toothW: 0.78 },
   };
@@ -436,7 +436,7 @@
         + `Q${a[2]},${a[3] + 6} ${a[0] - 200},${a[1] + 6} Z`);
       teeth.setAttribute('clip-path', 'url(#pGumClip)');
       const sp = Math.abs(a[4] - a[0]) / Math.max(1, n - 1);
-      const w0 = Math.max(15, sp * cfg.toothW);
+      const w0 = Math.max(11, sp * cfg.toothW); // 이빨 자체는 날씬하게 → 사이 간격 확보
       for (let i = 0; i < n; i++) {
         const t = n <= 1 ? 0.5 : i / (n - 1);
         const p = archPoint(a, t);
@@ -444,7 +444,8 @@
         const h = cfg.toothH * (0.55 + 0.62 * Math.abs(t - 0.5) * 2) * (0.8 + 0.32 * (((i * 53 + 17) % 11) / 10));
         const w = w0 * (0.86 + 0.28 * Math.abs(t - 0.5) * 2);
         const g = svgEl('g', { class: 'tooth', 'data-i': i, transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
-        g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -w * 0.8, y: -h - 6, width: w * 1.6, height: h + 22, fill: 'transparent' }));
+        const hitW = Math.max(w * 1.6, sp * 0.96); // 터치 영역은 이빨보다 훨씬 넉넉하게
+        g.appendChild(svgEl('rect', { class: 'tooth-hit', x: -hitW / 2, y: -h - 14, width: hitW, height: h + 46, fill: 'transparent' }));
         const inner = svgEl('g', { class: 'tooth-inner' });
         // 내 차례 표시용 글로우 (평소엔 CSS 로 숨김)
         inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.52, rx: w * 1.15, ry: h * 0.66, fill: 'rgba(255,236,170,.24)' }));
@@ -641,7 +642,7 @@
     audioReady();
     const name = myName() || randomName();
     el('in-name').value = name; rememberName();
-    socket.emit('croc:create', { name, character: 'crocodile', teeth: 12, mode: 'single', token }, (res) => {
+    socket.emit('croc:create', { name, character: 'crocodile', teeth: 8, mode: 'single', token }, (res) => {
       if (!res || !res.ok) return toast((res && res.error) || '방 생성 실패');
       state.role = 'player';
       enterRoom(res.code);
@@ -776,6 +777,8 @@
     el('stage').classList.toggle('photo', !!state.photo);
     el('photo-stage').classList.toggle('on', !!state.photo);
     el('photo-stage').classList.toggle('real-teeth', !!(state.photo && state.photo.emptyGums));
+    // 이빨을 심은 무대는 입을 클로즈업해 이빨을 키운다 (누르기 쉽게)
+    el('photo-stage').classList.toggle('zoom', !!(state.photo && state.photo.emptyGums));
     if (state.photo) {
       const img = el('photo-bg');
       if (img.getAttribute('src') !== state.photo.src) img.setAttribute('src', state.photo.src);
