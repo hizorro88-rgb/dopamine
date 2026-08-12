@@ -411,9 +411,9 @@
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   //   아래 값은 서버(/api/croc/stage)를 못 읽었을 때 쓰는 기본값이다.
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, style: 'conic', emptyGums: true },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[220, 765], [280, 805], [360, 833], [445, 822], [538, 755]], toothH: 52, toothW: 0.72, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.5, style: 'triangle', emptyGums: true },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[238, 843], [287, 927], [363, 945], [443, 933], [505, 850]], toothH: 62, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, style: 'banana', emptyGums: true },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, aspect: 0.5, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, style: 'conic', emptyGums: true },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[220, 765], [280, 805], [360, 833], [445, 822], [538, 755]], toothH: 56, toothW: 0.72, aspect: 0.58, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.5, style: 'triangle', emptyGums: true },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[238, 843], [287, 927], [363, 945], [443, 933], [505, 850]], toothH: 78, toothW: 0.62, aspect: 0.26, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, style: 'banana', emptyGums: true },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
 
@@ -475,22 +475,21 @@
         const clip = svgEl('g', { 'clip-path': 'url(#pToothClip)' });
         const inner = svgEl('g', { class: 'tooth-inner' });
         // 내 차례 표시용 글로우 (평소엔 CSS 로 숨김)
-        inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.5, rx: w * 0.92, ry: h * 0.6, fill: 'rgba(255,236,170,.2)' }));
+        inner.appendChild(svgEl('ellipse', { class: 'tooth-glow', cx: 0, cy: -h * 0.5, rx: w * 1.15, ry: h * 0.62, fill: 'url(#pGlow)' }));
+        const sk = TOOTH_SKIN[cfg.style] || TOOTH_SKIN.conic;
         // 잇몸에 박힌 뿌리 그림자
-        inner.appendChild(svgEl('ellipse', { cx: 0, cy: -2, rx: w * 0.56, ry: 7, fill: 'rgba(60,20,26,.7)' }));
-        // 이빨 본체
+        inner.appendChild(svgEl('ellipse', { cx: 0, cy: -1, rx: w * 0.44, ry: 5, fill: sk.socket, opacity: 0.6 }));
+        // 이빨 본체 (세로 톤) + 그 위에 원통형 음영 한 겹 (가로 광택)
+        const d = toothPath(w, h, false, cfg.style || 'conic');
         inner.appendChild(svgEl('path', {
-          d: toothPath(w, h, false, cfg.style || 'conic'),
-          fill: 'url(#pTooth)', stroke: 'rgba(86,66,44,.5)', 'stroke-width': 1.4,
+          d, fill: sk.fill, stroke: sk.edge, 'stroke-width': Math.max(0.7, w * sk.edgeW),
         }));
-        // 왼쪽 하이라이트 + 오른쪽 음영 (입체감)
+        inner.appendChild(svgEl('path', { d, fill: 'url(#pCyl)', opacity: sk.gloss }));
+        // 끝으로 갈수록 살짝 투명해지는 느낌 (사진 속 이빨 끝의 반투명감)
         inner.appendChild(svgEl('path', {
-          d: `M${-w * 0.19},${-h * 0.12} Q${-w * 0.1},${-h * 0.58} ${-w * 0.02},${-h * 0.85}`,
-          fill: 'none', stroke: 'rgba(255,255,255,.6)', 'stroke-width': w * 0.15, 'stroke-linecap': 'round',
-        }));
-        inner.appendChild(svgEl('path', {
-          d: `M${w * 0.26},${-h * 0.1} Q${w * 0.17},${-h * 0.5} ${w * 0.05},${-h * 0.8}`,
-          fill: 'none', stroke: 'rgba(90,70,45,.28)', 'stroke-width': w * 0.13, 'stroke-linecap': 'round',
+          d: `M0,${-h} C${-w * 0.16},${-h * 0.78} ${-w * 0.2},${-h * 0.66} ${-w * 0.19},${-h * 0.6}`
+            + ` C${-w * 0.06},${-h * 0.74} ${-w * 0.03},${-h * 0.88} 0,${-h} Z`,
+          fill: 'rgba(255,255,255,.34)',
         }));
         clip.appendChild(inner);
         g.appendChild(clip);
@@ -558,21 +557,43 @@
   // 이빨 형태(캐릭터별): conic(악어) / triangle(상어, 톱니) / banana(티라노, 큰 송곳니)
   function toothPath(w, h, down, style) {
     const s = down ? -1 : 1;
+    // 🦈 상어: 밑동이 넓고 옆선이 아래쪽에서 살짝 부풀었다가 한 점으로 날카롭게 모인다
     if (style === 'triangle') {
-      return `M ${-w / 2},0 L ${-w * 0.3},${-h * 0.42 * s} L ${-w * 0.17},${-h * 0.36 * s} `
-        + `L ${-w * 0.09},${-h * 0.74 * s} L 0,${-h * s} L ${w * 0.09},${-h * 0.74 * s} `
-        + `L ${w * 0.17},${-h * 0.36 * s} L ${w * 0.3},${-h * 0.42 * s} L ${w / 2},0 Z`;
+      return `M ${-w / 2},0 C ${-w * 0.47},${-h * 0.26 * s} ${-w * 0.30},${-h * 0.62 * s} 0,${-h * s} `
+        + `C ${w * 0.30},${-h * 0.62 * s} ${w * 0.47},${-h * 0.26 * s} ${w / 2},0 Z`;
     }
+    // 🦖 티라노: 가늘고 긴 단검 — 밑에서 조금 올라간 곳이 가장 굵고 끝이 바늘처럼 뾰족
     if (style === 'banana') {
-      return `M ${-w / 2},0 Q ${-w * 0.52},${-h * 0.55 * s} ${-w * 0.22},${-h * 0.9 * s} `
-        + `Q ${-w * 0.05},${-h * 1.08 * s} ${w * 0.14},${-h * 0.92 * s} `
-        + `Q ${w * 0.46},${-h * 0.6 * s} ${w / 2},0 Z`;
+      return `M ${-w * 0.44},${-h * 0.12 * s} C ${-w * 0.50},${-h * 0.44 * s} ${-w * 0.30},${-h * 0.80 * s} 0,${-h * s} `
+        + `C ${w * 0.30},${-h * 0.80 * s} ${w * 0.50},${-h * 0.44 * s} ${w * 0.44},${-h * 0.12 * s} `
+        + `C ${w * 0.42},${h * 0.03 * s} ${-w * 0.42},${h * 0.03 * s} ${-w * 0.44},${-h * 0.12 * s} Z`;
     }
     return `M ${-w / 2},0 Q ${-w * 0.36},${-h * 0.5 * s} ${-w * 0.1},${-h * 0.86 * s} `
       + `Q 0,${-h * 1.03 * s} ${w * 0.1},${-h * 0.86 * s} `
       + `Q ${w * 0.36},${-h * 0.5 * s} ${w / 2},0 Z`;
   }
   function toothScale(i) { return 0.82 + 0.18 * (((i * 37 + 11) % 7) / 6); }
+
+  // 실사 무대 이빨의 색·광택 — 각 사진의 실제 아랫니에서 뽑은 값
+  //   상어: 차가운 회백색에 미색이 살짝 (뿌리 #69525e · 본체 #b79e8e · 하이라이트 #e7dbd1)
+  //   공룡: 따뜻한 상아색       (뿌리 #636361 · 본체 #c9c6a9 · 하이라이트 #f6e8e9)
+  const TOOTH_SKIN = {
+    conic: {
+      fill: 'url(#pTooth)', edge: 'rgba(86,66,44,.5)', edgeW: 0.035,
+      gloss: 0.85,
+      socket: 'rgba(60,20,26,.7)',
+    },
+    triangle: {
+      fill: 'url(#pToothShark)', edge: 'rgba(70,52,56,.55)', edgeW: 0.03,
+      gloss: 0.95,
+      socket: 'rgba(84,38,44,.75)',
+    },
+    banana: {
+      fill: 'url(#pToothDino)', edge: 'rgba(74,68,50,.55)', edgeW: 0.05,
+      gloss: 0.8,
+      socket: 'rgba(72,40,36,.7)',
+    },
+  };
 
   function buildTeeth(n) {
     if (photoCfg()) { buildPhotoTeeth(n); return; } // 🖼 실사 무대

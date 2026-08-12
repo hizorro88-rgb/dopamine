@@ -144,6 +144,36 @@
                 <stop offset="0.5" stop-color="#eae2cd"/>
                 <stop offset="1" stop-color="#b6a98c"/>
               </linearGradient>
+              <!-- 상어·공룡 이빨 색은 각 사진의 실제 아랫니에서 뽑았다 (윗니와 톤이 맞도록) -->
+              <linearGradient id="pToothShark" x1="0" y1="0" x2="0.22" y2="1">
+                <stop offset="0" stop-color="#f2e9e0"/>
+                <stop offset="0.45" stop-color="#d5c1b1"/>
+                <stop offset="0.85" stop-color="#a08a80"/>
+                <stop offset="1" stop-color="#7a6068"/>
+              </linearGradient>
+              <linearGradient id="pToothDino" x1="0" y1="0" x2="0.22" y2="1">
+                <stop offset="0" stop-color="#f7f0d8"/>
+                <stop offset="0.45" stop-color="#dcd8b8"/>
+                <stop offset="0.85" stop-color="#aca583"/>
+                <stop offset="1" stop-color="#79776a"/>
+              </linearGradient>
+              <!-- 내 차례에 이빨을 감싸는 은은한 빛 (가장자리가 딱 떨어지지 않게 방사형) -->
+              <radialGradient id="pGlow">
+                <stop offset="0" stop-color="#ffeaa8" stop-opacity="0.42"/>
+                <stop offset="0.55" stop-color="#ffeaa8" stop-opacity="0.14"/>
+                <stop offset="1" stop-color="#ffeaa8" stop-opacity="0"/>
+              </radialGradient>
+              <!-- 이빨 표면의 원통형 음영: 한쪽에 젖은 광택, 반대쪽에 그늘.
+                   본체 위에 같은 모양으로 한 겹 덧대 매끈한 입체감을 만든다 -->
+              <linearGradient id="pCyl" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#2a1a1a" stop-opacity="0.30"/>
+                <stop offset="0.10" stop-color="#ffffff" stop-opacity="0.10"/>
+                <stop offset="0.22" stop-color="#ffffff" stop-opacity="0.52"/>
+                <stop offset="0.34" stop-color="#ffffff" stop-opacity="0.14"/>
+                <stop offset="0.58" stop-color="#ffffff" stop-opacity="0"/>
+                <stop offset="0.82" stop-color="#2a1a1a" stop-opacity="0.20"/>
+                <stop offset="1" stop-color="#241414" stop-opacity="0.44"/>
+              </linearGradient>
               <!-- 이빨 하나하나의 로컬 좌표계(=기울어진 잇몸선 기준) 위쪽만 보이게 —
                    눌리면 아래(잇몸 속)로 내려가며 잘려서 사라진다 -->
               <clipPath id="pToothClip" clipPathUnits="userSpaceOnUse">

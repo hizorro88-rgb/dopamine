@@ -106,6 +106,9 @@
     var jitter = cfg.jitter == null ? 12 : cfg.jitter;
     var maxTilt = cfg.maxTilt == null ? 30 : cfg.maxTilt;
     var baseH = cfg.toothH == null ? 60 : cfg.toothH;
+    // 이빨이 몇 개든 '가로:세로'가 실물 비율을 넘지 않게 막는다.
+    // (toothW 는 간격 대비 폭이라, 개수가 적으면 이빨이 뚱뚱해져 버린다)
+    var maxAspect = cfg.aspect == null ? 0.6 : cfg.aspect;
 
     var out = [], k = 1;
     for (var i = 0; i < n; i++) {
@@ -129,11 +132,12 @@
       var t = n === 1 ? 0.5 : i / (n - 1);
       var d = Math.abs(t - 0.5) * 2;      // 0=입 앞쪽(가깝다) … 1=입 안쪽(멀다)
       var persp = 1 - 0.26 * d;           // 안쪽일수록 원근으로 작아진다
+      var hh = baseH * persp * (0.84 + 0.3 * (((i * 53 + 17) % 11) / 10));
       out.push({
         x: x, y: y, t: t, sp: sp, ang: ang,
         nx: Math.sin(rad), ny: -Math.cos(rad),
-        w: w0 * persp,
-        h: baseH * persp * (0.84 + 0.3 * (((i * 53 + 17) % 11) / 10)), // 개체차
+        w: Math.min(w0 * persp, hh * maxAspect),
+        h: hh, // 개체차
       });
     }
     return out;
