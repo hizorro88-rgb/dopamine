@@ -15,15 +15,18 @@ const DATA_FILE = path.join(__dirname, '..', '..', 'data', 'croc-stage.json');
 const DEFAULTS = {
   crocodile: {
     arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]],
-    toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true,
+    toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62,
+    style: 'conic', emptyGums: true,
   },
   shark: {
-    arch: [[227, 785], [287, 828], [370, 843], [455, 828], [513, 785]],
-    toothH: 58, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, emptyGums: false,
+    arch: [[220, 765], [280, 805], [360, 833], [445, 822], [538, 755]],
+    toothH: 52, toothW: 0.72, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.5,
+    style: 'triangle', emptyGums: true,
   },
   dino: {
-    arch: [[250, 890], [300, 933], [370, 953], [440, 941], [490, 890]],
-    toothH: 72, toothW: 0.72, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, emptyGums: false,
+    arch: [[238, 843], [287, 927], [363, 945], [443, 933], [505, 850]],
+    toothH: 62, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5,
+    style: 'banana', emptyGums: true,
   },
 };
 
@@ -64,6 +67,7 @@ class StageStore {
       if (patch.jitter !== undefined) cur.jitter = num(patch.jitter, 0, 45, '삐뚤빼뚤', true);
       if (patch.maxTilt !== undefined) cur.maxTilt = num(patch.maxTilt, 0, 90, '최대 기울기');
       if (patch.zoom !== undefined) cur.zoom = num(patch.zoom, 1, 3, '확대', true);
+      if (patch.style !== undefined) cur.style = ['conic', 'triangle', 'banana'].includes(patch.style) ? patch.style : cur.style;
       if (patch.emptyGums !== undefined) cur.emptyGums = !!patch.emptyGums;
     } catch (e) {
       return { ok: false, error: e.message };

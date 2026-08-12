@@ -411,9 +411,9 @@
   //   (없으면 사진의 실제 이빨 위에 마커만 얹는 방식)
   //   아래 값은 서버(/api/croc/stage)를 못 읽었을 때 쓰는 기본값이다.
   const PHOTO = {
-    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, emptyGums: true },
-    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[227, 785], [287, 828], [370, 843], [455, 828], [513, 785]], toothH: 58, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5 },
-    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[250, 890], [300, 933], [370, 953], [440, 941], [490, 890]], toothH: 72, toothW: 0.72, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5 },
+    crocodile: { src: '/crocodile/stage/crocodile.jpg', arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]], toothH: 60, toothW: 0.42, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62, style: 'conic', emptyGums: true },
+    shark:     { src: '/crocodile/stage/shark.jpg',     arch: [[220, 765], [280, 805], [360, 833], [445, 822], [538, 755]], toothH: 52, toothW: 0.72, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.5, style: 'triangle', emptyGums: true },
+    dino:      { src: '/crocodile/stage/dino.jpg',      arch: [[238, 843], [287, 927], [363, 945], [443, 933], [505, 850]], toothH: 62, toothW: 0.62, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5, style: 'banana', emptyGums: true },
   };
   const PW = 720, PH = 1280; // 사진 좌표계
 
@@ -480,7 +480,7 @@
         inner.appendChild(svgEl('ellipse', { cx: 0, cy: -2, rx: w * 0.56, ry: 7, fill: 'rgba(60,20,26,.7)' }));
         // 이빨 본체
         inner.appendChild(svgEl('path', {
-          d: toothPath(w, h, false, 'conic'),
+          d: toothPath(w, h, false, cfg.style || 'conic'),
           fill: 'url(#pTooth)', stroke: 'rgba(86,66,44,.5)', 'stroke-width': 1.4,
         }));
         // 왼쪽 하이라이트 + 오른쪽 음영 (입체감)
