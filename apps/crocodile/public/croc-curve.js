@@ -143,5 +143,29 @@
     return out;
   }
 
-  root.CrocCurve = { toPts: toPts, polyline: polyline, pathD: pathD, layout: layout };
+  /**
+   * 이빨 실루엣 — 사진 속 실제 이빨을 보고 잡은 모양.
+   *   conic    악어: 원뿔형
+   *   triangle 상어: 밑동이 넓고 옆선이 아래에서 살짝 부풀었다가 한 점으로 모인다
+   *   banana   티라노: 가늘고 긴 단검, 밑동이 둥글고 끝이 바늘처럼 뾰족
+   */
+  function toothPath(w, h, style) {
+    if (style === 'triangle') {
+      return 'M ' + (-w / 2) + ',0 C ' + (-w * 0.47) + ',' + (-h * 0.26) + ' ' + (-w * 0.30) + ',' + (-h * 0.62) + ' 0,' + (-h)
+        + ' C ' + (w * 0.30) + ',' + (-h * 0.62) + ' ' + (w * 0.47) + ',' + (-h * 0.26) + ' ' + (w / 2) + ',0 Z';
+    }
+    if (style === 'banana') {
+      return 'M ' + (-w * 0.44) + ',' + (-h * 0.12)
+        + ' C ' + (-w * 0.50) + ',' + (-h * 0.44) + ' ' + (-w * 0.30) + ',' + (-h * 0.80) + ' 0,' + (-h)
+        + ' C ' + (w * 0.30) + ',' + (-h * 0.80) + ' ' + (w * 0.50) + ',' + (-h * 0.44) + ' ' + (w * 0.44) + ',' + (-h * 0.12)
+        + ' C ' + (w * 0.42) + ',' + (h * 0.03) + ' ' + (-w * 0.42) + ',' + (h * 0.03) + ' ' + (-w * 0.44) + ',' + (-h * 0.12) + ' Z';
+    }
+    return 'M ' + (-w / 2) + ',0 Q ' + (-w * 0.36) + ',' + (-h * 0.5) + ' ' + (-w * 0.1) + ',' + (-h * 0.86)
+      + ' Q 0,' + (-h * 1.03) + ' ' + (w * 0.1) + ',' + (-h * 0.86)
+      + ' Q ' + (w * 0.36) + ',' + (-h * 0.5) + ' ' + (w / 2) + ',0 Z';
+  }
+  /** 스타일별 채움 그라디언트 id (game/editor 공통 defs) */
+  var FILL = { conic: 'pTooth', triangle: 'pToothShark', banana: 'pToothDino' };
+
+  root.CrocCurve = { toPts: toPts, polyline: polyline, pathD: pathD, layout: layout, toothPath: toothPath, FILL: FILL };
 })(typeof window !== 'undefined' ? window : globalThis);

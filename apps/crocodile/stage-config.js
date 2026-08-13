@@ -10,23 +10,33 @@ const path = require('path');
 const { atomicWriteJSON } = require('../../server/security');
 
 const DATA_FILE = path.join(__dirname, '..', '..', 'data', 'croc-stage.json');
+const STAGE_DIR = path.join(__dirname, 'public', 'stage');
+
+/**
+ * 무대 리비전.
+ * 코드 쪽에서 사진을 바꾸거나 이빨 모양·기본 좌표를 갈아엎으면 이 숫자를 올린다.
+ * 저장된 설정의 rev 가 다르면 그 캐릭터는 새 기본값으로 되돌린다 —
+ * 안 그러면 예전에 관리자 페이지에서 한 번 저장해둔 값이 새 기본값을 계속 덮어써서
+ * "코드는 바꿨는데 화면은 그대로"인 상황이 된다.
+ */
+const REV = 2;
 
 // arch: 잇몸 곡선을 지나는 점들 [[x,y], …] — 사진 720×1280 좌표계, 왼쪽→오른쪽 순서
 const DEFAULTS = {
   crocodile: {
     arch: [[218, 830], [296, 943], [374, 978], [451, 937], [528, 818]],
     toothH: 60, toothW: 0.42, aspect: 0.5, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.62,
-    style: 'conic', emptyGums: true,
+    style: 'conic', emptyGums: true, rev: REV,
   },
   shark: {
     arch: [[220, 765], [280, 805], [360, 833], [445, 822], [538, 755]],
     toothH: 56, toothW: 0.72, aspect: 0.58, tilt: 0, jitter: 12, maxTilt: 30, zoom: 1.5,
-    style: 'triangle', emptyGums: true,
+    style: 'triangle', emptyGums: true, rev: REV,
   },
   dino: {
     arch: [[238, 843], [287, 927], [363, 945], [443, 933], [505, 850]],
     toothH: 78, toothW: 0.62, aspect: 0.26, tilt: 0, jitter: 10, maxTilt: 30, zoom: 1.5,
-    style: 'banana', emptyGums: true,
+    style: 'banana', emptyGums: true, rev: REV,
   },
 };
 
@@ -38,14 +48,39 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 class StageStore {
   constructor() {
     this.data = clone(DEFAULTS);
+    this.resetByUpdate = []; // 리비전이 올라 기본값으로 되돌린 캐릭터
     try {
       const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
       for (const c of CHARACTERS) {
-        if (saved && saved[c]) this.data[c] = { ...this.data[c], ...saved[c] };
+        const sv = saved && saved[c];
+        if (!sv) continue;
+        if (Number(sv.rev || 1) !== DEFAULTS[c].rev) { this.resetByUpdate.push(c); continue; }
+        this.data[c] = { ...this.data[c], ...sv };
       }
     } catch {
       /* 파일 없으면 기본값 */
     }
+    if (this.resetByUpdate.length) {
+      console.log(
+        `[croc] 무대가 업데이트되어 ${this.resetByUpdate.join(', ')} 설정을 새 기본값으로 되돌렸습니다.`
+        + ' (관리자 페이지에서 다시 다듬을 수 있어요)'
+      );
+    }
+  }
+
+  /** 사진 파일의 수정시각 → 캐시 무효화용 버전 문자열 */
+  stageVersion(character) {
+    try {
+      return Math.floor(fs.statSync(path.join(STAGE_DIR, character + '.jpg')).mtimeMs).toString(36);
+    } catch {
+      return '0';
+    }
+  }
+  /** 게임/편집기에 내려줄 형태 — 사진 URL 에 버전을 붙여 옛 사진이 캐시되는 걸 막는다 */
+  publicAll() {
+    const out = clone(this.data);
+    for (const c of CHARACTERS) out[c].v = this.stageVersion(c);
+    return out;
   }
 
   all() {
@@ -73,6 +108,7 @@ class StageStore {
     } catch (e) {
       return { ok: false, error: e.message };
     }
+    cur.rev = DEFAULTS[character].rev; // 지금 코드 기준으로 저장됐다고 표시
     this.data[character] = cur;
     atomicWriteJSON(DATA_FILE, this.data);
     return { ok: true, stage: clone(cur) };

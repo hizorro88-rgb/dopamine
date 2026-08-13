@@ -235,7 +235,10 @@ app.use(
     index: false,
     redirect: false, // '/crocodile' → '/crocodile/' 자동 리다이렉트 끄기 (아래 serveCroc 로 넘긴다)
     setHeaders: (res, filePath) => {
-      if (/\.(html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+      // 무대 사진(stage/*.jpg)은 같은 URL 로 내용만 바뀌는 일이 있어 함께 재검증시킨다
+      if (/\.(html|js|css)$/i.test(filePath) || /[\\/]stage[\\/]/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
     },
   })
 );
@@ -265,11 +268,16 @@ const { StageStore: CrocStageStore } = require('../apps/crocodile/stage-config')
 const crocStage = new CrocStageStore();
 app.get('/api/croc/stage', (_req, res) => {
   res.set('Cache-Control', 'no-cache');
-  res.json({ ok: true, stages: crocStage.all() });
+  res.json({ ok: true, stages: crocStage.publicAll() });
 });
 app.get('/api/admin/croc/stage', (req, res) => {
   if (!requireAdmin(req, res)) return;
-  res.json({ ok: true, stages: crocStage.all(), defaults: crocStage.defaults() });
+  res.json({
+    ok: true,
+    stages: crocStage.publicAll(),
+    defaults: crocStage.defaults(),
+    resetByUpdate: crocStage.resetByUpdate, // 무대가 갱신돼 기본값으로 되돌린 캐릭터
+  });
 });
 app.post('/api/admin/croc/stage', (req, res) => {
   if (!requireAdmin(req, res)) return;

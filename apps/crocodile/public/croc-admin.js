@@ -42,7 +42,9 @@
       const j = await r.json();
       if (!r.ok || !j.ok) return say(j.error || '불러오지 못했습니다.', true);
       stages = j.stages;
-      say('');
+      say(j.resetByUpdate && j.resetByUpdate.length
+        ? `⚠ 무대가 업데이트되어 ${j.resetByUpdate.join(', ')} 설정이 새 기본값으로 초기화됐습니다. 필요하면 다시 다듬어 저장하세요.`
+        : '');
       $('app').classList.remove('hidden');
       buildTabs();
       selectChar(cur);
@@ -67,7 +69,8 @@
   function selectChar(id) {
     cur = id;
     [...$('tabs').children].forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-    $('bg').src = '/crocodile/stage/' + id + '.jpg';
+    const v = stages[id] && stages[id].v;
+    $('bg').src = '/crocodile/stage/' + id + '.jpg' + (v ? '?v=' + v : '');
     syncControls();
     render();
   }
@@ -110,12 +113,13 @@
     // 이빨 미리보기
     const g = $('teeth'); g.innerHTML = '';
     if ($('show-teeth').checked) {
+      const style = c.style || 'conic';
+      const fill = 'url(#' + (window.CrocCurve.FILL[style] || 'pTooth') + ')';
       for (const t of window.CrocCurve.layout(c, n)) {
         const tg = svgEl('g', { transform: `translate(${t.x.toFixed(1)},${t.y.toFixed(1)}) rotate(${t.ang.toFixed(1)})` });
-        tg.appendChild(svgEl('path', {
-          d: `M${-t.w / 2},0 Q${-t.w * 0.36},${-t.h * 0.55} 0,${-t.h} Q${t.w * 0.36},${-t.h * 0.55} ${t.w / 2},0 Z`,
-          fill: 'url(#pTooth)', stroke: 'rgba(86,66,44,.6)', 'stroke-width': 1.4,
-        }));
+        const d = window.CrocCurve.toothPath(t.w, t.h, style);
+        tg.appendChild(svgEl('path', { d, fill, stroke: 'rgba(80,64,50,.55)', 'stroke-width': 1.2 }));
+        tg.appendChild(svgEl('path', { d, fill: 'url(#pCyl)', opacity: 0.9 }));
         g.appendChild(tg);
       }
     }

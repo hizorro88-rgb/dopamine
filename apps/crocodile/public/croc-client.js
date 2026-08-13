@@ -418,6 +418,8 @@
   const PW = 720, PH = 1280; // 사진 좌표계
 
   function photoCfg() { return state.photo || null; }
+  // 무대 사진 URL — 서버가 준 버전(v)을 붙여 옛 사진이 캐시에 붙잡히는 걸 막는다
+  function photoSrc(cfg) { return cfg.src + (cfg.v ? '?v=' + cfg.v : ''); }
   // 이빨 배치표 (위치·기울기·크기) — 사진 좌표계. 곡선이나 개수가 바뀔 때만 다시 계산한다.
   let _layoutKey = '', _layout = [];
   function photoLayout(n) {
@@ -480,7 +482,7 @@
         // 잇몸에 박힌 뿌리 그림자
         inner.appendChild(svgEl('ellipse', { cx: 0, cy: -1, rx: w * 0.44, ry: 5, fill: sk.socket, opacity: 0.6 }));
         // 이빨 본체 (세로 톤) + 그 위에 원통형 음영 한 겹 (가로 광택)
-        const d = toothPath(w, h, false, cfg.style || 'conic');
+        const d = window.CrocCurve.toothPath(w, h, cfg.style || 'conic');
         inner.appendChild(svgEl('path', {
           d, fill: sk.fill, stroke: sk.edge, 'stroke-width': Math.max(0.7, w * sk.edgeW),
         }));
@@ -894,7 +896,8 @@
     applyPhotoZoom();
     if (state.photo) {
       const img = el('photo-bg');
-      if (img.getAttribute('src') !== state.photo.src) img.setAttribute('src', state.photo.src);
+      const want = photoSrc(state.photo);
+      if (img.getAttribute('src') !== want) img.setAttribute('src', want);
       img.style.transform = ''; img.style.filter = '';
     }
     applyCreature(room.character); // 캐릭터별 형태·눈·특징 적용 (SVG 폴백용)
