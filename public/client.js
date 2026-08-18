@@ -8,6 +8,91 @@
   // 배치 가능 영역 (maxY 는 맵 길이에 따라 달라짐)
   const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130 };
 
+  // ═══════════════════════════════════════════════════════════
+  //  🔊 사운드 & 햅틱 (WebAudio 합성 — 오디오 파일 없음)
+  //
+  //  설계 원칙: 여러 대의 폰이 한 자리에 모여 있으므로 "전부 소리내면" 아수라장이 된다.
+  //  그래서 핀 충돌음처럼 잦은 소리는 '내 공'에만 낸다 → 각자 폰에서 자기 공만 노래한다.
+  //  덕분에 내 공이 화면 밖에 있어도 지금 잘 굴러가는지 귀로 알 수 있다.
+  // ═══════════════════════════════════════════════════════════
+  const Sound = {
+    on: localStorage.getItem('pinball-sound') !== 'off',
+    ctx: null,
+    ready() {
+      if (!this.on) return null;
+      if (!this.ctx) {
+        try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.ctx = null; }
+      }
+      // iOS/사파리는 사용자 제스처 뒤에야 재생이 풀린다
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      return this.ctx;
+    },
+    /** 단음 — freq(Hz), dur(초), type, gain, slideTo(끝 주파수) */
+    tone(freq, dur, type, gain, slideTo) {
+      const ac = this.ready(); if (!ac) return;
+      const t = ac.currentTime;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain || 0.16, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ac.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    },
+    /** 노이즈 버스트 — 충돌·폭발의 '몸통' */
+    noise(dur, gain) {
+      const ac = this.ready(); if (!ac) return;
+      const n = Math.floor(ac.sampleRate * dur);
+      const buf = ac.createBuffer(1, n, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const g = ac.createGain(); g.gain.value = gain || 0.14;
+      src.connect(g).connect(ac.destination); src.start();
+    },
+    buzz(pattern) { if (this.on && navigator.vibrate) { try { navigator.vibrate(pattern); } catch { /* 미지원 */ } } },
+    toggle() {
+      this.on = !this.on;
+      localStorage.setItem('pinball-sound', this.on ? 'on' : 'off');
+      if (this.on) this.ready();
+      const b = $('btn-sound'); if (b) b.textContent = this.on ? '🔊' : '🔇';
+    },
+  };
+  const sfx = {
+    // 내 공이 무언가에 튕김 — 속도에 따라 음높이가 변해 '살아있는' 느낌
+    ping(strength) {
+      const s = Math.min(1, strength / 22);
+      Sound.tone(340 + s * 620, 0.055, 'triangle', 0.05 + s * 0.07);
+    },
+    drop() { Sound.tone(760, 0.5, 'sine', 0.14, 150); Sound.noise(0.3, 0.07); },
+    countdown() { Sound.tone(680, 0.1, 'square', 0.11); },
+    go() { Sound.tone(1040, 0.22, 'square', 0.15); },
+    item() { Sound.tone(620, 0.16, 'triangle', 0.15, 1180); },
+    itemOnMe() { Sound.tone(300, 0.3, 'sawtooth', 0.18, 900); Sound.buzz(90); },
+    pickup() { [660, 880, 1170].forEach((f, i) => setTimeout(() => Sound.tone(f, 0.1, 'triangle', 0.13), i * 55)); },
+    explode() { Sound.noise(0.3, 0.3); Sound.tone(80, 0.35, 'square', 0.24, 34); },
+    wallbreak() { Sound.noise(0.16, 0.2); Sound.tone(1500, 0.12, 'square', 0.09, 500); },
+    portal() { Sound.tone(400, 0.26, 'sine', 0.14, 1500); },
+    blackhole() { Sound.tone(1200, 0.7, 'sawtooth', 0.13, 60); },
+    karma() { Sound.tone(200, 0.4, 'sawtooth', 0.16, 700); },
+    // 결승 구간 진입 — 심장이 뛰기 시작한다
+    heartbeat() { Sound.tone(72, 0.12, 'sine', 0.2); setTimeout(() => Sound.tone(64, 0.16, 'sine', 0.16), 150); },
+    // 골인 — 등수가 낮을수록(1등에 가까울수록) 높고 밝게
+    finish(rank) {
+      const scale = [1046, 880, 784, 698, 622, 554];
+      Sound.tone(scale[Math.min(rank - 1, scale.length - 1)], 0.26, 'triangle', 0.17);
+    },
+    win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => Sound.tone(f, 0.2, 'triangle', 0.17), i * 95)); },
+    // 벌칙 확정 — 둔탁하게 떨어지는 소리
+    doom() {
+      Sound.noise(0.4, 0.26);
+      [180, 150, 120, 92].forEach((f, i) => setTimeout(() => Sound.tone(f, 0.34, 'sawtooth', 0.2, f * 0.7), i * 130));
+      Sound.buzz([260, 90, 420]);
+    },
+  };
+
   // ── 상태 ──────────────────────────────────────────────
   let myId = null;
   // 🔌 재접속용 영구 토큰 (소켓 id 와 분리 — 잠깐 끊겨도 같은 자리로 복귀)
@@ -2087,6 +2172,17 @@
     if (finished) for (const f of finished) appendFinishRow(f);
     requestAnimationFrame(renderFrame);
   }
+  // 🔊 소리 토글 (설정은 localStorage 에 저장) + 첫 탭에서 오디오 잠금 해제(iOS)
+  {
+    const sb = $('btn-sound');
+    if (sb) {
+      sb.textContent = Sound.on ? '🔊' : '🔇';
+      sb.addEventListener('click', () => Sound.toggle());
+    }
+    const unlock = () => { Sound.ready(); document.removeEventListener('pointerdown', unlock); };
+    document.addEventListener('pointerdown', unlock);
+  }
+
   socket.on('game:started', startGameView);
 
   // ── 🎉 이모지 응원 ───────────────────────────────────
@@ -2158,6 +2254,8 @@
     // 셔플 → 낙하 전환 순간 "GO!" 표시
     if (game.shuffling && !snap.sh) {
       toast('🎲 낙하 시작!');
+      sfx.drop();
+      game._nearSince = 0;
     }
     game.shuffling = !!snap.sh;
     updateHiddenComps(snap.off);
@@ -2221,6 +2319,7 @@
   socket.on('game:explosion', ({ x, y, radius }) => {
     if (!game) return;
     game.explosions.push({ x, y, radius, start: performance.now() });
+    sfx.explode();
     // 화면 안에서 터졌으면 카메라 흔들기
     if (Math.abs(y - (game.camY + VIEW.height / 2)) < VIEW.height) {
       game.shakeUntil = performance.now() + 250;
@@ -2231,6 +2330,7 @@
   socket.on('game:wallbreak', ({ x, y, color }) => {
     if (!game) return;
     game.explosions.push({ x, y, radius: 30, start: performance.now(), color: color || '#ffb03a' });
+    sfx.wallbreak();
   });
 
   // 🌀 포탈 순간이동 / 🦘 점프 패드 발동 — 시안 링 이펙트 (흔들림 없음)
@@ -2238,12 +2338,14 @@
     if (!game) return;
     if (from) game.explosions.push({ x: from.x, y: from.y, radius: 55, start: performance.now(), color: '#35e0ff' });
     if (to) game.explosions.push({ x: to.x, y: to.y, radius: 55, start: performance.now(), color: '#35e0ff' });
+    sfx.portal();
   });
 
   // 🌀 블랙홀 발동: 흡입 범위를 소용돌이 장으로 표시
   socket.on('game:blackhole', ({ x, y, radius, duration }) => {
     if (!game) return;
     game.blackholes.push({ x, y, radius, duration: duration || 1300, start: performance.now() });
+    sfx.blackhole();
     game.shakeUntil = performance.now() + 300;
   });
 
@@ -2252,6 +2354,7 @@
     if (!game) return;
     toast(`🎡 인생은 돌고돌아! ${name}의 공이 골인 직전에 원점으로...!`);
     game.explosions.push({ x, y, radius: 130, start: performance.now() });
+    sfx.karma();
     game.shakeUntil = performance.now() + 350;
   });
 
@@ -2285,8 +2388,20 @@
   socket.on('game:ballFinished', (data) => {
     if (!game || game.replay) return;
     appendFinishRow(data);
+    const mineFin = data.playerId === myId;
+    if (data.doomed) {
+      // 💀 벌칙자 확정 — 이 게임의 진짜 클라이맥스
+      sfx.doom();
+      game.screenFx = { emoji: '💀', label: `벌칙 당첨 — ${data.name}`, color: 'rgba(255,40,60,.55)', start: performance.now() };
+      game.shakeUntil = performance.now() + 420;
+      if (mineFin) Sound.buzz([300, 100, 300, 100, 600]);
+    } else {
+      sfx.finish(data.rank);
+      if (mineFin) Sound.buzz(data.rank === 1 ? [70, 60, 140] : 60);
+    }
     if (data.celebrate) {
       spawnCelebration(data.celebrateX, data.name);
+      sfx.win();
     } else if (data.rank === 1) {
       toast(
         game.winMode === 'last'
@@ -2325,6 +2440,7 @@
   }
 
   socket.on('game:itemUsed', ({ by, item, target, self, pickup }) => {
+    if (pickup) sfx.pickup(); else sfx.item();
     toast(
       pickup
         ? `🎁 ${by} → ${item.emoji} ${item.name} 획득!`
@@ -2482,6 +2598,18 @@
         ? `🎉 1등 당첨: ${winner.name}${winner.playerId === mineKey ? ' (나!)' : ''}`
         : `🏆 ${winner.name}${winner.playerId === mineKey ? ' (나)' : ''} 우승!`
       : '';
+
+    // 💀 벌칙자 배너 — 이 게임은 대부분 벌칙자를 뽑으려고 돌린다.
+    //    1등 배너만 있고 정작 모두가 보고 싶어하는 꼴찌는 표에 묻혀 있었다.
+    const doomed = ranking.length > 1 ? ranking[ranking.length - 1] : null;
+    const lb = $('loser-banner');
+    if (lb) {
+      const showDoom = doomed && lastRankingWinMode !== 'last';
+      lb.className = showDoom ? 'series-final-banner lose' : '';
+      lb.innerHTML = showDoom
+        ? `💀 벌칙 당첨 · <b>${escapeHtml(doomed.name)}${doomed.playerId === mineKey ? ' (나…)' : ''}</b>`
+        : '';
+    }
 
     // 시상대 (1~3등, 표시 순서: 2등-1등-3등)
     const podium = $('podium');
@@ -3029,7 +3157,7 @@
       if (cur & bit && !(prev & bit)) {
         const m = EFFECT_META[flag];
         game.fxPops.push({ x: b.x, y: b.y, emoji: m.emoji, label: m.label, color: m.color, start: performance.now() });
-        if (mine) game.screenFx = { emoji: m.emoji, label: `내 공 — ${m.label}`, color: m.color, start: performance.now() };
+        if (mine) { game.screenFx = { emoji: m.emoji, label: `내 공 — ${m.label}`, color: m.color, start: performance.now() }; sfx.itemOnMe(); }
       }
     }
     game.fxSeen.set(key, cur);
@@ -3249,14 +3377,30 @@
     // 근소한 순위 뒤집힘엔 기존 포커스를 유지(히스테리시스)해 1프레임 흔들림을 막는다.
     const mapH = board.world.height;
     let best = null;
+    let last = null;      // 💀 가장 뒤처진 공 (벌칙 결정전용)
     let prevFocus = null;
+    let racing = 0;       // 아직 골인하지 않은 공 수
     for (const b of balls) {
       if (b.cl || b.snap) continue;
+      racing++;
       if (!best || b.y > best.y) best = b;
+      if (!last || b.y < last.y) last = b;
       if (game._focusKey != null && (b.k || b.p) === game._focusKey) prevFocus = b;
     }
+    // 💀 벌칙 결정전: 남은 공이 2개 이하면 카메라를 '꼴찌 다툼'으로 돌린다.
+    //    이 게임은 대부분 벌칙자 뽑기로 쓰이는데, 정작 모두가 궁금한 장면은
+    //    1등을 쫓는 카메라 뒤편에서 조용히 끝나고 있었다.
+    const doomRace = !game.shuffling && !game.overShown && racing > 0 && racing <= 2
+      && game.winMode !== 'last' && !game.replay;
+    if (doomRace && last) best = last;
     let focus = best;
-    if (prevFocus && best && best.y - prevFocus.y < 60) focus = prevFocus; // 근소한 차이면 유지
+    // 꼴찌 다툼으로 전환되는 순간엔 히스테리시스를 무시하고 즉시 넘어간다
+    if (!doomRace && prevFocus && best && best.y - prevFocus.y < 60) focus = prevFocus; // 근소한 차이면 유지
+    if (doomRace && !game._doomAnnounced) {
+      game._doomAnnounced = true;
+      toast('💀 벌칙 결정전!');
+      sfx.heartbeat();
+    }
     if (focus) {
       game._focusKey = focus.k != null ? focus.k : focus.p;
       const target = clampCam(focus.y - VIEW.height * 0.42, mapH);
@@ -3268,6 +3412,46 @@
       else if (game.camY - target > 320) game.camY = target + 320;
     }
     const camY = game.camY;
+
+    // ═══ 🎯 내 공 추적 — 소리·HUD·화살표의 공통 재료 ═══
+    //   낙하 시간의 32%(최악 83%) 동안 내 공이 화면 밖이었다. 카메라가 선두만 쫓기 때문.
+    //   위치를 못 봐도 "지금 몇 등인지, 얼마나 뒤처졌는지"는 항상 알 수 있어야 한다.
+    game.myInfo = null;
+    if (!game.replay && !game.shuffling && !game.overShown) {
+      const mineNow = [];
+      for (const b of balls) if (b.p === myId && !b.cl) mineNow.push(b);
+      if (mineNow.length) {
+        // 여러 개면 가장 앞선 공을 대표로
+        const mb = mineNow.reduce((a, c) => (c.y > a.y ? c : a));
+        let ahead = 0;
+        for (const b of balls) if (!b.cl && b.p !== myId && b.y > mb.y) ahead++;
+        game.myInfo = {
+          x: mb.x, y: mb.y,
+          rank: ahead + 1,
+          gap: Math.max(0, Math.round((best ? best.y : mb.y) - mb.y)),
+          offTop: mb.y < camY,
+          offBottom: mb.y > camY + VIEW.height,
+        };
+        // 🔊 내 공이 튕길 때만 '핑' — 여러 폰이 한자리에 있으니 남의 공 소리는 안 낸다.
+        //    내 공이 화면 밖에 있어도 귀로 굴러가는 게 느껴진다.
+        if (mb.px !== undefined) {
+          const vy = mb.y - mb.py, vx = mb.x - mb.px;
+          const pv = game._myVel || { vx: 0, vy: 0 };
+          const bounced = (pv.vy > 1.5 && vy < -0.5) || (Math.abs(pv.vx) > 1.5 && Math.sign(vx) !== Math.sign(pv.vx));
+          if (bounced && nowFrame - (game._lastPing || 0) > 70) {
+            game._lastPing = nowFrame;
+            sfx.ping(Math.hypot(pv.vx, pv.vy) * 3);
+          }
+          game._myVel = { vx, vy };
+        }
+        // 💓 내 공이 결승 구간에 들어오면 심장박동
+        const dGoal = board.goal.y - mb.y;
+        if (dGoal < 1050 && dGoal > 0) {
+          const beat = 260 + (dGoal / 1050) * 520; // 가까울수록 빨라진다
+          if (nowFrame - (game._lastBeat || 0) > beat) { game._lastBeat = nowFrame; sfx.heartbeat(); }
+        }
+      }
+    }
 
     // 🔍 결정적 순간 줌인 — 선두 공이 골인선에 가까워질수록 화면을 서서히 확대해 긴장감을 높인다.
     // 앵커(zoomCx/zoomCy)는 선두 공의 '화면 위치'라, 줌이 그 공을 중심으로 파고든다. 부드럽게 보간.
@@ -3614,6 +3798,52 @@
     }
 
     ctx.restore();
+
+    // ═══ 🎯 내 공 HUD + 화면 밖 화살표 ═══
+    //   카메라는 선두(또는 꼴찌)를 쫓으므로 내 공은 자주 화면에 없다.
+    //   순위·거리를 항상 띄우고, 화면 밖이면 어느 쪽에 얼마나 있는지 가장자리에 표시한다.
+    if (game.myInfo && !game.overShown) {
+      const mi = game.myInfo;
+      const me = game.players.get(myId);
+      const mcol = me ? me.color : '#ffd12e';
+      ctx.save();
+      // 좌상단 칩
+      const label = `내 공 ${mi.rank}등`;
+      const sub = mi.gap > 0 ? `선두와 ${mi.gap}px` : '선두!';
+      ctx.font = 'bold 15px sans-serif';
+      const w = Math.max(ctx.measureText(label).width, ctx.measureText(sub).width) + 34;
+      ctx.fillStyle = 'rgba(8,12,22,.72)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(10, 10, w, 46, 10);
+      else ctx.rect(10, 10, w, 46);
+      ctx.fill();
+      ctx.fillStyle = mcol;
+      ctx.beginPath(); ctx.arc(24, 33, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+      ctx.fillText(label, 38, 29);
+      ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.66)';
+      ctx.fillText(sub, 38, 47);
+      // 화면 밖이면 가장자리 화살표
+      if (mi.offTop || mi.offBottom) {
+        const ax = Math.max(24, Math.min(VIEW.width - 24, mi.x));
+        const ay = mi.offTop ? 78 : VIEW.height - 40;
+        const dir = mi.offTop ? -1 : 1;
+        const pulse = 0.72 + 0.28 * Math.sin(nowFrame / 170);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = mcol;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay + dir * 15);
+        ctx.lineTo(ax - 13, ay - dir * 9);
+        ctx.lineTo(ax + 13, ay - dir * 9);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1;
+        const away = mi.offTop ? Math.round(camY - mi.y) : Math.round(mi.y - camY - VIEW.height);
+        ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`${away}px`, ax, ay - dir * 16);
+      }
+      ctx.restore();
+    }
 
     // 🔔 내 공이 아이템에 걸린 순간 화면 전체 알림 (카메라 밖이어도 확실히 알림)
     if (game.screenFx) {

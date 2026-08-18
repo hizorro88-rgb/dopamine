@@ -13,7 +13,9 @@ module.exports = {
    * 셔플 단계는 항상 실시간이고, 아이템 지속시간·폭탄
    * 재생성·제한시간은 게임 시간 기준이라 배속을 바꿔도 밸런스가 유지됩니다.
    */
-  TIME_SCALE: Number(process.env.TIME_SCALE) > 0 ? Number(process.env.TIME_SCALE) : 5,
+  //  ⚖️ 기본값 3 — 5로 두면 낙하가 6초에 끝나고 공이 프레임당 13px(최대 140px)씩
+  //     튀어 눈으로 따라갈 수도, 아이템을 쓸 시간도 없었다. 3이면 낙하 9.3초.
+  TIME_SCALE: Number(process.env.TIME_SCALE) > 0 ? Number(process.env.TIME_SCALE) : 3,
 
   /**
    * 셔플 낙하 자동 시작 (ms) — 방장이 낙하 버튼을 누르지 않아도
@@ -22,7 +24,7 @@ module.exports = {
   SHUFFLE_AUTO_DROP_MS:
     Number(process.env.SHUFFLE_AUTO_DROP_MS) > 0
       ? Number(process.env.SHUFFLE_AUTO_DROP_MS)
-      : 5000,
+      : 3000,
 
   /**
    * 아이템전 시작 시 아이템 소개 시간 (ms) — 각자 받은 아이템 카드를
@@ -31,5 +33,5 @@ module.exports = {
   ITEM_INTRO_MS:
     process.env.ITEM_INTRO_MS !== undefined
       ? Number(process.env.ITEM_INTRO_MS) || 0
-      : 6000,
+      : 3000,
 };

@@ -43,6 +43,10 @@ const SUBSTEP_MAX_DISP = 10; // 검사 간 목표 이동량(px) — 벽 두께�
 // 🐢 공 최대 속도 캡 — 중력 자유낙하 등으로 과속해 벽을 지나치는 것을 방지(공기저항 종단속도 개념).
 //    실측: 캡 없으면 종단 ~47 → 여기에 걸리면 얇은 벽도 확실히 막힌다.
 const MAX_BALL_SPEED = 28;
+// 🐢 결승 슬로우모션 — 선두가 골인선 이 거리 안에 들면 배속을 서서히 낮춘다.
+//    클라 줌인(client.js 의 NEAR)과 같은 값으로 맞춰 하나의 연출로 보이게 한다.
+const FINISH_NEAR = 1050;
+const FINISH_SLOW_BUDGET_MS = 2000; // 한 판에서 늦출 수 있는 총량 (늘어짐 방지)
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -541,6 +545,8 @@ class Game {
     this.shuffling = false;
     this.dropAt = Date.now();
     this.dropSimMs = this.simMs;
+    this.stepAcc = 0;   // 소수 배속 누적기 (결승 슬로우모션용)
+    this.slowSpent = 0; // 이번 판에서 느리게 흘려보낸 총량(ms)
     this.rec = { frames: [], tick: 0 }; // 🎬 낙하 시작부터 녹화 시작 (프레임 t는 dropAt 기준 실시간 ms)
 
     // 올랜덤: 자동 아이템 발동 스케줄 (게임 시간 기준 무작위 시점)
@@ -602,8 +608,14 @@ class Game {
       if (!inIntro && wall - this.startedAt > this.shuffleLimitMs) this.drop();
     } else {
       // 낙하 단계: 낙하배속 × 방장 배속 — 틱당 서브스텝 반복 (배속은 관리자 설정에서 live)
-      const steps = settings.get('timeScale') * this.speedMult;
-      for (let i = 0; i < steps && !this.over; i++) this.substep();
+      //  🐢 결승 슬로우모션: 선두가 골인선에 다가오면 배속을 실수로 낮춰 마지막을 늘어뜨린다.
+      //     클라 줌인(NEAR=1050)과 같은 구간이라 "조여들면서 느려지는" 하나의 연출이 된다.
+      //     서버에서 늦추므로 전원이 완전히 같은 화면을 본다.
+      const steps = settings.get('timeScale') * this.speedMult * this.finishSlowFactor();
+      this.stepAcc = (this.stepAcc || 0) + steps; // 소수 배속 누적 → 정수 스텝으로
+      let n = Math.floor(this.stepAcc);
+      this.stepAcc -= n;
+      for (; n > 0 && !this.over; n--) this.substep();
       if (this.over) return;
     }
 
@@ -791,6 +803,9 @@ class Game {
         const name = player ? player.name : '?';
         // 🎉 축포: 먼저 골인 우승 → 첫 골인 / 늦게 골인 우승 → 마지막 골인 순간
         const celebrate = this.winMode === 'last' ? this.allBallsDone() : this.finished.length === 1;
+        // 💀 벌칙자 확정: 이 게임은 대부분 '벌칙자 뽑기'로 쓰인다. 1등만 축하하고
+        //    정작 모두가 궁금한 꼴찌 결정 순간은 조용히 지나가던 것을 알려준다.
+        const doomed = this.winMode === 'last' ? this.finished.length === 1 : this.allBallsDone();
         this.io.to(this.room.code).emit('game:ballFinished', {
           playerId: ball.plugin.playerId,
           ballIndex: ball.plugin.idx,
@@ -798,6 +813,7 @@ class Game {
           rank: this.finished.length,
           timeMs: this.finishTimes.get(key),
           celebrate,
+          doomed,
           celebrateX: Math.round(ball.position.x),
         });
       }
@@ -952,6 +968,32 @@ class Game {
    * 아이템 사용 요청 처리 — 효과는 해당 플레이어의 선두 공에 적용
    * @returns {string|null} 오류 메시지 (성공 시 null)
    */
+  /**
+   * 🐢 결승 슬로우모션 계수 (1 = 정상, 0.45 = 최대 감속).
+   *
+   * 실측상 1등과 꼴등이 1초 안에 몰려 들어와 클라이맥스가 뭉개진다.
+   * 골인선 FINISH_NEAR 안쪽부터 서서히 늦춰 마지막 순간을 늘려준다.
+   * 다만 여러 공이 결승 구간에 오래 머물면 판이 늘어지므로,
+   * 이 판에서 '느려진 총량'을 FINISH_SLOW_BUDGET_MS 로 제한한다.
+   */
+  finishSlowFactor() {
+    if (this.over || this.shuffling) return 1;
+    if (this.slowSpent >= FINISH_SLOW_BUDGET_MS) return 1;
+    // 아직 골인 안 한 공 중 가장 앞선(=y가 큰) 공
+    let lead = -Infinity;
+    for (const b of this.balls.values()) {
+      if (b.plugin && b.plugin.done) continue;
+      if (b.position.y > lead) lead = b.position.y;
+    }
+    if (lead === -Infinity) return 1;
+    const dist = this.goalY - lead;
+    if (dist >= FINISH_NEAR || dist < -200) return 1;
+    const t = Math.max(0, Math.min(1, 1 - dist / FINISH_NEAR));
+    const f = 1 - t * 0.55; // 최대 0.45배속
+    this.slowSpent += TICK_MS * (1 - f); // 늦춘 만큼 예산 차감
+    return f;
+  }
+
   useItem(playerId, slotIndex, targetId) {
     if (this.over) return '게임이 끝났습니다.';
     const items = this.playerItems.get(playerId);
