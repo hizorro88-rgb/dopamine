@@ -2530,9 +2530,9 @@ textarea:focus {
 /* 글자 배율이 커지면 버튼 강조색으로 켜졌음을 표시 */
 #btn-fontsize.on { border-color: var(--accent); color: var(--accent2); }
 
-/* ═══ 🔊 소리 토글 — 미니맵(우상단)과 겹치지 않게 좌하단에 둔다 ═══ */
+/* ═══ 🔊 소리 토글 — 미니맵(우상단)·응원 바(하단)와 겹치지 않는 자리 ═══ */
 .sound-toggle {
-  position: absolute; left: 10px; bottom: 10px; z-index: 6;
+  position: absolute; left: 10px; bottom: 62px; z-index: 7;
   width: 38px; height: 38px; border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(8, 12, 22, 0.62);
@@ -2552,4 +2552,54 @@ textarea:focus {
 @keyframes doom-in {
   from { transform: scale(0.7) rotate(-3deg); opacity: 0; }
   to { transform: none; opacity: 1; }
+}
+
+/* 🎲 방 안에서 닉네임 굴리기 (홈 화면 새로고침 버튼과 같은 역할) */
+.inline-name-dice {
+  flex: none;
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.1);
+  color: #f7e9b8; font-size: calc(16px * var(--fs-scale));
+  cursor: pointer; line-height: 1;
+  transition: transform 0.12s, background 0.2s;
+}
+.inline-name-dice:hover { background: rgba(212, 175, 55, 0.2); }
+.inline-name-dice:active { transform: rotate(-18deg) scale(0.9); }
+
+/* ═══ 🎁 모바일: 아이템을 낙하 화면 오른쪽에 띄운다 ═══
+   기존엔 캔버스 아래 사이드 패널에 있어서, 폰에서 스크롤을 내려야 눌렀다.
+   낙하는 몇 초 만에 끝나므로 그 사이 스크롤하다 아이템을 못 쓰는 일이 많았다.
+   → 화면에 고정해 언제든 엄지로 닿게 한다. */
+@media (max-width: 720px) {
+  #item-bar {
+    position: fixed;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 12;
+    width: auto;
+    padding: 8px 7px;
+    background: rgba(10, 12, 20, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  }
+  #item-bar h3 { display: none; } /* "내 아이템" 라벨은 자리만 차지 */
+  #item-slots {
+    flex-direction: column;
+    gap: 8px;
+  }
+  #item-bar .item-slot {
+    flex: none;
+    width: 56px;
+    padding: 8px 3px;
+  }
+  #item-bar .item-slot .emoji { font-size: calc(24px * var(--fs-scale)); margin-bottom: 2px; }
+  #item-bar .item-slot .label { font-size: calc(10px * var(--fs-scale)); line-height: 1.2; }
+  /* 다 쓴 슬롯은 자리를 줄여 화면을 덜 가린다 */
+  #item-bar .item-slot.used { opacity: 0.2; padding: 5px 4px; }
+  #item-bar .item-slot.used .emoji { font-size: calc(16px * var(--fs-scale)); }
+  #item-bar .item-slot.used .label { display: none; }
 }

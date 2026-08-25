@@ -1701,6 +1701,7 @@
         li.className = 'me-editing';
         li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>
           <input class="inline-name-input" type="text" maxlength="12" autocomplete="off" />
+          <button class="inline-name-dice" type="button" title="랜덤 닉네임">🎲</button>
           <button class="btn small inline-name-save">변경</button>`;
         const input = li.querySelector('.inline-name-input');
         input.value = nameEdit.value;
@@ -1708,6 +1709,13 @@
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') submitInlineName();
           else if (e.key === 'Escape') { nameEdit.active = false; renderLobby(); }
+        });
+        // 🎲 방 안에서도 홈 화면처럼 굴려서 닉네임을 바꿀 수 있게
+        li.querySelector('.inline-name-dice').addEventListener('click', () => {
+          nameEdit.value = randomName();
+          input.value = nameEdit.value;
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
         });
         li.querySelector('.inline-name-save').addEventListener('click', submitInlineName);
       } else {
@@ -2452,6 +2460,8 @@
 
   socket.on('game:over', ({ ranking, series }) => {
     if (!game || game.replay) return;
+    // overShown=true 가 되는 순간 줌 목표가 1로 돌아가므로 화면이 스르륵 원래대로 빠진다.
+    // 결과창을 바로 띄우면 그 줌아웃을 아무도 못 보므로 잠깐 기다린다.
     game.overShown = true;
     // 시리즈(여러 판) 진행 중이면 일반 결과창 대신 시리즈 화면(series:next/over)이 그린다.
     // 방금 판 순위는 저장해 두었다가 라운드 사이 화면에서 보여준다.
@@ -2459,7 +2469,9 @@
       seriesLastRound = { round: series.round, total: series.total, ranking };
       return;
     }
-    showResults(ranking, { event: false });
+    // 줌아웃이 보이도록 잠깐 뒤에 띄운다. 그 사이 방을 나갔으면 띄우지 않는다.
+    const g0 = game;
+    setTimeout(() => { if (game === g0) showResults(ranking, { event: false }); }, 900);
   });
 
   // ── 🔁 시리즈(여러 판) 화면 ──────────────────────────────
@@ -3460,15 +3472,21 @@
       let targetSlow = 1; // 1=정상속도, <1=슬로우모션
       let anchorX = VIEW.width / 2;
       let anchorY = VIEW.height * 0.45;
+      game.finishT = 0;      // 결승 연출 진행도 0~1 (스포트라이트용)
+      game.finishKey = null; // 지금 조명을 받는 공
       if (focus && !game.shuffling && !game.overShown) {
-        const dist = board.goal.y - focus.y; // 선두 공이 골인선까지 남은 거리(px)
+        const dist = board.goal.y - focus.y; // 조명 받는 공이 골인선까지 남은 거리(px)
         const NEAR = 1050; // 골인 근처를 넉넉히 잡아 일찍부터 서서히 조여든다
         if (dist < NEAR) {
           const t = Math.max(0, Math.min(1, 1 - dist / NEAR));
-          targetZoom = 1 + t * 0.62; // 가까울수록 선형으로 확대, 최대 ~1.62배
+          // 느려지는 걸 "멈춘 건가?"로 오해하지 않도록 확실히 파고든다 (최대 2.15배).
+          // 카메라가 계속 움직이면 정지가 아니라 '집중'으로 읽힌다.
+          targetZoom = 1 + t * 1.15;
           targetSlow = 1 - t * 0.55; // 가까울수록 느리게, 최대 ~0.45배속(슬로우모션)
           anchorX = focus.x;
-          anchorY = focus.y - camY; // 선두 공의 화면상 y
+          anchorY = focus.y - camY; // 그 공의 화면상 y
+          game.finishT = t;
+          game.finishKey = focus.k != null ? focus.k : focus.p;
         }
       }
       const zk = 1 - Math.pow(1 - 0.2, dtMs / 16.7); // 프레임레이트 독립 보간(빠릿하게 따라붙음)
@@ -3575,6 +3593,29 @@
         ctx.fill();
         ctx.restore();
       }
+    }
+
+    // 🔦 결승 스포트라이트 — 조명 받는 공 주위로 빛 원, 바깥은 어둡게.
+    //    슬로우모션을 "멈춘 건가?"로 오해하지 않도록, 지금 누구를 보고 있는지 못 박아준다.
+    //    (공보다 먼저 그려 공이 조명 위에 올라오게 한다)
+    const tNowGlobal = performance.now();
+    if (game.finishT > 0.12 && focus) {
+      const a = Math.min(1, (game.finishT - 0.12) / 0.4);
+      const R = 190 - game.finishT * 60;
+      ctx.save();
+      const sg = ctx.createRadialGradient(focus.x, focus.y, R * 0.25, focus.x, focus.y, R);
+      sg.addColorStop(0, `rgba(255,246,214,${0.16 * a})`);
+      sg.addColorStop(1, 'rgba(255,246,214,0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(focus.x, focus.y, R, 0, Math.PI * 2); ctx.fill();
+      // 쿵쿵 뛰는 조준 링
+      const pulse = 1 + Math.sin(tNowGlobal / 130) * 0.06;
+      ctx.strokeStyle = `rgba(255,236,170,${0.5 * a})`;
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([9, 7]);
+      ctx.lineDashOffset = -tNowGlobal / 24;
+      ctx.beginPath(); ctx.arc(focus.x, focus.y, 34 * pulse, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
 
     // 공 (인원이 많으면 그림자/이름표 생략 — 선두와 내 공만 이름표)
