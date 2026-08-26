@@ -1184,7 +1184,7 @@
     itemsEnabled: localStorage.getItem('pinball-items') !== '0',
     ballsPerPlayer: Number(localStorage.getItem('pinball-balls')) || 1,
     rounds: Number(localStorage.getItem('pinball-rounds')) || 1,
-    payers: Number(localStorage.getItem('pinball-payers')) || 1,
+    payers: Number(localStorage.getItem('pinball-payers')) || 0, // 0 = 인원에 맞춰 자동
   });
 
   $('btn-create').addEventListener('click', () => {
@@ -1798,12 +1798,15 @@
     $('lobby-wm-first').disabled = !isHost;
     $('lobby-wm-last').disabled = !isHost;
 
-    // ☕ 커피값 낼 인원 (방장만 변경 가능) — 낙하 중 컷라인이 이 인원에 맞춰 그려진다
+    // ☕ 커피값 낼 인원 (방장만 변경 가능) — 낙하 중 컷라인이 이 인원에 맞춰 그려진다.
+    //    자동이면 4명까지 1명, 5명부터 2명. 지금 몇 명인지는 버튼에 그대로 보여준다.
     const payers = room.payers === 2 ? 2 : 1;
-    $('lobby-payers-1').classList.toggle('selected', payers === 1);
-    $('lobby-payers-2').classList.toggle('selected', payers === 2);
-    $('lobby-payers-1').disabled = !isHost;
-    $('lobby-payers-2').disabled = !isHost;
+    const pAuto = !!room.payersAuto;
+    $('lobby-payers-0').textContent = pAuto ? `자동 (${payers}명)` : '자동';
+    for (const [id, on] of [['lobby-payers-0', pAuto], ['lobby-payers-1', !pAuto && payers === 1], ['lobby-payers-2', !pAuto && payers === 2]]) {
+      $(id).classList.toggle('selected', on);
+      $(id).disabled = !isHost;
+    }
 
     // 아이템전 / 노템전 표시 (방장만 변경 가능)
     $('lobby-item-on').classList.toggle('selected', itemsOn);
@@ -1839,7 +1842,7 @@
     });
   }
 
-  for (const id of ['lobby-payers-1', 'lobby-payers-2']) {
+  for (const id of ['lobby-payers-0', 'lobby-payers-1', 'lobby-payers-2']) {
     $(id).addEventListener('click', (e) => {
       const n = Number(e.currentTarget.dataset.payers);
       localStorage.setItem('pinball-payers', String(n));
@@ -4125,8 +4128,11 @@
       // 화면 밖이면 가장자리 화살표
       if (mi.offTop || mi.offBottom) {
         const ax = Math.max(24, Math.min(VIEW.width - 24, mi.x));
-        // 위쪽 화살표는 커피값 한 줄(62~90)과 겹치지 않게 그 아래로 내린다
-        const ay = mi.offTop ? (game.danger ? 112 : 78) : VIEW.height - 40;
+        // 위쪽 화살표는 커피값 한 줄(62~90)과 겹치지 않게 그 아래로 내리고,
+        // 도착 현황판과 가로로 겹치면 그 아래까지 더 내린다 (직전 프레임 자리 기준)
+        const rb = game._rosterBox;
+        let ay = mi.offTop ? (game.danger ? 112 : 78) : VIEW.height - 40;
+        if (mi.offTop && rb && ax < rb.x + rb.w + 20) ay = Math.max(ay, rb.y + rb.h + 22);
         const dir = mi.offTop ? -1 : 1;
         const pulse = 0.72 + 0.28 * Math.sin(nowFrame / 170);
         ctx.globalAlpha = pulse;
@@ -4142,6 +4148,60 @@
         ctx.fillStyle = '#fff';
         ctx.fillText(`${away}px`, ax, ay - dir * 16);
       }
+      ctx.restore();
+    }
+
+    // ═══ 🏁 도착 현황판 — 누가 들어왔고 누가 아직인지 ═══
+    //   순위판은 화면 아래 사이드에 있어서, 낙하 중엔 눈이 갈 틈이 없다.
+    //   낙하 화면 안에서 도착 순서와 남은 사람을 항상 볼 수 있게 한다.
+    //   (인원이 많은 이벤트 방에선 화면을 다 덮으므로 8명까지만)
+    game._rosterBox = null; // 내 공 화살표가 이걸 피해 가도록 자리를 남겨둔다
+    if (!game.shuffling && !game.overShown && game.players.size >= 2 && game.players.size <= 8) {
+      // 공이 여러 개면 '첫 도착'이 그 사람의 도착 — 서버 순위 규칙과 같다
+      const order = new Map();
+      for (const f of game.finishedRanks) if (!order.has(f.playerId)) order.set(f.playerId, order.size + 1);
+      // 들어온 사람부터 도착 순서대로, 아직인 사람은 뒤에 (입장 순서 유지)
+      const rows = [...game.players.values()].sort(
+        (a, b) => (order.get(a.id) || 99) - (order.get(b.id) || 99)
+      );
+      const RH = 18;
+      const X = 10;
+      const Y = game.danger ? 98 : 64; // 커피값 한 줄이 있으면 그 아래로
+      ctx.save();
+      ctx.font = 'bold 11px sans-serif';
+      let nameW = 0;
+      for (const p of rows) nameW = Math.max(nameW, ctx.measureText(p.name).width);
+      const W = Math.min(Math.max(nameW + 52, 96), 150);
+      const H = 17 + rows.length * RH + 5;
+      game._rosterBox = { x: X, y: Y, w: W, h: H };
+      ctx.fillStyle = 'rgba(8,12,22,.62)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(X, Y, W, H, 9);
+      else ctx.rect(X, Y, W, H);
+      ctx.fill();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,.6)';
+      ctx.fillText(`🏁 도착 ${order.size}/${rows.length}`, X + 8, Y + 13);
+      rows.forEach((p, i) => {
+        const y = Y + 17 + i * RH + 12;
+        const n = order.get(p.id);
+        const dz = game.danger && game.danger.keys.has(p.id); // ☕ 커피값 사정권
+        // 도착 순번 / 아직이면 달리는 표시
+        ctx.textAlign = 'center';
+        ctx.fillStyle = n ? '#35e0ff' : dz ? '#ff5c6e' : 'rgba(255,255,255,.5)';
+        ctx.fillText(n ? String(n) : '–', X + 15, y);
+        // 색 점 + 이름 (도착한 사람은 흐리게 — 시선은 아직 달리는 쪽에)
+        ctx.globalAlpha = n ? 0.5 : 1;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(X + 29, y - 4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = dz && !n ? '#ff8894' : '#fff';
+        const mine = p.id === (game.replay ? myParticipantId : myId);
+        ctx.fillText(p.name + (mine ? ' (나)' : ''), X + 37, y);
+        ctx.globalAlpha = 1;
+      });
       ctx.restore();
     }
 

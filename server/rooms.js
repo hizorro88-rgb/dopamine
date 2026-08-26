@@ -80,6 +80,11 @@ function sanitizePayers(v) {
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), 2) : 1;
 }
 
+// ☕ 인원에 맞춘 자동 추천: 4명까지는 한 명이 다 내고, 5명부터는 둘이 나눠 낸다.
+function autoPayers(n) {
+  return n >= 5 ? 2 : 1;
+}
+
 class RoomManager {
   constructor(io, donorStore) {
     this.io = io;
@@ -149,7 +154,9 @@ class RoomManager {
         roundMaps: [], // 시리즈: 판마다 다른 맵 (mapId 배열, 비면 mapId 사용)
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
-        payers: sanitizePayers(payers), // ☕ 커피값 낼 인원 (뒤처진 N명)
+        // ☕ 커피값 낼 인원 (뒤처진 N명). payers 를 안 보내면 인원에 맞춰 자동으로 따라간다.
+        payersAuto: !payers,
+        payers: sanitizePayers(payers),
         itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
         rounds: sanitizeRounds(rounds), // 이어서 진행할 판 수 (1=단판, 2+=시리즈)
         series: null, // 시리즈 진행 상태 (여러 판일 때만)
@@ -419,11 +426,12 @@ class RoomManager {
       this.broadcastRoom(room);
     });
 
-    // ☕ 방장이 대기실에서 커피값 인원 변경 (뒤처진 몇 명이 낼지)
+    // ☕ 방장이 대기실에서 커피값 인원 변경 (뒤처진 몇 명이 낼지). 0 = 인원에 맞춰 자동
     socket.on('room:setPayers', ({ payers } = {}) => {
       const room = this.roomOf(socket);
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
-      room.payers = sanitizePayers(payers);
+      room.payersAuto = Number(payers) === 0;
+      if (!room.payersAuto) room.payers = sanitizePayers(payers);
       this.broadcastRoom(room);
     });
 
@@ -736,6 +744,9 @@ class RoomManager {
 
   broadcastRoom(room) {
     room.lastActivity = Date.now(); // 🧹 유휴 GC 기준 갱신
+    // ☕ 자동 모드면 지금 인원에 맞춰 커피값 인원을 따라가게 한다.
+    //    (사람이 드나들 때마다 여기를 지나므로 한 곳에서만 갱신하면 된다)
+    if (room.payersAuto && room.state === 'lobby') room.payers = autoPayers(room.players.size);
     const mapDef = this.maps.get(room.mapId) || this.maps.get('classic');
     // 시리즈: 판별 맵 목록 (이름 포함) — 판 수>1 일 때만
     let roundMaps = null;
@@ -764,6 +775,7 @@ class RoomManager {
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
       payers: sanitizePayers(room.payers), // ☕ 커피값 낼 인원
+      payersAuto: !!room.payersAuto, // 인원에 맞춰 자동인가
       itemsEnabled: room.itemsEnabled !== false,
       rounds: room.rounds || 1, // 진행할 판 수 (시리즈)
       roundMaps, // 시리즈: 판별 맵 [{round, mapId, mapName}] (단판이면 null)
