@@ -2266,6 +2266,7 @@
       game._nearSince = 0;
     }
     game.shuffling = !!snap.sh;
+    game.finale = !!snap.fin; // 🎬 서버가 정한 결승 피날레 구간 (줌·슬로우 시점을 서버와 일치시킨다)
     updateHiddenComps(snap.off);
     updateDmg(snap.dmg);
   });
@@ -3399,18 +3400,17 @@
       if (!last || b.y < last.y) last = b;
       if (game._focusKey != null && (b.k || b.p) === game._focusKey) prevFocus = b;
     }
-    // 💀 벌칙 결정전: 남은 공이 2개 이하면 카메라를 '꼴찌 다툼'으로 돌린다.
-    //    이 게임은 대부분 벌칙자 뽑기로 쓰이는데, 정작 모두가 궁금한 장면은
-    //    1등을 쫓는 카메라 뒤편에서 조용히 끝나고 있었다.
-    const doomRace = !game.shuffling && !game.overShown && racing > 0 && racing <= 2
-      && game.winMode !== 'last' && !game.replay;
+    // 💀 결정전: 서버가 알려준 피날레 구간(남은 공 = floor(총개수/2)-1 이하)에서만
+    //    카메라를 '가장 뒤처진 공'으로 돌린다. 공이 골인선에 가까워질 때마다 매번
+    //    줌인/아웃하면 오히려 정신없고 집중이 안 돼서, 판당 한 번으로 몰아준다.
+    const doomRace = !!game.finale && !game.shuffling && !game.overShown && racing > 0 && !game.replay;
     if (doomRace && last) best = last;
     let focus = best;
     // 꼴찌 다툼으로 전환되는 순간엔 히스테리시스를 무시하고 즉시 넘어간다
     if (!doomRace && prevFocus && best && best.y - prevFocus.y < 60) focus = prevFocus; // 근소한 차이면 유지
     if (doomRace && !game._doomAnnounced) {
       game._doomAnnounced = true;
-      toast('💀 벌칙 결정전!');
+      toast(game.winMode === 'last' ? '🏆 우승 결정전!' : '💀 벌칙 결정전!');
       sfx.heartbeat();
     }
     if (focus) {
@@ -3474,7 +3474,7 @@
       let anchorY = VIEW.height * 0.45;
       game.finishT = 0;      // 결승 연출 진행도 0~1 (스포트라이트용)
       game.finishKey = null; // 지금 조명을 받는 공
-      if (focus && !game.shuffling && !game.overShown) {
+      if (focus && (game.finale || game.replay) && !game.shuffling && !game.overShown) {
         const dist = board.goal.y - focus.y; // 조명 받는 공이 골인선까지 남은 거리(px)
         const NEAR = 1050; // 골인 근처를 넉넉히 잡아 일찍부터 서서히 조여든다
         if (dist < NEAR) {

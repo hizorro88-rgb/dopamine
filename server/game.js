@@ -43,10 +43,19 @@ const SUBSTEP_MAX_DISP = 10; // 검사 간 목표 이동량(px) — 벽 두께�
 // 🐢 공 최대 속도 캡 — 중력 자유낙하 등으로 과속해 벽을 지나치는 것을 방지(공기저항 종단속도 개념).
 //    실측: 캡 없으면 종단 ~47 → 여기에 걸리면 얇은 벽도 확실히 막힌다.
 const MAX_BALL_SPEED = 28;
-// 🐢 결승 슬로우모션 — 선두가 골인선 이 거리 안에 들면 배속을 서서히 낮춘다.
-//    클라 줌인(client.js 의 NEAR)과 같은 값으로 맞춰 하나의 연출로 보이게 한다.
+// 🐢 결승 연출 — 공이 골인선 이 거리 안에 들면 배속을 낮추고(서버) 줌인한다(클라).
 const FINISH_NEAR = 1050;
 const FINISH_SLOW_BUDGET_MS = 2000; // 한 판에서 늦출 수 있는 총량 (늘어짐 방지)
+/**
+ * '피날레'로 들어가는 남은 공 개수 = floor(총개수/2) - 1 (최소 1).
+ *
+ * 예전엔 공이 골인선에 가까워질 때마다 줌인/슬로우가 걸려서, 골인이 이어지는
+ * 동안 확대·축소가 반복돼 오히려 정신없고 집중이 안 됐다.
+ * 이제는 판당 딱 한 번, 마지막 몇 개만 남았을 때 들어간다.
+ */
+function finaleThreshold(total) {
+  return Math.max(1, Math.floor(total / 2) - 1);
+}
 
 // ── 시작 배치 패턴 ──────────────────────────────────────
 // 셔플 단계에서 공들이 이 패턴들 사이를 계속 옮겨다니다가
@@ -547,6 +556,7 @@ class Game {
     this.dropSimMs = this.simMs;
     this.stepAcc = 0;   // 소수 배속 누적기 (결승 슬로우모션용)
     this.slowSpent = 0; // 이번 판에서 느리게 흘려보낸 총량(ms)
+    this.finale = false; // 🎬 결승 피날레 구간 진입 여부
     this.rec = { frames: [], tick: 0 }; // 🎬 낙하 시작부터 녹화 시작 (프레임 t는 dropAt 기준 실시간 ms)
 
     // 올랜덤: 자동 아이템 발동 스케줄 (게임 시간 기준 무작위 시점)
@@ -889,6 +899,7 @@ class Game {
       t: Date.now(),
       elapsed: this.simMs, // 게임 시간 (회전 구성요소 각도 계산용)
       sh: this.shuffling ? 1 : 0,
+      fin: this.finale ? 1 : 0, // 🎬 결승 피날레(줌인 구간) — 클라 연출과 시점을 맞춘다
       countdown: 0,
       balls,
       off,
@@ -977,16 +988,20 @@ class Game {
    * 이 판에서 '느려진 총량'을 FINISH_SLOW_BUDGET_MS 로 제한한다.
    */
   finishSlowFactor() {
+    this.finale = false;
     if (this.over || this.shuffling) return 1;
-    if (this.slowSpent >= FINISH_SLOW_BUDGET_MS) return 1;
-    // 아직 골인 안 한 공 중 가장 앞선(=y가 큰) 공
-    let lead = -Infinity;
+    // 남은 공이 임계치 이하로 줄어야 피날레 — 그 전엔 골인이 이어져도 배속은 그대로
+    let racing = 0;
+    let trail = Infinity; // 가장 뒤처진(=y가 작은) 공 — '결정될 사람'
     for (const b of this.balls.values()) {
       if (b.plugin && b.plugin.done) continue;
-      if (b.position.y > lead) lead = b.position.y;
+      racing++;
+      if (b.position.y < trail) trail = b.position.y;
     }
-    if (lead === -Infinity) return 1;
-    const dist = this.goalY - lead;
+    if (racing === 0 || racing > finaleThreshold(this.balls.size)) return 1;
+    this.finale = true; // 클라가 같은 시점에 줌인하도록 스냅샷으로 알린다
+    if (this.slowSpent >= FINISH_SLOW_BUDGET_MS) return 1;
+    const dist = this.goalY - trail;
     if (dist >= FINISH_NEAR || dist < -200) return 1;
     const t = Math.max(0, Math.min(1, 1 - dist / FINISH_NEAR));
     const f = 1 - t * 0.55; // 최대 0.45배속
