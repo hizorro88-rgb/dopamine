@@ -246,6 +246,11 @@
         <button id="lobby-wm-first" class="winmode-btn" data-mode="first">🥇 먼저 골인 우승</button>
         <button id="lobby-wm-last" class="winmode-btn" data-mode="last">🐢 늦게 골인 당첨</button>
       </div>
+      <div class="winmode-row" id="lobby-payers">
+        <span class="payers-label">☕ 커피값 낼 사람</span>
+        <button id="lobby-payers-1" class="winmode-btn" data-payers="1">1명</button>
+        <button id="lobby-payers-2" class="winmode-btn" data-payers="2">2명</button>
+      </div>
       <div class="winmode-row" id="lobby-items">
         <button id="lobby-item-on" class="winmode-btn" data-items="1">🎁 아이템전</button>
         <button id="lobby-item-off" class="winmode-btn" data-items="0">🚫 노템전</button>
@@ -405,6 +410,8 @@
         <button id="btn-sound" class="sound-toggle" title="소리 켜기/끄기">🔊</button>
         <!-- 🎉 이모지 응원: 떠오르는 이모지 레이어 + 하단 응원 바 -->
         <div id="cheer-layer" aria-hidden="true"></div>
+        <!-- ☕ 커피값 안전 확정 → 관전 모드: 지금 위험한 사람을 띄우고 응원 바를 키운다 -->
+        <div id="danger-watch" class="hidden"></div>
         <div id="cheer-bar" class="hidden"></div>
       </div>
       <div id="game-side">

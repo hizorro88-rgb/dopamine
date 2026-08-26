@@ -2419,6 +2419,54 @@ textarea:focus {
 }
 .cheer-btn:hover { background: rgba(255, 255, 255, 0.16); }
 .cheer-btn:active { transform: scale(1.35); }
+
+/* ☕ 커피값 안전 확정 → 관전 모드: 할 일이 없어진 사람에게 응원을 크게 쥐어준다 */
+#cheer-bar.big { bottom: 14px; gap: 7px; padding: 8px 12px; }
+#cheer-bar.big .cheer-btn {
+  width: 48px;
+  height: 48px;
+  font-size: calc(27px * var(--fs-scale));
+  background: rgba(255, 255, 255, 0.12);
+}
+/* ☕ 지금 위험한 사람 — 확대된 응원 바(높이 66 + 아래 14) 바로 위 */
+#danger-watch {
+  position: absolute;
+  left: 50%;
+  bottom: 86px;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: 92%;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(150, 12, 28, 0.86);
+  border: 1px solid rgba(255, 90, 110, 0.5);
+  color: #fff;
+  font-size: calc(13px * var(--fs-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  animation: danger-watch-pulse 1.5s ease-in-out infinite;
+}
+#danger-watch.hidden { display: none; }
+@keyframes danger-watch-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+  50% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 60, 82, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #danger-watch { animation: none; }
+}
+/* ☕ 커피값 인원 선택 — 라벨 + 1명/2명 */
+#lobby-payers { align-items: center; }
+.payers-label {
+  font-size: calc(13px * var(--fs-scale));
+  color: var(--muted);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+#lobby-payers .winmode-btn { flex: 0 1 auto; padding-left: 14px; padding-right: 14px; }
 @media (prefers-reduced-motion: reduce) {
   .cheer-fly { animation-duration: 1.2s; }
 }

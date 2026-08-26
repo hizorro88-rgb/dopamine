@@ -73,6 +73,13 @@ function sanitizeRounds(v) {
   return Number.isFinite(n) ? Math.min(Math.max(n, 1), MAX_ROUNDS) : 1;
 }
 
+// ☕ 커피값을 낼 인원 수 (1~2명) — 이 게임은 대개 "꼴찌 한둘이 커피값" 용도로 쓰인다.
+// 낙하 중 컷라인·위험 확률 표시가 모두 이 값을 기준으로 계산된다.
+function sanitizePayers(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), 2) : 1;
+}
+
 class RoomManager {
   constructor(io, donorStore) {
     this.io = io;
@@ -122,7 +129,7 @@ class RoomManager {
   }
 
   handleConnection(socket) {
-    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password, rounds, token } = {}, cb) => {
+    socket.on('room:create', ({ name, donorCode, winMode, ballsPerPlayer, itemsEnabled, password, rounds, payers, token } = {}, cb) => {
       if (typeof cb !== 'function') return;
       if (!this.limiter.create.allow(socket.id))
         return cb({ ok: false, error: '너무 자주 방을 만들고 있어요. 잠시 후 다시 시도해주세요.' });
@@ -142,6 +149,7 @@ class RoomManager {
         roundMaps: [], // 시리즈: 판마다 다른 맵 (mapId 배열, 비면 mapId 사용)
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
+        payers: sanitizePayers(payers), // ☕ 커피값 낼 인원 (뒤처진 N명)
         itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
         rounds: sanitizeRounds(rounds), // 이어서 진행할 판 수 (1=단판, 2+=시리즈)
         series: null, // 시리즈 진행 상태 (여러 판일 때만)
@@ -408,6 +416,14 @@ class RoomManager {
       if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
       if (winMode !== 'first' && winMode !== 'last') return;
       room.winMode = winMode;
+      this.broadcastRoom(room);
+    });
+
+    // ☕ 방장이 대기실에서 커피값 인원 변경 (뒤처진 몇 명이 낼지)
+    socket.on('room:setPayers', ({ payers } = {}) => {
+      const room = this.roomOf(socket);
+      if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+      room.payers = sanitizePayers(payers);
       this.broadcastRoom(room);
     });
 
@@ -747,6 +763,7 @@ class RoomManager {
       map: { id: mapDef.id, name: mapDef.name, author: mapDef.author },
       winMode: room.winMode || 'first',
       ballsPerPlayer: room.ballsPerPlayer || 1,
+      payers: sanitizePayers(room.payers), // ☕ 커피값 낼 인원
       itemsEnabled: room.itemsEnabled !== false,
       rounds: room.rounds || 1, // 진행할 판 수 (시리즈)
       roundMaps, // 시리즈: 판별 맵 [{round, mapId, mapName}] (단판이면 null)

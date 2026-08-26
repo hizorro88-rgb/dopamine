@@ -212,6 +212,8 @@ class Game {
       Math.max(1, Number(room.ballsPerPlayer) || 1),
       MAX_BALLS_PER_PLAYER
     );
+    // ☕ 커피값 낼 인원 — 뒤처진 이 인원이 낸다. 클라의 컷라인·위험 확률 기준값.
+    this.payers = Math.min(Math.max(1, Number(room.payers) || 1), 2);
 
     this.CAT_WALL = CAT_WALL;
     this.DEFAULT_MASK = DEFAULT_MASK;
@@ -464,6 +466,7 @@ class Game {
         board: this.board,
         winMode: this.winMode,
         ballsPerPlayer: this.ballsPerPlayer,
+        payers: this.payers,
         shuffle: true,
         autoPilot: this.autoPilot,
         introMs: this.introUntil ? Math.max(0, this.introUntil - Date.now()) : 0,
@@ -504,6 +507,7 @@ class Game {
       board: this.board,
       winMode: this.winMode,
       ballsPerPlayer: this.ballsPerPlayer,
+      payers: this.payers,
       shuffle: this.shuffling,
       autoPilot: this.autoPilot,
       introMs: this.introUntil ? Math.max(0, this.introUntil - Date.now()) : 0,
@@ -811,11 +815,12 @@ class Game {
         this.finishTimes.set(key, Date.now() - this.dropAt); // 체감(실제) 시간 기록
         const player = this.room.players.get(ball.plugin.playerId);
         const name = player ? player.name : '?';
-        // 🎉 축포: 먼저 골인 우승 → 첫 골인 / 늦게 골인 우승 → 마지막 골인 순간
-        const celebrate = this.winMode === 'last' ? this.allBallsDone() : this.finished.length === 1;
-        // 💀 벌칙자 확정: 이 게임은 대부분 '벌칙자 뽑기'로 쓰인다. 1등만 축하하고
-        //    정작 모두가 궁금한 꼴찌 결정 순간은 조용히 지나가던 것을 알려준다.
-        const doomed = this.winMode === 'last' ? this.finished.length === 1 : this.allBallsDone();
+        // ☕ 이 게임은 대부분 '커피값 낼 사람 뽑기'로 쓰이고, 커피값은 어느 모드든
+        //    늦게 들어온 쪽이 낸다. 그래서 축포는 첫 골인에, 확정 연출은 마지막 골인에.
+        //    (예전엔 늦게 골인 모드에서 마지막 도착자에게 축포가 터져, 정작 커피값을
+        //     내는 사람을 축하하고 있었다.)
+        const celebrate = this.finished.length === 1;
+        const doomed = this.allBallsDone();
         this.io.to(this.room.code).emit('game:ballFinished', {
           playerId: ball.plugin.playerId,
           ballIndex: ball.plugin.idx,

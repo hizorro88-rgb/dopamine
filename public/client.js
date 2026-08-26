@@ -85,6 +85,12 @@
       Sound.tone(scale[Math.min(rank - 1, scale.length - 1)], 0.26, 'triangle', 0.17);
     },
     win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => Sound.tone(f, 0.2, 'triangle', 0.17), i * 95)); },
+    // ☕ 커피값 컷라인 아래로 떨어짐 — 아래로 미끄러지는 경고음
+    dangerIn() { Sound.tone(520, 0.16, 'sawtooth', 0.15, 220); setTimeout(() => Sound.tone(300, 0.2, 'square', 0.12, 180), 110); },
+    // ☕ 컷라인 위로 탈출 — 위로 솟는 안도의 소리
+    dangerOut() { Sound.tone(420, 0.13, 'triangle', 0.13, 720); setTimeout(() => Sound.tone(880, 0.16, 'triangle', 0.11), 90); },
+    // 😮‍💨 커피값에서 완전히 벗어남 (안전 확정)
+    safe() { [660, 880, 1100].forEach((f, i) => setTimeout(() => Sound.tone(f, 0.18, 'sine', 0.14), i * 80)); },
     // 벌칙 확정 — 둔탁하게 떨어지는 소리
     doom() {
       Sound.noise(0.4, 0.26);
@@ -115,6 +121,7 @@
   let lastRanking = null; // 방금 끝난 판의 전체 순위 (결과 화면의 "이번 판 순위"용)
   let lastRankingEvent = false;
   let lastRankingWinMode = 'first';
+  let lastRankingPayers = 1; // ☕ 그 판의 커피값 인원 (결과 배너가 컷라인과 같은 사람을 가리키게)
   const $ = (id) => document.getElementById(id);
 
   // 🔤 글자 크기 조절 (접근성) — 버튼을 누를 때마다 100→115→130→150→100% 순환, 브라우저에 저장
@@ -454,7 +461,7 @@
 
   function drawMinimap(
     mCanvas,
-    { width = WORLD.width, height, components, balls, players, selfId, camY, elapsed, selected, hidden, hiddenV, explosions, dynamic }
+    { width = WORLD.width, height, components, balls, players, selfId, camY, elapsed, selected, hidden, hiddenV, explosions, dynamic, cutY, dangerKeys }
   ) {
     const mctx = mCanvas.getContext('2d');
     const s = mCanvas.width / width;
@@ -527,6 +534,19 @@
       mctx.stroke();
     }
 
+    // ☕ 커피값 컷라인 — 본 화면에선 카메라가 선두를 쫓느라 컷라인이 자주 화면 밖이다.
+    //    미니맵은 판 전체를 담으므로, 여기서만은 "내가 선 어느 쪽인지"가 늘 보인다.
+    if (cutY != null) {
+      mctx.fillStyle = 'rgba(255,50,70,0.13)';
+      mctx.fillRect(0, 0, width, cutY); // 위험 지대(선 위쪽)
+      mctx.strokeStyle = '#ff3b52';
+      mctx.lineWidth = 12;
+      mctx.beginPath();
+      mctx.moveTo(0, cutY);
+      mctx.lineTo(width, cutY);
+      mctx.stroke();
+    }
+
     // 공 (미니맵에서 보이도록 확대) — 색·본인 여부는 여기서 해석(매 프레임 배열 생성 제거)
     if (balls) {
       for (const b of balls) {
@@ -539,6 +559,14 @@
         if (mine) {
           mctx.strokeStyle = '#ffffff';
           mctx.lineWidth = 10;
+          mctx.stroke();
+        }
+        // ☕ 커피값 사정권인 공은 붉은 테두리로 미니맵에서도 구분
+        if (dangerKeys && dangerKeys.has(b.p)) {
+          mctx.strokeStyle = '#ff3b52';
+          mctx.lineWidth = 12;
+          mctx.beginPath();
+          mctx.arc(b.x, b.y, (mine ? 34 : 26) + 12, 0, Math.PI * 2);
           mctx.stroke();
         }
       }
@@ -1156,6 +1184,7 @@
     itemsEnabled: localStorage.getItem('pinball-items') !== '0',
     ballsPerPlayer: Number(localStorage.getItem('pinball-balls')) || 1,
     rounds: Number(localStorage.getItem('pinball-rounds')) || 1,
+    payers: Number(localStorage.getItem('pinball-payers')) || 1,
   });
 
   $('btn-create').addEventListener('click', () => {
@@ -1169,6 +1198,7 @@
         ballsPerPlayer: d.ballsPerPlayer,
         itemsEnabled: d.itemsEnabled,
         rounds: d.rounds,
+        payers: d.payers,
         password: $('input-room-pw').value,
         token: clientToken,
       },
@@ -1768,6 +1798,13 @@
     $('lobby-wm-first').disabled = !isHost;
     $('lobby-wm-last').disabled = !isHost;
 
+    // ☕ 커피값 낼 인원 (방장만 변경 가능) — 낙하 중 컷라인이 이 인원에 맞춰 그려진다
+    const payers = room.payers === 2 ? 2 : 1;
+    $('lobby-payers-1').classList.toggle('selected', payers === 1);
+    $('lobby-payers-2').classList.toggle('selected', payers === 2);
+    $('lobby-payers-1').disabled = !isHost;
+    $('lobby-payers-2').disabled = !isHost;
+
     // 아이템전 / 노템전 표시 (방장만 변경 가능)
     $('lobby-item-on').classList.toggle('selected', itemsOn);
     $('lobby-item-off').classList.toggle('selected', !itemsOn);
@@ -1799,6 +1836,14 @@
   for (const id of ['lobby-wm-first', 'lobby-wm-last']) {
     $(id).addEventListener('click', (e) => {
       socket.emit('room:setWinMode', { winMode: e.currentTarget.dataset.mode });
+    });
+  }
+
+  for (const id of ['lobby-payers-1', 'lobby-payers-2']) {
+    $(id).addEventListener('click', (e) => {
+      const n = Number(e.currentTarget.dataset.payers);
+      localStorage.setItem('pinball-payers', String(n));
+      socket.emit('room:setPayers', { payers: n });
     });
   }
 
@@ -2116,13 +2161,17 @@
   // 대기실에서 내 닉네임 변경
   // ── 게임 시작 ─────────────────────────────────────────
   // 시작 브로드캐스트와 관전 중간 합류가 같은 진입점을 쓴다
-  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, shuffle, autoPilot, spectator, finished, introMs }) {
+  function startGameView({ board, players, yourItems, winMode, ballsPerPlayer, payers, shuffle, autoPilot, spectator, finished, introMs }) {
     game = {
       board,
       autoPilot: !!autoPilot,
       spectator: !!spectator,
       winMode: winMode || 'first',
       ballsPer: ballsPerPlayer || 1,
+      payers: payers === 2 ? 2 : 1, // ☕ 커피값 낼 인원 (뒤처진 N명)
+      danger: null,      // 매 프레임 계산되는 커피값 위험 상태
+      dangerMine: false, // 내가 지금 컷라인 아래인가 (넘나드는 순간 감지용)
+      safeShown: false,  // 😮‍💨 안전 확정 연출을 이미 띄웠는가
       shuffling: !!shuffle,
       players: new Map(players.map((p) => [p.id, p])),
       items: yourItems, // [{id,name,emoji,desc,target,duration} | null]
@@ -2152,7 +2201,7 @@
     $('item-bar').style.display = hasItems ? '' : 'none';
     if (game.autoPilot) {
       toast(
-        `🎲 올랜덤 — 맵: ${board.mapName} · 인당 공 ${game.ballsPer}개 · ${game.winMode === 'last' ? '🐢 늦게' : '🥇 먼저'} 골인 우승`
+        `🎲 올랜덤 — 맵: ${board.mapName} · 인당 공 ${game.ballsPer}개 · ${game.winMode === 'last' ? '🐢 늦게 골인 당첨' : '🥇 먼저 골인 우승'}`
       );
     }
     if (game.spectator) toast('👁 관전 모드 — 경기를 지켜보는 중입니다');
@@ -2176,6 +2225,8 @@
     showScreen('game'); // 화면 표시 후에 캔버스 크기 계산 (숨김 상태에선 부모 크기가 0)
     setupCanvas();
     showCheerBar(true); // 🎉 응원 바 표시
+    $('cheer-bar').classList.remove('big'); // ☕ 새 판 → 관전 모드 해제
+    $('danger-watch').classList.add('hidden');
     // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
     if (finished) for (const f of finished) appendFinishRow(f);
     requestAnimationFrame(renderFrame);
@@ -2213,7 +2264,121 @@
   function showCheerBar(show) {
     buildCheerBar();
     $('cheer-bar').classList.toggle('hidden', !show);
-    if (!show) $('cheer-layer').innerHTML = '';
+    if (!show) {
+      $('cheer-layer').innerHTML = '';
+      $('cheer-bar').classList.remove('big');
+      $('danger-watch').classList.add('hidden');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  ☕ 커피값 컷라인 — "내가 하위 N명인가"에 실시간으로 답한다
+  //
+  //  먼저 골인이든 늦게 골인이든, 커피값은 늘 '뒤처진 쪽'이 낸다.
+  //  그래서 판정은 모드와 무관하게 뒤(=y가 작은 쪽)를 기준으로 한다.
+  //  각자는 '자기 공 중 가장 앞선 공'으로 대표된다 — 그 공이 그를 구해주니까.
+  // ═══════════════════════════════════════════════════════════
+  /** 지금 커피값 위험 상태를 계산 — 위험이 의미 없는 상황이면 null */
+  function computeDanger(balls) {
+    const P = game.payers || 1;
+    const arrived = new Set(game.finishedRanks.map((f) => f.playerId));
+    const bestOf = new Map(); // playerId → 그 사람의 가장 앞선 공
+    for (const b of balls) {
+      if (b.cl || arrived.has(b.p)) continue; // 분신 제외 / 이미 들어간 사람 제외
+      const cur = bestOf.get(b.p);
+      if (!cur || b.y > cur.y) bestOf.set(b.p, b);
+    }
+    const racing = [...bestOf.values()].sort((a, b) => a.y - b.y); // 뒤처진 순
+    if (racing.length === 0 || arrived.size + racing.length < 2) return null;
+    const slots = Math.min(P, racing.length); // 남은 사람 중 커피값 자리 수
+    const keys = new Set();
+    for (let i = 0; i < slots; i++) keys.add(racing[i].p);
+    // 남은 사람보다 커피값 인원이 많으면, 모자란 자리는 '가장 늦게 들어온 사람'이 채운다.
+    // (2명이 낼 때 3명이 이미 골인했다면 3번째로 들어온 사람도 함께 낸다)
+    const lockedNames = [];
+    if (P > racing.length) {
+      const order = [];
+      const seen = new Set();
+      for (const f of game.finishedRanks) {
+        if (seen.has(f.playerId)) continue; // 공이 여럿이면 첫 도착이 그 사람의 기록
+        seen.add(f.playerId);
+        order.push(f);
+      }
+      for (let i = order.length - 1; i >= 0 && lockedNames.length < P - racing.length; i--) {
+        const p = game.players.get(order[i].playerId);
+        lockedNames.push(p ? p.name : order[i].name);
+      }
+    }
+    return {
+      // 컷라인 y: 위험한 마지막 사람과 그 바로 앞 안전한 사람의 중간.
+      // 남은 사람이 커피값 인원과 같으면 그을 자리가 없다 → 전원 확정.
+      cutY: racing.length > slots ? (racing[slots - 1].y + racing[slots].y) / 2 : null,
+      keys,
+      racing: racing.length,
+      slots,
+      // 커피값을 낼 사람들 — 못 들어온 쪽이 먼저(더 확실히 낸다), 그다음 늦게 들어온 순
+      names: racing.slice(0, slots).map((b) => {
+        const p = game.players.get(b.p);
+        return p ? p.name : '?';
+      }).concat(lockedNames),
+      mineIn: keys.has(myId),
+      // 내 공이 다 들어갔고, 남은 사람만으로 커피값 자리가 다 채워지면 나는 확정 안전
+      iAmSafe: arrived.has(myId) && racing.length >= P,
+    };
+  }
+
+  /** 매 프레임 위험 상태 갱신 + 컷라인을 넘나드는 순간의 피드백 */
+  function updateDanger(balls) {
+    if (!game || game.replay || game.shuffling || game.overShown) {
+      game.danger = null;
+      return;
+    }
+    const d = computeDanger(balls);
+    game.danger = d;
+    if (!d) return;
+
+    // 🚨 내가 컷라인을 넘나든 순간 — 진동 + 소리 + 화면 가장자리 섬광.
+    //   단, 접전이면 컷라인이 초당 몇 번씩 뒤집힌다. 그때마다 울리면 줌이 그랬듯
+    //   오히려 정신만 사납다. 새 상태가 STABLE_MS 동안 유지돼야 '진짜 넘었다'로 친다.
+    const STABLE_MS = 420;
+    const COOLDOWN_MS = 1100;
+    if (!game.spectator) {
+      if (d.mineIn === game.dangerMine) {
+        game._dangerPend = null; // 원래 상태로 돌아옴 → 없던 일로
+      } else {
+        const now = performance.now();
+        if (!game._dangerPend) game._dangerPend = { state: d.mineIn, since: now };
+        else if (now - game._dangerPend.since >= STABLE_MS && now - (game._dangerAt || 0) >= COOLDOWN_MS) {
+          game.dangerMine = d.mineIn;
+          game._dangerPend = null;
+          game._dangerAt = now;
+          game.edgeFx = { color: d.mineIn ? '255,60,80' : '80,230,140', start: now };
+          if (d.mineIn) { sfx.dangerIn(); Sound.buzz([50, 70, 50]); }
+          else { sfx.dangerOut(); Sound.buzz(35); }
+        }
+      }
+    }
+
+    // 😮‍💨 커피값에서 완전히 벗어난 순간 → 관전 모드 (응원 바를 키우고 위험한 사람을 띄운다)
+    if (d.iAmSafe && !game.safeShown && !game.spectator) {
+      game.safeShown = true;
+      sfx.safe();
+      Sound.buzz([30, 50, 30]);
+      game.screenFx = { emoji: '😮‍💨', label: '세이프! 커피값은 면했어요', color: 'rgba(60,220,140,.5)', start: performance.now() };
+      $('cheer-bar').classList.add('big');
+    }
+
+    // ☕ 지금 위험한 사람 — 안전 확정자와 관전자에게만 (아직 뛰는 사람은 자기 공을 봐야 한다)
+    const watch = $('danger-watch');
+    const show = (game.safeShown || game.spectator) && d.names.length > 0;
+    if (show) $('cheer-bar').classList.add('big'); // 볼 일만 남은 사람에겐 응원을 크게
+    watch.classList.toggle('hidden', !show);
+    if (show) {
+      const txt = d.cutY == null
+        ? `☕ 커피값 확정 · ${d.names.join(' · ')}`
+        : `☕ 지금 위험 · ${d.names.join(' · ')}`;
+      if (watch.textContent !== txt) watch.textContent = txt;
+    }
   }
   let lastCheerAt = 0;
   function sendCheer(emoji) {
@@ -2399,9 +2564,9 @@
     appendFinishRow(data);
     const mineFin = data.playerId === myId;
     if (data.doomed) {
-      // 💀 벌칙자 확정 — 이 게임의 진짜 클라이맥스
+      // ☕ 커피값 확정 — 이 게임의 진짜 클라이맥스
       sfx.doom();
-      game.screenFx = { emoji: '💀', label: `벌칙 당첨 — ${data.name}`, color: 'rgba(255,40,60,.55)', start: performance.now() };
+      game.screenFx = { emoji: '☕', label: `커피값 — ${data.name}`, color: 'rgba(255,40,60,.55)', start: performance.now() };
       game.shakeUntil = performance.now() + 420;
       if (mineFin) Sound.buzz([300, 100, 300, 100, 600]);
     } else {
@@ -2409,12 +2574,12 @@
       if (mineFin) Sound.buzz(data.rank === 1 ? [70, 60, 140] : 60);
     }
     if (data.celebrate) {
+      // 첫 골인 = 커피값에서 가장 멀리 달아난 사람 (어느 모드든)
       spawnCelebration(data.celebrateX, data.name);
       sfx.win();
-    } else if (data.rank === 1) {
       toast(
         game.winMode === 'last'
-          ? `⚡ ${data.name}님이 가장 먼저 도착... 늦게 골인이 당첨인데요!`
+          ? `⚡ ${data.name}님이 가장 먼저 도착 — 커피값은 멀어졌어요!`
           : `🏆 ${data.name}님이 1등으로 도착!`
       );
     }
@@ -2464,6 +2629,9 @@
     // overShown=true 가 되는 순간 줌 목표가 1로 돌아가므로 화면이 스르륵 원래대로 빠진다.
     // 결과창을 바로 띄우면 그 줌아웃을 아무도 못 보므로 잠깐 기다린다.
     game.overShown = true;
+    game.danger = null;
+    $('danger-watch').classList.add('hidden'); // ☕ 위험 표시는 판이 끝나면 걷는다
+    $('cheer-bar').classList.remove('big');
     // 시리즈(여러 판) 진행 중이면 일반 결과창 대신 시리즈 화면(series:next/over)이 그린다.
     // 방금 판 순위는 저장해 두었다가 라운드 사이 화면에서 보여준다.
     if (series) {
@@ -2603,57 +2771,75 @@
     lastRanking = ranking;
     lastRankingEvent = event;
     lastRankingWinMode = game ? game.winMode : 'first';
+    lastRankingPayers = game && game.payers === 2 ? 2 : 1;
 
-    // 우승자 배너
-    const winner = ranking[0];
+    // 우승자 배너.
+    // 🐢 늦게 골인 모드는 순위가 뒤집혀 있어(rank 1 = 가장 늦게 들어온 사람) 그대로 쓰면
+    //    커피값 내는 사람에게 🏆 를 달아주게 된다. 그 모드에선 가장 먼저 들어온 사람을 세운다.
+    const winner = lastRankingWinMode === 'last' ? ranking[ranking.length - 1] : ranking[0];
     $('winner-banner').textContent = winner
       ? event
         ? `🎉 1등 당첨: ${winner.name}${winner.playerId === mineKey ? ' (나!)' : ''}`
-        : `🏆 ${winner.name}${winner.playerId === mineKey ? ' (나)' : ''} 우승!`
+        : lastRankingWinMode === 'last'
+          ? `⚡ 가장 먼저 골인 · ${winner.name}${winner.playerId === mineKey ? ' (나)' : ''}`
+          : `🏆 ${winner.name}${winner.playerId === mineKey ? ' (나)' : ''} 우승!`
       : '';
 
-    // 💀 벌칙자 배너 — 이 게임은 대부분 벌칙자를 뽑으려고 돌린다.
-    //    1등 배너만 있고 정작 모두가 보고 싶어하는 꼴찌는 표에 묻혀 있었다.
-    const doomed = ranking.length > 1 ? ranking[ranking.length - 1] : null;
+    // ☕ 커피값 배너 — 이 게임은 대부분 "커피값 누가 내냐"를 뽑으려고 돌린다.
+    //    1등 배너만 있고 정작 모두가 보고 싶어하는 쪽은 표에 묻혀 있었다.
+    //    낙하 중 컷라인이 지목한 사람과 반드시 같은 사람이어야 하므로,
+    //    '먼저 골인'이면 순위표 끝에서, '늦게 골인'이면 앞에서 커피값 인원만큼 뽑는다.
+    const payers = Math.min(lastRankingPayers, Math.max(0, ranking.length - 1));
+    const doomedList = lastRankingWinMode === 'last'
+      ? ranking.slice(0, payers)
+      : ranking.slice(ranking.length - payers).reverse(); // 꼴찌부터
     const lb = $('loser-banner');
     if (lb) {
-      const showDoom = doomed && lastRankingWinMode !== 'last';
-      lb.className = showDoom ? 'series-final-banner lose' : '';
-      lb.innerHTML = showDoom
-        ? `💀 벌칙 당첨 · <b>${escapeHtml(doomed.name)}${doomed.playerId === mineKey ? ' (나…)' : ''}</b>`
+      lb.className = doomedList.length ? 'series-final-banner lose' : '';
+      lb.innerHTML = doomedList.length
+        ? `☕ 커피값 · ` + doomedList
+            .map((d) => `<b>${escapeHtml(d.name)}${d.playerId === mineKey ? ' (나…)' : ''}</b>`)
+            .join(' · ')
         : '';
     }
 
-    // 시상대 (1~3등, 표시 순서: 2등-1등-3등)
+    // 🐢 늦게 골인 모드는 순위가 뒤집혀 있으므로(rank 1 = 가장 늦게 들어온 사람) 시상대·목록을
+    //    그대로 그리면 커피값 내는 사람이 금메달을 받는다. 그 모드에선 도착 순서로 세워
+    //    "몇 번째 도착"으로 표시한다 — 낙하 중 순위판(도착 순서)과도 같은 읽기다.
+    const byArrival = lastRankingWinMode === 'last';
+    const view = byArrival ? [...ranking].reverse() : ranking;
+    const posLabel = (i) => (byArrival ? `${i + 1}번째` : `${i + 1}등`);
+
+    // 시상대 (1~3위, 표시 순서: 2위-1위-3위)
     const podium = $('podium');
     podium.innerHTML = '';
     const medals = ['🥇', '🥈', '🥉'];
     const classes = ['first', 'second', 'third'];
-    const top3 = ranking.slice(0, 3);
+    const top3 = view.slice(0, 3).map((r, i) => ({ r, i }));
     const order = [top3[1], top3[0], top3[2]].filter(Boolean);
-    for (const r of order) {
+    for (const { r, i } of order) {
       const col = document.createElement('div');
-      col.className = `podium-col ${classes[r.rank - 1]}`;
+      col.className = `podium-col ${classes[i]}`;
       col.innerHTML = `
-        <span class="podium-medal">${medals[r.rank - 1]}</span>
+        <span class="podium-medal">${medals[i]}</span>
         <span class="podium-ball" style="background:${r.color};color:${r.color}"></span>
         <span class="podium-name">${escapeHtml(r.name)}${r.playerId === mineKey ? ' ★' : ''}</span>
         <span class="podium-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>
-        <div class="podium-block">${r.rank}등</div>`;
+        <div class="podium-block">${posLabel(i)}</div>`;
       podium.appendChild(col);
     }
 
-    // 4등 이하 목록 (최대 50명 표시)
+    // 4위 이하 목록 (최대 50명 표시)
     const list = $('result-list');
     list.innerHTML = '';
-    for (const r of ranking.slice(3, 53)) {
+    view.slice(3, 53).forEach((r, k) => {
       const li = document.createElement('li');
-      li.innerHTML = `<span class="rank-num">${r.rank}등</span>
+      li.innerHTML = `<span class="rank-num">${posLabel(k + 3)}</span>
         <span class="player-dot" style="background:${r.color}"></span>
         <span>${escapeHtml(r.name)}${r.playerId === mineKey ? ' (나)' : ''}</span>
         <span class="result-time">${r.finished ? formatTime(r.timeMs) : '미도착'}</span>`;
       list.appendChild(li);
-    }
+    });
     if (ranking.length > 53) {
       const li = document.createElement('li');
       li.style.justifyContent = 'center';
@@ -2996,7 +3182,7 @@
     // 늦게 골인 우승에서는 나에게 쓰는 게 유리할 수 있음을 안내
     $('target-title').innerHTML =
       game.winMode === 'last'
-        ? `${item.emoji} ${item.name} — 누구에게?<br><span class="target-hint">🐢 느려질수록 우승! 방해 아이템은 나에게 쓰면 유리해요</span>`
+        ? `${item.emoji} ${item.name} — 누구에게?<br><span class="target-hint">🐢 늦게 들어오면 커피값! 방해 아이템은 상대에게 쓰세요</span>`
         : `${item.emoji} ${item.name} — 누구에게 쓸까요?`;
     const list = $('target-list');
     list.innerHTML = '';
@@ -3410,7 +3596,8 @@
     if (!doomRace && prevFocus && best && best.y - prevFocus.y < 60) focus = prevFocus; // 근소한 차이면 유지
     if (doomRace && !game._doomAnnounced) {
       game._doomAnnounced = true;
-      toast(game.winMode === 'last' ? '🏆 우승 결정전!' : '💀 벌칙 결정전!');
+      // 카메라가 비추는 건 '가장 뒤처진 공' = 커피값을 낼 사람이다. 모드와 무관하게 같은 말로.
+      toast(`☕ 커피값 결정전! (${(game.danger && game.danger.slots) || game.payers || 1}명)`);
       sfx.heartbeat();
     }
     if (focus) {
@@ -3464,6 +3651,12 @@
         }
       }
     }
+
+    // ═══ ☕ 커피값 컷라인 ═══
+    //   이 게임은 대부분 "누가 1등이냐"가 아니라 "커피값 누가 내냐"를 뽑으려고 돌린다.
+    //   그런데 9초 내내 화면이 대답하는 건 1등 얘기뿐이고, 정작 모두가 궁금한
+    //   "내가 하위 N명인가"는 어디에도 없었다. 그 답을 실시간 선으로 긋는다.
+    updateDanger(balls);
 
     // 🔍 결정적 순간 줌인 — 선두 공이 골인선에 가까워질수록 화면을 서서히 확대해 긴장감을 높인다.
     // 앵커(zoomCx/zoomCy)는 선두 공의 '화면 위치'라, 줌이 그 공을 중심으로 파고든다. 부드럽게 보간.
@@ -3595,6 +3788,56 @@
       }
     }
 
+    // ═══ ☕ 커피값 컷라인 (공보다 먼저 그려 공이 선 위에 올라오게) ═══
+    //   선 위쪽(=뒤처진 쪽)에 있으면 커피값. "지금 내가 어느 쪽이냐"를 한눈에 답한다.
+    if (game.danger && game.danger.cutY != null) {
+      const trueY = game.danger.cutY;
+      const W = board.world.width;
+      const pulse = 0.62 + 0.38 * Math.sin(performance.now() / 260);
+      // 카메라는 선두를 쫓으므로 컷라인은 화면 위로 벗어나 있는 때가 많다.
+      // 그럴 땐 화면 가장자리에 붙여 두고 "얼마나 위에 있는지"를 숫자로 알려준다.
+      const top = camY + 40;
+      const bot = camY + VIEW.height - 40;
+      const off = trueY < top ? -1 : trueY > bot ? 1 : 0;
+      const cy = off < 0 ? top : off > 0 ? bot : trueY;
+      ctx.save();
+      if (!off) {
+        // 위험 지대(선 위쪽)를 붉게 물들인다 — 선에 가까울수록 진하게
+        const band = ctx.createLinearGradient(0, cy - 220, 0, cy);
+        band.addColorStop(0, 'rgba(255,50,70,0)');
+        band.addColorStop(1, `rgba(255,50,70,${0.16 * pulse})`);
+        ctx.fillStyle = band;
+        ctx.fillRect(0, cy - 220, W, 220);
+      }
+      // 컷라인 (화면 밖이면 가장자리에 붙인 실선 바)
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = '#ff3b52';
+      ctx.lineWidth = off ? 4 : 3;
+      if (!off) ctx.setLineDash([14, 9]);
+      ctx.beginPath();
+      ctx.moveTo(0, cy);
+      ctx.lineTo(W, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 라벨 — 위쪽 N명이 낸다는 걸 말로 못 박는다
+      ctx.globalAlpha = 1;
+      const lab = off
+        ? `${off < 0 ? '↑' : '↓'} ☕ 커피값 컷 ${Math.round(Math.abs(trueY - cy))}px`
+        : `☕ 위 ${game.danger.slots}명 커피값`;
+      ctx.font = 'bold 15px sans-serif';
+      const lw = ctx.measureText(lab).width + 20;
+      const ly = off > 0 ? cy + 6 : cy - 30; // 아래쪽 가장자리면 라벨도 아래에
+      ctx.fillStyle = 'rgba(150,10,25,.9)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(W / 2 - lw / 2, ly, lw, 24, 12);
+      else ctx.rect(W / 2 - lw / 2, ly, lw, 24);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(lab, W / 2, ly + 18);
+      ctx.restore();
+    }
+
     // 🔦 결승 스포트라이트 — 조명 받는 공 주위로 빛 원, 바깥은 어둡게.
     //    슬로우모션을 "멈춘 건가?"로 오해하지 않도록, 지금 누구를 보고 있는지 못 박아준다.
     //    (공보다 먼저 그려 공이 조명 위에 올라오게 한다)
@@ -3669,6 +3912,21 @@
 
       ctx.save();
       if (b.g) ctx.globalAlpha = 0.4; // 유령 상태
+
+      // ☕ 지금 커피값 사정권인 공 — 붉은 링이 뛴다 (내 공이면 더 두껍게)
+      if (game.danger && game.danger.keys.has(b.p)) {
+        const dp = 0.55 + 0.45 * Math.sin(tNow / 190);
+        ctx.save();
+        ctx.globalAlpha = (b.g ? 0.4 : 1) * dp;
+        ctx.strokeStyle = '#ff3b52';
+        ctx.lineWidth = b.p === mineKey ? 4 : 2.5;
+        ctx.shadowColor = '#ff3b52';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(bx, by, radius + 6 + dp * 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // 모션 트레일 (속도가 빠를수록 길게)
       if (b.px !== undefined && !game.shuffling) {
@@ -3867,7 +4125,8 @@
       // 화면 밖이면 가장자리 화살표
       if (mi.offTop || mi.offBottom) {
         const ax = Math.max(24, Math.min(VIEW.width - 24, mi.x));
-        const ay = mi.offTop ? 78 : VIEW.height - 40;
+        // 위쪽 화살표는 커피값 한 줄(62~90)과 겹치지 않게 그 아래로 내린다
+        const ay = mi.offTop ? (game.danger ? 112 : 78) : VIEW.height - 40;
         const dir = mi.offTop ? -1 : 1;
         const pulse = 0.72 + 0.28 * Math.sin(nowFrame / 170);
         ctx.globalAlpha = pulse;
@@ -3884,6 +4143,55 @@
         ctx.fillText(`${away}px`, ax, ay - dir * 16);
       }
       ctx.restore();
+    }
+
+    // ═══ ☕ 위험 확률 한 줄 ═══
+    //   "남은 4명 중 1명이 커피값 · 25%" — 판이 좁혀질수록 숫자가 커지며 조여든다.
+    //   순위표보다 이 한 줄이 사람들이 실제로 던지는 질문에 가깝다.
+    if (game.danger && !game.overShown) {
+      const d = game.danger;
+      const line = d.cutY == null
+        ? `☕ 커피값 확정 · ${d.names.join(' · ')}`
+        : `☕ 남은 ${d.racing}명 중 ${d.slots}명이 커피값 · ${Math.round((d.slots / d.racing) * 100)}%`;
+      const hot = d.cutY == null || d.slots / d.racing >= 0.5; // 조여든 상태면 붉게
+      ctx.save();
+      ctx.font = 'bold 14px sans-serif';
+      const tw = ctx.measureText(line).width + 24;
+      const bx0 = VIEW.width / 2 - tw / 2;
+      ctx.fillStyle = hot ? 'rgba(150,12,28,.86)' : 'rgba(8,12,22,.76)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx0, 62, tw, 28, 14); // 내 공 칩(10~56) 아래로
+      else ctx.rect(bx0, 62, tw, 28);
+      ctx.fill();
+      if (d.mineIn) { // 내가 위험권이면 테두리를 깜빡여 못 지나치게 한다
+        ctx.strokeStyle = `rgba(255,80,100,${0.5 + 0.5 * Math.sin(nowFrame / 180)})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(line, VIEW.width / 2, 81);
+      ctx.restore();
+    }
+
+    // 🚨 컷라인을 넘나든 순간의 가장자리 섬광 (들어가면 빨강 / 빠져나오면 초록)
+    if (game.edgeFx) {
+      const age = nowMs - game.edgeFx.start;
+      const DUR = 520;
+      if (age > DUR) game.edgeFx = null;
+      else {
+        const a = (1 - age / DUR) * 0.7;
+        ctx.save();
+        const eg = ctx.createRadialGradient(
+          VIEW.width / 2, VIEW.height / 2, Math.min(VIEW.width, VIEW.height) * 0.3,
+          VIEW.width / 2, VIEW.height / 2, Math.max(VIEW.width, VIEW.height) * 0.72
+        );
+        eg.addColorStop(0, `rgba(${game.edgeFx.color},0)`);
+        eg.addColorStop(1, `rgba(${game.edgeFx.color},${a})`);
+        ctx.fillStyle = eg;
+        ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+        ctx.restore();
+      }
     }
 
     // 🔔 내 공이 아이템에 걸린 순간 화면 전체 알림 (카메라 밖이어도 확실히 알림)
@@ -3931,6 +4239,8 @@
       selfId: myId,
       camY,
       elapsed,
+      cutY: game.danger ? game.danger.cutY : null, // ☕ 커피값 컷라인
+      dangerKeys: game.danger ? game.danger.keys : null,
     });
 
     // 상태 표시 + 방장 낙하 버튼 (리플레이는 위에서 자체 표시)
