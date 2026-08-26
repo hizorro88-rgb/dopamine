@@ -1591,7 +1591,8 @@
     $('target-modal').classList.add('hidden');
     showScreen('game');
     setupCanvas();
-    mountCheerBar(null); // 🎉 응원 바는 결과가 나온 뒤에만 (아래 showResults 에서 붙인다)
+    mountCheerBar(null);
+    setDropCheer(!editorTest && !shared); // 🎬 관람 중엔 다 같이 응원 (테스트·단독 관람 제외)
     editorTestExitBtn().classList.toggle('hidden', !editorTest); // 🧪 에디터 복귀 버튼
     requestAnimationFrame(renderFrame);
   }
@@ -2277,6 +2278,7 @@
     const bar = $('cheer-bar');
     const layer = $('cheer-layer');
     const slot = slotId ? $(slotId) : null;
+    bar.classList.remove('big'); // 낙하 중 크게 띄우던 상태는 해제
     if (slot) {
       slot.appendChild(bar);
       bar.classList.remove('hidden');
@@ -2290,6 +2292,18 @@
       layer.innerHTML = '';
       $('danger-watch').classList.add('hidden');
     }
+  }
+
+  /**
+   * 🎉 낙하 중 응원 바 노출 — 커피값에서 벗어난 사람과 관전자만.
+   * 아직 달리는 사람은 자기 공을 봐야 하므로 화면을 비워둔다.
+   */
+  function setDropCheer(on) {
+    buildCheerBar();
+    const bar = $('cheer-bar');
+    if (bar.classList.contains('on-result')) return; // 결과창에 붙어 있으면 건드리지 않는다
+    bar.classList.toggle('hidden', !on);
+    bar.classList.toggle('big', on);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -2356,7 +2370,7 @@
     }
     const d = computeDanger(balls);
     game.danger = d;
-    if (!d) return;
+    if (!d) { setDropCheer(false); return; }
 
     // 🚨 내가 컷라인을 넘나든 순간 — 진동 + 소리 + 화면 가장자리 섬광.
     //   단, 접전이면 컷라인이 초당 몇 번씩 뒤집힌다. 그때마다 울리면 줌이 그랬듯
@@ -2380,7 +2394,7 @@
       }
     }
 
-    // 😮‍💨 커피값에서 완전히 벗어난 순간 → 관전 모드 (응원 바를 키우고 위험한 사람을 띄운다)
+    // 😮‍💨 커피값에서 완전히 벗어난 순간 → 관전 모드 (응원 바 + 위험한 사람 표시)
     if (d.iAmSafe && !game.safeShown && !game.spectator) {
       game.safeShown = true;
       sfx.safe();
@@ -2388,9 +2402,11 @@
       game.screenFx = { emoji: '😮‍💨', label: '세이프! 커피값은 면했어요', color: 'rgba(60,220,140,.5)', start: performance.now() };
     }
 
-    // ☕ 지금 위험한 사람 — 안전 확정자와 관전자에게만 (아직 뛰는 사람은 자기 공을 봐야 한다)
+    // ☕ 지금 위험한 사람 + 🎉 응원 — 안전 확정자와 관전자에게만.
+    //    커피값에서 벗어나 할 일이 없어진 사람은 남은 사람을 응원하며 보면 된다.
     const watch = $('danger-watch');
     const show = (game.safeShown || game.spectator) && d.names.length > 0;
+    setDropCheer(show);
     watch.classList.toggle('hidden', !show);
     if (show) {
       const txt = d.cutY == null
@@ -2650,6 +2666,7 @@
     game.overShown = true;
     game.danger = null;
     $('danger-watch').classList.add('hidden'); // ☕ 위험 표시는 판이 끝나면 걷는다
+    mountCheerBar(null); // 결과창이 뜰 때 그 안으로 다시 붙는다
     // 시리즈(여러 판) 진행 중이면 일반 결과창 대신 시리즈 화면(series:next/over)이 그린다.
     // 방금 판 순위는 저장해 두었다가 라운드 사이 화면에서 보여준다.
     if (series) {
