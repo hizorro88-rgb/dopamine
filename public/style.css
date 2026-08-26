@@ -2420,19 +2420,38 @@ textarea:focus {
 .cheer-btn:hover { background: rgba(255, 255, 255, 0.16); }
 .cheer-btn:active { transform: scale(1.35); }
 
-/* ☕ 커피값 안전 확정 → 관전 모드: 할 일이 없어진 사람에게 응원을 크게 쥐어준다 */
-#cheer-bar.big { bottom: 14px; gap: 7px; padding: 8px 12px; }
-#cheer-bar.big .cheer-btn {
-  width: 48px;
-  height: 48px;
-  font-size: calc(27px * var(--fs-scale));
-  background: rgba(255, 255, 255, 0.12);
+/* 🎉 결과창 안으로 옮겨온 응원 바 — 이제서야 누를 차례라 크고 넉넉하게 */
+.cheer-slot { margin: 10px 0 4px; }
+.cheer-slot:empty { display: none; }
+#cheer-bar.on-result {
+  position: static;
+  transform: none;
+  max-width: 100%;
+  justify-content: center;
+  flex-wrap: wrap; /* 좁은 결과창에선 옆으로 밀지 말고 두 줄로 */
+  overflow-x: visible;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
 }
-/* ☕ 지금 위험한 사람 — 확대된 응원 바(높이 66 + 아래 14) 바로 위 */
+#cheer-bar.on-result .cheer-btn {
+  width: 44px;
+  height: 44px;
+  font-size: calc(25px * var(--fs-scale));
+  background: rgba(255, 255, 255, 0.1);
+}
+/* 날아오르는 이모지는 결과창(z-index 50) 위로 떠야 보인다 */
+#cheer-layer.on-result {
+  position: fixed;
+  inset: 0;
+  z-index: 54;
+}
+/* ☕ 지금 위험한 사람 — 낙하 중엔 응원 바가 없으므로 화면 맨 아래에 */
 #danger-watch {
   position: absolute;
   left: 50%;
-  bottom: 86px;
+  bottom: 14px;
   transform: translateX(-50%);
   z-index: 6;
   max-width: 92%;

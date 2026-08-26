@@ -1591,7 +1591,7 @@
     $('target-modal').classList.add('hidden');
     showScreen('game');
     setupCanvas();
-    showCheerBar(!editorTest && !shared); // 테스트/공유 관람 중엔 응원 바 숨김
+    mountCheerBar(null); // 🎉 응원 바는 결과가 나온 뒤에만 (아래 showResults 에서 붙인다)
     editorTestExitBtn().classList.toggle('hidden', !editorTest); // 🧪 에디터 복귀 버튼
     requestAnimationFrame(renderFrame);
   }
@@ -2227,9 +2227,7 @@
     showIntro();
     showScreen('game'); // 화면 표시 후에 캔버스 크기 계산 (숨김 상태에선 부모 크기가 0)
     setupCanvas();
-    showCheerBar(true); // 🎉 응원 바 표시
-    $('cheer-bar').classList.remove('big'); // ☕ 새 판 → 관전 모드 해제
-    $('danger-watch').classList.add('hidden');
+    mountCheerBar(null); // 🎉 낙하 중엔 응원 바를 숨긴다 — 결과창에서 다시 띄운다
     // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
     if (finished) for (const f of finished) appendFinishRow(f);
     requestAnimationFrame(renderFrame);
@@ -2264,12 +2262,32 @@
       bar.appendChild(b);
     }
   }
-  function showCheerBar(show) {
+  /**
+   * 🎉 응원 바는 결과가 나온 뒤에만 띄운다.
+   *
+   * 낙하 중엔 다들 자기 공을 보느라 이모지를 누를 겨를이 없고, 화면 아래를
+   * 차지하기만 했다. 결과창은 화면 전체를 덮는 오버레이라 캔버스 위에 있는
+   * 바가 가려지므로, 바를 결과창 안(slotId)으로 옮겨 붙인다.
+   * 날아오르는 이모지 레이어는 결과창 위로 뜨도록 따로 올린다.
+   *
+   * slotId 가 없으면 원래 자리(캔버스 위)로 돌려놓고 숨긴다.
+   */
+  function mountCheerBar(slotId) {
     buildCheerBar();
-    $('cheer-bar').classList.toggle('hidden', !show);
-    if (!show) {
-      $('cheer-layer').innerHTML = '';
-      $('cheer-bar').classList.remove('big');
+    const bar = $('cheer-bar');
+    const layer = $('cheer-layer');
+    const slot = slotId ? $(slotId) : null;
+    if (slot) {
+      slot.appendChild(bar);
+      bar.classList.remove('hidden');
+      bar.classList.add('on-result');
+      layer.classList.add('on-result');
+    } else {
+      $('canvas-wrap').appendChild(bar);
+      bar.classList.add('hidden');
+      bar.classList.remove('on-result');
+      layer.classList.remove('on-result');
+      layer.innerHTML = '';
       $('danger-watch').classList.add('hidden');
     }
   }
@@ -2368,13 +2386,11 @@
       sfx.safe();
       Sound.buzz([30, 50, 30]);
       game.screenFx = { emoji: '😮‍💨', label: '세이프! 커피값은 면했어요', color: 'rgba(60,220,140,.5)', start: performance.now() };
-      $('cheer-bar').classList.add('big');
     }
 
     // ☕ 지금 위험한 사람 — 안전 확정자와 관전자에게만 (아직 뛰는 사람은 자기 공을 봐야 한다)
     const watch = $('danger-watch');
     const show = (game.safeShown || game.spectator) && d.names.length > 0;
-    if (show) $('cheer-bar').classList.add('big'); // 볼 일만 남은 사람에겐 응원을 크게
     watch.classList.toggle('hidden', !show);
     if (show) {
       const txt = d.cutY == null
@@ -2634,7 +2650,6 @@
     game.overShown = true;
     game.danger = null;
     $('danger-watch').classList.add('hidden'); // ☕ 위험 표시는 판이 끝나면 걷는다
-    $('cheer-bar').classList.remove('big');
     // 시리즈(여러 판) 진행 중이면 일반 결과창 대신 시리즈 화면(series:next/over)이 그린다.
     // 방금 판 순위는 저장해 두었다가 라운드 사이 화면에서 보여준다.
     if (series) {
@@ -2715,6 +2730,7 @@
       tick();
     }, 1000);
     $('series-modal').classList.remove('hidden');
+    mountCheerBar('cheer-slot-series');
   });
   let seriesCountTimer = null;
 
@@ -2755,6 +2771,7 @@
     $('series-foot').innerHTML = `<button id="btn-series-back" class="btn primary">대기실로 돌아가기</button>`;
     $('btn-series-back').addEventListener('click', () => {
       $('series-modal').classList.add('hidden');
+      mountCheerBar(null);
       game = null;
       if (room) {
         renderLobby();
@@ -2764,6 +2781,7 @@
       }
     });
     $('series-modal').classList.remove('hidden');
+    mountCheerBar('cheer-slot-series');
     startSeriesConfetti();
   });
 
@@ -2871,6 +2889,7 @@
     }
 
     $('result-modal').classList.remove('hidden');
+    mountCheerBar('cheer-slot'); // 🎉 이제야 이모지를 누를 차례
     startConfetti();
   }
 
@@ -3034,7 +3053,7 @@
 
   $('btn-back-lobby').addEventListener('click', () => {
     $('result-modal').classList.add('hidden');
-    showCheerBar(false);
+    mountCheerBar(null);
     if (game && game.editorTest) { exitEditorTest(); return; } // 🧪 테스트 → 에디터 복귀
     const wasReplay = game && game.replay;
     game = null;
