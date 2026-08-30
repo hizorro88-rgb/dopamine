@@ -1181,7 +1181,7 @@
   // 기본값으로 방을 열고, 방장이 대기실에서 우승조건·아이템·공개수·판수·맵을 조절한다.
   const roomDefaults = () => ({
     winMode: localStorage.getItem('pinball-winmode') === 'last' ? 'last' : 'first',
-    itemsEnabled: localStorage.getItem('pinball-items') !== '0',
+    itemsEnabled: localStorage.getItem('pinball-items') === '1', // 기본은 노템전
     ballsPerPlayer: Number(localStorage.getItem('pinball-balls')) || 1,
     rounds: Number(localStorage.getItem('pinball-rounds')) || 1,
     payers: Number(localStorage.getItem('pinball-payers')) || 0, // 0 = 인원에 맞춰 자동
@@ -1791,7 +1791,9 @@
     const lockNote = room.locked ? '🔒 비밀방 · ' : '';
     $('lobby-hint').textContent =
       `${lockNote}${room.players.length}/${room.maxPlayers}명${specNote} · ` +
-      (itemsOn ? '시작하면 각자 랜덤 아이템 2개를 받아요!' : '🚫 노템전 — 아이템 없이 순수 실력·운!');
+      (itemsOn
+        ? '시작하면 각자 랜덤 아이템 2개를 받아요!'
+        : '🚫 노템전 — 나눠주는 아이템은 없어요. 맵에 놓인 아이템은 주워서 쓸 수 있어요!');
 
     // 우승 조건 표시 (방장만 변경 가능)
     $('lobby-wm-first').classList.toggle('selected', room.winMode !== 'last');

@@ -806,7 +806,216 @@ function rainbowComponents() {
   return [...comps, ...funnel(H)];
 }
 
+// ── 🎁 아이템 맵 ────────────────────────────────────────
+// 아이템전(시작할 때 각자 아이템 2개)을 쓰지 않는 대신, 맵 위에 놓인 아이템을
+// 주워서 쓰게 하는 맵들. 공이 닿는 순간 '그 공'이 효과를 받는다
+// (server/game.js 의 HIT_ACTIONS.item / powerup).
+//
+// 그래서 이로운 아이템은 주운 공에게 이득이고, 방해 아이템은 주운 공이
+// 그대로 당한다 — 줍는 게 늘 좋은 일은 아니라는 점이 이 맵들의 재미다.
+
+/** 🎁 무작위 아이템 상자 */
+function box(x, y, respawn = 5) {
+  return { type: 'itembox', x: Math.round(x), y: Math.round(y), props: { respawn } };
+}
+/** 지정 아이템 한 개 (item_<id> 구성요소) */
+function itm(id, x, y, respawn = 6) {
+  return { type: 'item_' + id, x: Math.round(x), y: Math.round(y), props: { respawn } };
+}
+// 주운 공에게 이로운 것(가볍다) / 주운 공이 당하는 것 / 판을 통째로 흔드는 것.
+// 큰 것은 아껴 쓴다 — 번개·시간정지가 흔해지면 남의 공이 계속 멈춰 있어 보는 재미가 죽는다.
+const GOOD_ITEMS = ['rocket', 'ghost', 'magnet', 'shockwave'];
+const BAD_ITEMS = ['freeze', 'gust', 'morph', 'balloon'];
+const BIG_ITEMS = ['lightning', 'timestop', 'clone'];
+/** 결정적 선택 — 새로고침해도 늘 같은 맵이 나오도록 난수를 쓰지 않는다 */
+const pick = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
+
+// 🎁 아이템 클래식: 익숙한 클래식 핀밭에 아이템을 흩뿌린 기본 맵.
+//    핀 몇 개 자리를 아이템으로 바꿔 놓아, 어디로 떨어져도 두어 개는 줍는다.
+function itemClassicComponents() {
+  const comps = [];
+  const H = WORLD.height;
+  let row = 0;
+  for (let y = 170; y <= H - 260; y += 62) {
+    const offset = row % 2 === 0 ? 0 : 29;
+    let col = 0;
+    for (let x = 55 + offset; x <= 545; x += 58) {
+      // 네 줄마다 한 번, 줄에서 두 자리를 아이템으로 — 핀밭의 결은 그대로 두고 알맹이만 바꾼다
+      const swap = row % 4 === 2 && (col === 2 + (row % 3) || col === 6 - (row % 3));
+      if (swap) {
+        if (row % 8 === 2) comps.push(box(x, y));
+        else if (row % 12 === 6 && col < 4) comps.push(itm(pick(BIG_ITEMS, row), x, y, 9)); // 큰 것은 드물게
+        else comps.push(itm(pick(row % 3 === 0 ? BAD_ITEMS : GOOD_ITEMS, row + col), x, y));
+      } else {
+        comps.push(peg(x, y));
+      }
+      col++;
+    }
+    row++;
+  }
+  // 골인 직전 마지막 기회 — 깔때기 입구 양옆에 상자 하나씩
+  comps.push(box(150, H - 300, 4), box(450, H - 300, 4));
+  return [...comps, ...funnel(H)];
+}
+
+// 🌠 아이템 쏟아지는 길: 처음부터 끝까지 아이템이 비처럼 깔린 맵.
+//    한 판에 열 개 넘게 줍는다 — 효과가 계속 겹쳐 터지는 난장판.
+function itemRushComponents() {
+  const comps = [];
+  const H = 4800;
+  let band = 0;
+  for (let y = 230; y <= H - 340; y += 150) {
+    // 줄마다 5개/4개를 엇갈려 — 어느 경로로 내려와도 걸린다
+    const xs = band % 2 === 0 ? [70, 185, 300, 415, 530] : [130, 245, 355, 470];
+    xs.forEach((x, i) => {
+      if (band % 3 === 1) comps.push(box(x, y, 4));
+      // 가벼운 이득과 방해만 촘촘히 — 큰 것은 다섯 구간에 한 번, 가운데에만
+      else if (band % 5 === 3 && x === 300) comps.push(itm(pick(BIG_ITEMS, band), x, y, 10));
+      // 이득과 방해를 거의 반반으로 — 다 같이 빨라지기만 하면 순위가 안 갈린다
+      else comps.push(itm(pick(i % 2 === 1 ? BAD_ITEMS : GOOD_ITEMS, band + i), x, y, 5));
+    });
+    // 아이템 줄 사이사이는 핀으로 받쳐 공이 곧장 통과하지 않게
+    if (band % 2 === 0) pegRow(comps, y + 75, band % 4 === 0 ? 0 : 27);
+    band++;
+  }
+  return [...comps, ...funnel(H)];
+}
+
+// 😇 천사와 악마: 좌우가 축복과 저주로 갈린 맵. 구간마다 좌우가 뒤바뀌어
+//    한쪽 벽만 타고 내려가는 얌체 경로가 통하지 않는다.
+function angelDevilComponents() {
+  const comps = [];
+  const H = 4800;
+  const BAND = 470;
+  let band = 0;
+  for (let y = 240; y <= H - 420; y += BAND) {
+    const goodLeft = band % 2 === 0; // 구간마다 축복/저주 쪽이 바뀐다
+    const gx = goodLeft ? [95, 175, 255] : [345, 425, 505];
+    const bx = goodLeft ? [345, 425, 505] : [95, 175, 255];
+    // 축복 쪽 세 자리 중 가운데 한 자리는 세 구간마다 큰 아이템으로 (천사 쪽의 대박)
+    gx.forEach((x, i) =>
+      comps.push(
+        i === 1 && band % 3 === 1
+          ? itm(pick(BIG_ITEMS, band), x, y + i * 58, 10)
+          : itm(pick(GOOD_ITEMS, band + i), x, y + i * 58)
+      )
+    );
+    bx.forEach((x, i) => comps.push(itm(pick(BAD_ITEMS, band + i), x, y + i * 58)));
+    // 구간 머리의 삿갓(∧) — 가운데로 온 공을 좌우로 흘려보낸다.
+    // (∨ 로 두면 전부 가운데로 모여 좌우 아이템을 다 건너뛰고 정체까지 생긴다)
+    comps.push({ type: 'bumper', x: 300, y: y - 100, props: { size: 20 } });
+    comps.push({ type: 'wall', x: 232, y: y - 58, props: { length: 170, angle: -26 } });
+    comps.push({ type: 'wall', x: 368, y: y - 58, props: { length: 170, angle: 26 } });
+    // 구간 꼬리에 핀 한 줄 — 다음 구간으로 넘어가며 좌우가 섞이도록
+    pegRow(comps, y + 215);
+    band++;
+  }
+  return [...comps, ...funnel(H)];
+}
+
+// 🎰 아이템 룰렛: 회전 막대가 공을 쳐서 둘러싼 아이템 고리 중 하나에 꽂는다.
+//    무엇을 줍게 될지는 순전히 회전 타이밍 — 이름 그대로 룰렛.
+function itemRouletteComponents() {
+  const comps = [];
+  const H = 4800;
+  const BAND = 620;
+  let band = 0;
+  for (let cy = 420; cy <= H - 460; cy += BAND) {
+    const cx = 300;
+    const R = 165;
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+      const a = (Math.PI * 2 * i) / N - Math.PI / 2;
+      // 고리에 이로운 것과 해로운 것을 번갈아 — 반쪽은 상, 반쪽은 벌.
+      // 자리 번호를 그대로 쓰면 짝수/홀수만 걸려 같은 아이템만 반복되므로 i/2 로 고른다.
+      const slot = band + Math.floor(i / 2);
+      // 12시 자리 하나는 큰 아이템 — 룰렛의 잭팟 칸
+      const id = i === 0 ? pick(BIG_ITEMS, band) : i % 2 === 0 ? pick(GOOD_ITEMS, slot) : pick(BAD_ITEMS, slot);
+      comps.push(itm(id, cx + Math.cos(a) * R, cy + Math.sin(a) * R, i === 0 ? 10 : 7));
+    }
+    // 한가운데 회전 막대 — 공을 쳐서 고리 어딘가로 날린다 (구간마다 방향·속도를 바꾼다)
+    comps.push({
+      type: 'spinner',
+      x: cx,
+      y: cy,
+      props: { length: 200, speed: band % 2 === 0 ? 4 + (band % 3) : -(4 + (band % 3)) },
+    });
+    // 고리 바깥은 핀으로 채워 벽을 타고 고리를 건너뛰지 못하게
+    ringDots(comps, cx, cy, R + 95, 16, 7);
+    comps.push(box(cx, cy + BAND / 2 - 40, 6)); // 구간 사이의 보너스 상자
+    band++;
+  }
+  return [...comps, ...funnel(H)];
+}
+
+// 🪜 아이템 계단: 좌우로 꺾이는 비탈을 타고 내려오다 비탈 끝에서 반드시
+//    아이템 하나를 밟는다. 무엇을 밟을지는 어느 비탈을 탔느냐로 정해진다.
+function itemStairsComponents() {
+  const comps = [];
+  const H = 4400;
+  let step = 0;
+  // 비탈은 가파르게(약 30°) — 완만하면 공이 굴러 내려오는 데만 한참 걸려 판이 늘어진다
+  for (let y = 300; y <= H - 460; y += 340) {
+    const toRight = step % 2 === 0;
+    const x1 = toRight ? 80 : 520;
+    const x2 = toRight ? 430 : 170;
+    wallPath(comps, [[x1, y], [x2, y + 190]]); // 끝은 열어 두어 공이 굴러 떨어지게
+    // 비탈 끝 바로 아래 — 굴러 떨어진 공이 여기에 꽂힌다
+    const tipX = toRight ? x2 + 55 : x2 - 55;
+    comps.push(
+      step % 6 === 4
+        ? itm(pick(BIG_ITEMS, step), tipX, y + 250, 10) // 여섯 칸에 한 번은 큰 것
+        : itm(pick(step % 3 === 2 ? BAD_ITEMS : GOOD_ITEMS, step), tipX, y + 250, 6)
+    );
+    // 비탈을 타지 않고 반대쪽으로 튄 공을 위한 뒷길 아이템 (반대편 벽 쪽)
+    comps.push(box(toRight ? 550 : 50, y + 110, 7));
+    step++;
+  }
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
+  // ── 🎁 아이템 맵: 맵에 놓인 아이템을 주워 쓴다 (아이템전 없이도 변수가 생긴다) ──
+  {
+    id: 'item-classic',
+    name: '🎁 아이템 클래식',
+    author: '기본 맵',
+    builtin: true,
+    height: WORLD.height,
+    components: itemClassicComponents(),
+  },
+  {
+    id: 'item-rush',
+    name: '🌠 아이템 쏟아지는 길',
+    author: '기본 맵',
+    builtin: true,
+    height: 4800,
+    components: itemRushComponents(),
+  },
+  {
+    id: 'angel-devil',
+    name: '😇 천사와 악마',
+    author: '기본 맵',
+    builtin: true,
+    height: 4800,
+    components: angelDevilComponents(),
+  },
+  {
+    id: 'item-roulette',
+    name: '🎰 아이템 룰렛',
+    author: '기본 맵',
+    builtin: true,
+    height: 4800,
+    components: itemRouletteComponents(),
+  },
+  {
+    id: 'item-stairs',
+    name: '🪜 아이템 계단',
+    author: '기본 맵',
+    builtin: true,
+    height: 4400,
+    components: itemStairsComponents(),
+  },
   {
     id: 'classic',
     name: '클래식',

@@ -150,14 +150,15 @@ class RoomManager {
         spectators: new Map(), // 관전자 (공·아이템 없음, 인원 제한 없음)
         grace: new Map(), // 🔌 재접속 유예: 끊긴 socketId -> 제거 타이머
         game: null,
-        mapId: 'classic',
+        mapId: 'item-classic', // 기본 맵: 아이템이 깔린 클래식 (노템전이 기본이므로 변수는 맵이 준다)
         roundMaps: [], // 시리즈: 판마다 다른 맵 (mapId 배열, 비면 mapId 사용)
         winMode: winMode === 'last' ? 'last' : 'first', // 우승 조건: 먼저/늦게 골인
         ballsPerPlayer: sanitizeBallCount(ballsPerPlayer), // 인당 공 개수 (1~5)
         // ☕ 커피값 낼 인원 (뒤처진 N명). payers 를 안 보내면 인원에 맞춰 자동으로 따라간다.
         payersAuto: !payers,
         payers: sanitizePayers(payers),
-        itemsEnabled: itemsEnabled !== false, // 아이템전(기본) / 노템전
+        // 노템전이 기본. 아이템은 시작할 때 나눠주는 대신 맵에 놓인 걸 주워 쓴다.
+        itemsEnabled: itemsEnabled === true,
         rounds: sanitizeRounds(rounds), // 이어서 진행할 판 수 (1=단판, 2+=시리즈)
         series: null, // 시리즈 진행 상태 (여러 판일 때만)
         seriesTimer: null, // 다음 판 자동 시작 타이머
