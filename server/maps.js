@@ -67,6 +67,8 @@ function classicComponents() {
     for (let x = 55 + offset; x <= 545; x += 58) comps.push(peg(x, y));
     row++;
   }
+  regroupGate(comps, Math.round(WORLD.height * 0.36));
+  regroupGate(comps, Math.round(WORLD.height * 0.68));
   return [...comps, ...funnel()];
 }
 
@@ -115,7 +117,10 @@ function spinnerParkComponents() {
   comps.push({ type: 'bomb', x: 300, y: 2080, props: { radius: 180, power: 16, respawn: 5 } });
   pegRow(comps, 2170);
 
-  return [...tileY(comps, 2, 2250), ...funnel()];
+  const gates = [];
+  regroupGate(gates, 1728);
+  regroupGate(gates, 3264);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel()];
 }
 
 // ── 픽셀 아트 헬퍼: 미니맵에서 그림이 보이는 맵을 만들기 위한 도구 ──
@@ -189,17 +194,6 @@ function wallPath(comps, points) {
   }
 }
 
-/** ◇ 다이아몬드(마름모) 외곽선 — 네 꼭짓점을 벽으로 이어 그린다 */
-function diamond(comps, x, y, d) {
-  wallPath(comps, [
-    [x, y - d],
-    [x + d, y],
-    [x, y + d],
-    [x - d, y],
-    [x, y - d],
-  ]);
-}
-
 // 🐍 지그재그 협곡: 좌우로 꺾이는 벽 코스 — 공이 직선으로 못 떨어진다
 function canyonComponents() {
   const comps = [];
@@ -239,7 +233,10 @@ function canyonComponents() {
   }
   // 마지막 스피너 관문
   comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
-  return [...tileY(comps, 2, 3000), ...funnel(6400)];
+  const gates = [];
+  regroupGate(gates, 2304);
+  regroupGate(gates, 4352);
+  return [...gates, ...tileY(comps, 2, 3000), ...funnel(6400)];
 }
 
 // 🌪 깔때기 폭포: 구멍 위치가 번갈아 바뀌는 깔때기 연속 — 병목에서 순위가 뒤집힌다
@@ -267,7 +264,10 @@ function cascadeComponents() {
   // 마지막 구간: 폭탄 지뢰밭
   comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
   comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
-  return [...tileY(comps, 2, 2650), ...funnel(5800)];
+  const gates = [];
+  regroupGate(gates, 2088);
+  regroupGate(gates, 3944);
+  return [...gates, ...tileY(comps, 2, 2650), ...funnel(5800)];
 }
 
 // 💣 지뢰밭: 아무것도 없는 맵에 재생성 폭탄만 —
@@ -307,6 +307,8 @@ function minefieldComponents() {
   comps.push(bomb(272, H - 130, { radius: 170, power: 19, respawn: 6 }));
   comps.push(bomb(328, H - 130, { radius: 170, power: 19, respawn: 6 }));
   comps.push(bomb(300, H - 80, { radius: 150, power: 17, respawn: 6 }));
+  regroupGate(comps, Math.round(H * 0.36));
+  regroupGate(comps, Math.round(H * 0.68));
   return [...comps, ...funnel(H)];
 }
 
@@ -353,6 +355,8 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
+  regroupGate(comps, 1730);
+  regroupGate(comps, 3270);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -380,6 +384,8 @@ function invaderComponents() {
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
+  regroupGate(comps, 1730);
+  regroupGate(comps, 3270);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -410,7 +416,10 @@ function mushroomComponents() {
   }
   // 아기 버섯 아래 포자 구름
   pegField(comps, 2040, 4, { size: 6, gap: 56 });
-  return [...tileY(comps, 2, 2250), ...funnel(4800)];
+  const gates = [];
+  regroupGate(gates, 1728);
+  regroupGate(gates, 3264);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 💀 해적 해골: 두개골 + 폭탄 눈 + 이빨 + 엇갈린 뼈다귀(벽) + 유골 별자리
@@ -455,7 +464,10 @@ function skullComponents() {
   // 🦴 뼛가루 모래톱(bone-dust shoal): 빈 구간을 촘촘한 핀 밭으로 채워 체류시간을 늘린다.
   pegField(comps, 820, 5);   // 두개골과 뼈다귀 사이
   pegField(comps, 2010, 6);  // 별자리 아래
-  return [...tileY(comps, 2, 2250), ...funnel(4800)];
+  const gates = [];
+  regroupGate(gates, 1728);
+  regroupGate(gates, 3264);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 🚀 로켓 발사: 기체 + 창문 + 날개 + 회전 불꽃 + 별밤
@@ -494,6 +506,8 @@ function rocketComponents() {
   //    선체를 빠져나온 공이 소행성에 부딪히며 느리게 표류하도록 한다.
   pegField(comps, 1800, 3, { size: 6, gap: 60 });
   pegField(comps, 2600, 4, { size: 6, gap: 60 });
+  regroupGate(comps, 2200);
+  regroupGate(comps, 4100);
   return [...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
@@ -528,63 +542,12 @@ function heartsComponents() {
   pegField(comps, 1770, 4, { size: 6, gap: 58 });
   // 두근두근 바람개비
   comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
-  return [...tileY(comps, 2, 2250), ...funnel(4800)];
+  const gates = [];
+  regroupGate(gates, 1728);
+  regroupGate(gates, 3264);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
-// 🌀 웜홀 정거장: 포탈로 옆·아래·위로 워프 — 낙하가 비선형이 된다
-function wormholeComponents() {
-  const comps = [];
-  const portal = (x, y, channel) => ({ type: 'portal', x, y, props: { channel } });
-
-  // 1구간: 핀 밭 + 좌우 워프 (ch1 — 왼쪽 포탈에 빨려들면 오른쪽에서 튀어나온다)
-  pegRow(comps, 220);
-  pegRow(comps, 290, 27);
-  comps.push(portal(70, 500, 1));
-  comps.push(portal(530, 500, 1));
-  comps.push({ type: 'wall', x: 150, y: 420, props: { length: 180, angle: 30 } });
-  lineDots(comps, 300, 440, 440, 410, 40, 6);
-
-  // 2구간: 지름길 사다리 (ch2 — 760에서 타면 2150으로 순간 강하!)
-  comps.push(portal(300, 760, 2));
-  ringDots(comps, 300, 760, 60, 10, 6);
-  pegRow(comps, 1000);
-  pegRow(comps, 1070, 27);
-  comps.push({ type: 'cross', x: 300, y: 1280, props: { length: 130, speed: 4 } });
-  comps.push({ type: 'spinner', x: 170, y: 1550, props: { length: 150, speed: -5 } });
-  comps.push({ type: 'spinner', x: 430, y: 1550, props: { length: 150, speed: 5 } });
-  pegRow(comps, 1800, 27);
-  comps.push({ type: 'bumper', x: 300, y: 1980, props: { size: 20 } });
-  comps.push(portal(300, 2150, 2)); // ch2 출구
-
-  // 3구간: 저주의 뱀 포탈 (ch3 — 2750에서 밟으면 1000으로 되돌아간다!)
-  pegRow(comps, 2400);
-  pegRow(comps, 2470, 27);
-  comps.push({ type: 'bomb', x: 100, y: 2600, props: { radius: 140, power: 14, respawn: 6 } });
-  comps.push({ type: 'bomb', x: 500, y: 2600, props: { radius: 140, power: 14, respawn: 6 } });
-  comps.push(portal(300, 2750, 3)); // 🐍 입구 — 가운데를 지키는 함정
-  comps.push({ type: 'wall', x: 150, y: 2680, props: { length: 200, angle: 25 } });
-  comps.push({ type: 'wall', x: 450, y: 2680, props: { length: 200, angle: -25 } });
-  comps.push(portal(450, 1000, 3)); // 🐍 출구 — 위쪽으로 강제 소환
-
-  // 4구간: 좌우 워프 한 번 더 (ch4) + 회전 관문
-  comps.push(portal(80, 3250, 4));
-  comps.push(portal(520, 3250, 4));
-  lineDots(comps, 200, 3200, 400, 3250, 44, 6);
-  comps.push({ type: 'cross', x: 170, y: 3550, props: { length: 120, speed: -4 } });
-  comps.push({ type: 'cross', x: 430, y: 3550, props: { length: 120, speed: 4 } });
-
-  // 5구간: 마지막 핀 밭 + 스피너
-  pegRow(comps, 3850);
-  pegRow(comps, 3920, 27);
-  comps.push({ type: 'spinner', x: 300, y: 4200, props: { length: 200, speed: 5 } });
-  pegRow(comps, 4450, 27);
-
-  // 🚧 재집결 관문은 이 맵엔 두지 않는다. 포탈이 공을 관문 아래로 보내버려 두드릴 공이
-  //    모자라고, 그 사이 남은 공이 벽 앞에 쌓여 판이 늘어진다(실측: 20초 초과 1% → 14%).
-  //    이 맵의 벌어짐(전 맵 최악, 전원표시 15%)은 포탈이라는 컨셉 자체에서 온다.
-
-  return [...comps, ...funnel(4800)];
-}
 
 // 🕹️ 진짜 핀볼: 곡선 어깨 레일 + ⚡3구 범퍼 클러스터 + 중앙 대형 회전 타깃
 //   + 중앙 킥커(공이 닿으면 위로 되돌려 보냄) + 하단 플리퍼 + 왼쪽 행운의 샛길
@@ -807,6 +770,8 @@ function rainbowComponents() {
   bump(300, 4020, 20);
   lineDots(comps, 90, 4200, 510, 4200, 62, 6);
 
+  regroupGate(comps, Math.round(H * 0.36));
+  regroupGate(comps, Math.round(H * 0.68));
   return [...comps, ...funnel(H)];
 }
 
@@ -875,35 +840,12 @@ function itemClassicComponents() {
   // 골인 직전 마지막 기회 — 깔때기 입구 양옆에 상자 하나씩
   comps.push(box(150, H - 300, 4), box(450, H - 300, 4));
   // 🚧 재집결 관문 — 판을 셋으로 끊어 벌어진 간격을 두 번 되돌린다
-  regroupGate(comps, Math.round(H * 0.36));
-  regroupGate(comps, Math.round(H * 0.68));
+  regroupGate(comps, Math.round(H * 0.28));
+  regroupGate(comps, Math.round(H * 0.52));
+  regroupGate(comps, Math.round(H * 0.76));
   return [...comps, ...funnel(H)];
 }
 
-// 🌠 아이템 쏟아지는 길: 처음부터 끝까지 아이템이 비처럼 깔린 맵.
-//    한 판에 열 개 넘게 줍는다 — 효과가 계속 겹쳐 터지는 난장판.
-function itemRushComponents() {
-  const comps = [];
-  const H = 4800;
-  let band = 0;
-  for (let y = 230; y <= H - 340; y += 150) {
-    // 줄마다 5개/4개를 엇갈려 — 어느 경로로 내려와도 걸린다
-    const xs = band % 2 === 0 ? [70, 185, 300, 415, 530] : [130, 245, 355, 470];
-    xs.forEach((x, i) => {
-      if (band % 3 === 1) comps.push(box(x, y, 4));
-      // 가벼운 이득과 방해만 촘촘히 — 큰 것은 다섯 구간에 한 번, 가운데에만
-      else if (band % 5 === 3 && x === 300) comps.push(itm(pick(BIG_ITEMS, band), x, y, 10));
-      // 이득과 방해를 거의 반반으로 — 다 같이 빨라지기만 하면 순위가 안 갈린다
-      else comps.push(itm(pick(i % 2 === 1 ? BAD_ITEMS : GOOD_ITEMS, band + i), x, y, 5));
-    });
-    // 아이템 줄 사이사이는 핀으로 받쳐 공이 곧장 통과하지 않게
-    if (band % 2 === 0) pegRow(comps, y + 75, band % 4 === 0 ? 0 : 27);
-    band++;
-  }
-  regroupGate(comps, Math.round(H * 0.36));
-  regroupGate(comps, Math.round(H * 0.68));
-  return [...comps, ...funnel(H)];
-}
 
 // 😇 천사와 악마: 좌우가 축복과 저주로 갈린 맵. 구간마다 좌우가 뒤바뀌어
 //    한쪽 벽만 타고 내려가는 얌체 경로가 통하지 않는다.
@@ -939,44 +881,6 @@ function angelDevilComponents() {
   return [...comps, ...funnel(H)];
 }
 
-// 🎰 아이템 룰렛: 회전 막대가 공을 쳐서 둘러싼 아이템 고리 중 하나에 꽂는다.
-//    무엇을 줍게 될지는 순전히 회전 타이밍 — 이름 그대로 룰렛.
-function itemRouletteComponents() {
-  const comps = [];
-  const H = 4800;
-  const BAND = 620;
-  let band = 0;
-  for (let cy = 420; cy <= H - 460; cy += BAND) {
-    const cx = 300;
-    const R = 165;
-    const N = 8;
-    for (let i = 0; i < N; i++) {
-      const a = (Math.PI * 2 * i) / N - Math.PI / 2;
-      // 고리에 이로운 것과 해로운 것을 번갈아 — 반쪽은 상, 반쪽은 벌.
-      // 자리 번호를 그대로 쓰면 짝수/홀수만 걸려 같은 아이템만 반복되므로 i/2 로 고른다.
-      const slot = band + Math.floor(i / 2);
-      // 12시 자리 하나는 큰 아이템 — 룰렛의 잭팟 칸
-      const id = i === 0 ? pick(BIG_ITEMS, band) : i % 2 === 0 ? pick(GOOD_ITEMS, slot) : pick(BAD_ITEMS, slot);
-      comps.push(itm(id, cx + Math.cos(a) * R, cy + Math.sin(a) * R, i === 0 ? 10 : 7));
-    }
-    // 한가운데 회전 막대 — 공을 쳐서 고리 어딘가로 날린다 (구간마다 방향·속도를 바꾼다)
-    comps.push({
-      type: 'spinner',
-      x: cx,
-      y: cy,
-      props: { length: 200, speed: band % 2 === 0 ? 4 + (band % 3) : -(4 + (band % 3)) },
-    });
-    // 고리 바깥은 핀으로 채워 벽을 타고 고리를 건너뛰지 못하게
-    ringDots(comps, cx, cy, R + 95, 16, 7);
-    pegRow(comps, cy + BAND / 2 - 110, band % 2 === 0 ? 0 : 27);
-    comps.push(box(cx, cy + BAND / 2 - 40, 6)); // 구간 사이의 보너스 상자
-    // 🚧 재집결 관문은 고리와 고리 '사이'에 둔다. 고리 안에 걸치면 회전 막대와 핀 고리가
-    //    이미 붙잡고 있는 자리에 벽까지 겹쳐 공이 정체된다(실측: 20초 초과 판 6%→15%).
-    if (band === 1 || band === 4) regroupGate(comps, Math.round(cy + BAND / 2 - 95));
-    band++;
-  }
-  return [...comps, ...funnel(H)];
-}
 
 // 🪜 아이템 계단: 좌우로 꺾이는 비탈을 타고 내려오다 비탈 끝에서 반드시
 //    아이템 하나를 밟는다. 무엇을 밟을지는 어느 비탈을 탔느냐로 정해진다.
@@ -1017,28 +921,12 @@ const BUILTIN_MAPS = [
     components: itemClassicComponents(),
   },
   {
-    id: 'item-rush',
-    name: '🌠 아이템 쏟아지는 길',
-    author: '기본 맵',
-    builtin: true,
-    height: 4800,
-    components: itemRushComponents(),
-  },
-  {
     id: 'angel-devil',
     name: '😇 천사와 악마',
     author: '기본 맵',
     builtin: true,
     height: 4800,
     components: angelDevilComponents(),
-  },
-  {
-    id: 'item-roulette',
-    name: '🎰 아이템 룰렛',
-    author: '기본 맵',
-    builtin: true,
-    height: 4800,
-    components: itemRouletteComponents(),
   },
   {
     id: 'item-stairs',
@@ -1144,14 +1032,6 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: 4800,
     components: minefieldComponents(),
-  },
-  {
-    id: 'wormhole',
-    name: '🌀 웜홀 정거장',
-    author: '기본 맵',
-    builtin: true,
-    height: 4800,
-    components: wormholeComponents(),
   },
   // ── 코스형 맵: 벽에 부딪히며 좌우로 꺾여 내려간다 ──
   {
