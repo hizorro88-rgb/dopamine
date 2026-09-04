@@ -786,7 +786,7 @@ class Game {
       if (ball.plugin.done) continue;
       // 골인 못 하고 바닥까지 떨어졌으면 → 속도·가로위치 그대로 최상단에서 다시 시작 (무한 굴레)
       if (!crossedFinish(ball, this.finishZone)) {
-        wrapIfFallen(ball, this.height);
+        wrapIfFallen(ball, this.height, this.finishZone);
         continue;
       }
       {

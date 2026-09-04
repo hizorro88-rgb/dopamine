@@ -180,13 +180,27 @@ function crossedFinish(ball, finish) {
   );
 }
 
-/** 골인 못 하고 맵 바닥 밑으로 떨어진 공을 (x·속도 그대로) 최상단으로 되돌린다 */
-function wrapIfFallen(ball, H) {
+// 🔁 되돌림 높이: 깔때기를 놓친 공이 다시 시도할 위치 (골인선 위 이만큼)
+const RETRY_RISE = 700;
+
+/**
+ * 골인 못 하고 맵 바닥 밑으로 떨어진 공을 되돌린다.
+ *
+ * 예전엔 맵 최상단(y=26)으로 보냈는데, 그러면 한 번 놓친 공이 맵 하나만큼
+ * (긴 맵은 4800px) 즉시 뒤처져 그 순간 순위가 굳어버렸다. 실측에서 이 되돌림이
+ * 맵별 '선두-꼴찌 간격'과 가장 크게 얽혀 있었다(상관 0.47).
+ * 그래서 깔때기 조금 위에서 짧게 다시 시도하게 한다 — 벌은 주되 판을 끝내지는 않는다.
+ * 가로 위치는 골인 쪽으로 절반 당겨, 같은 자리에서 계속 놓치는 굴레를 막는다.
+ */
+function wrapIfFallen(ball, H, finish) {
   if (ball.position.y <= H + 4) return false;
-  // 속도는 유지, 가로 위치도 유지 → 그대로 이어서 최상단에서 다시 낙하
-  Matter.Body.setPosition(ball, { x: ball.position.x, y: FINISH.topY });
-  ball.plugin.prevY = FINISH.topY;
-  if (ball.plugin.frozenPos) ball.plugin.frozenPos = { x: ball.position.x, y: FINISH.topY };
+  const y = finish ? Math.max(FINISH.topY, finish.y - RETRY_RISE) : FINISH.topY;
+  const cx = finish ? finish.x : ball.position.x;
+  const x = ball.position.x + (cx - ball.position.x) * 0.5;
+  Matter.Body.setPosition(ball, { x, y });
+  Matter.Body.setVelocity(ball, { x: 0, y: 2 });
+  ball.plugin.prevY = y;
+  if (ball.plugin.frozenPos) ball.plugin.frozenPos = { x, y };
   return true;
 }
 

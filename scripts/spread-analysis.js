@@ -53,8 +53,8 @@ function runOnce(mapDef) {
     for (const [k, b] of g.balls) {
       if (b.plugin.done) continue;
       const py = prevY.get(k);
-      // 바닥 근처 → 꼭대기 로 튄 경우만 되돌림 (포탈 순간이동과 구분한다)
-      if (py !== undefined && py > mapH - 300 && b.position.y < 250) wraps++;
+      // 맵 아래쪽에 있다가 위로 크게 튄 경우만 되돌림 (포탈 순간이동과 구분한다)
+      if (py !== undefined && py > mapH - 900 && py - b.position.y > 400) wraps++;
       prevY.set(k, b.position.y);
     }
     // 골인 시각은 매 틱 확인 (표본 주기와 어긋나면 마지막 골인을 놓친다)

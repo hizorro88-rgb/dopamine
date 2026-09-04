@@ -294,7 +294,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
         if (ball.plugin.done) continue;
         // 골인 못 하고 바닥까지 떨어지면 → 속도·가로위치 그대로 최상단에서 다시 시작 (무한 굴레)
         if (!crossedFinish(ball, finish)) {
-          wrapIfFallen(ball, height);
+          wrapIfFallen(ball, height, finish);
           continue;
         }
         ball.plugin.done = true;
