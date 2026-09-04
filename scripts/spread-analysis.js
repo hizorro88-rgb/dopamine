@@ -101,7 +101,10 @@ const median = (a) => {
 
 (function main() {
   const store = new MapStore();
-  const maps = store.list().filter((m) => m.builtin);
+  const only = (process.argv[4] || '').split(',').filter(Boolean); // 특정 맵만 (쉼표 구분)
+  const maps = store
+    .list()
+    .filter((m) => m.builtin && (!only.length || only.includes(m.id)));
   console.log(`${PLAYERS}명 × 공 ${BALLS_PER}개 (공 ${PLAYERS * BALLS_PER}개) · 맵당 ${TRIALS}판\n`);
   console.log('맵'.padEnd(24) + '판길이(중앙)  20초초과  평균간격  전원표시  1등~꼴찌  막판2명  되돌림');
   console.log('─'.repeat(96));

@@ -579,6 +579,10 @@ function wormholeComponents() {
   comps.push({ type: 'spinner', x: 300, y: 4200, props: { length: 200, speed: 5 } });
   pegRow(comps, 4450, 27);
 
+  // 🚧 재집결 관문은 이 맵엔 두지 않는다. 포탈이 공을 관문 아래로 보내버려 두드릴 공이
+  //    모자라고, 그 사이 남은 공이 벽 앞에 쌓여 판이 늘어진다(실측: 20초 초과 1% → 14%).
+  //    이 맵의 벌어짐(전 맵 최악, 전원표시 15%)은 포탈이라는 컨셉 자체에서 온다.
+
   return [...comps, ...funnel(4800)];
 }
 
@@ -830,6 +834,21 @@ const BIG_ITEMS = ['lightning', 'timestop', 'clone'];
 /** 결정적 선택 — 새로고침해도 늘 같은 맵이 나오도록 난수를 쓰지 않는다 */
 const pick = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
 
+/**
+ * 🚧 재집결 관문 — 화면 전폭을 가로막는 '사라지는 벽'.
+ *
+ * 앞선 공이 여기서 막혀 기다리는 동안 뒤처진 공이 따라붙는다. 벌어진 간격을
+ * 되돌리는 유일한 장치다. 실측에서 이 장치를 쓰는 '손에손잡고' 맵만 전원표시율
+ * 76%로, 다른 맵(21~42%)과 차원이 다른 수치를 냈다.
+ *
+ * 벽 길이 상한(300) 때문에 좌우 두 조각으로 나눠 잇는다. 조각마다 따로 hits 를
+ * 세므로 한쪽만 먼저 뚫릴 수 있고, 그 좁은 틈으로 몰리는 것도 볼거리가 된다.
+ */
+function regroupGate(comps, y, hits = 9) {
+  comps.push({ type: 'wall', x: 155, y, props: { length: 290, angle: 0, breakHits: hits } });
+  comps.push({ type: 'wall', x: 445, y, props: { length: 290, angle: 0, breakHits: hits } });
+}
+
 // 🎁 아이템 클래식: 익숙한 클래식 핀밭에 아이템을 흩뿌린 기본 맵.
 //    핀 몇 개 자리를 아이템으로 바꿔 놓아, 어디로 떨어져도 두어 개는 줍는다.
 function itemClassicComponents() {
@@ -855,6 +874,9 @@ function itemClassicComponents() {
   }
   // 골인 직전 마지막 기회 — 깔때기 입구 양옆에 상자 하나씩
   comps.push(box(150, H - 300, 4), box(450, H - 300, 4));
+  // 🚧 재집결 관문 — 판을 셋으로 끊어 벌어진 간격을 두 번 되돌린다
+  regroupGate(comps, Math.round(H * 0.36));
+  regroupGate(comps, Math.round(H * 0.68));
   return [...comps, ...funnel(H)];
 }
 
@@ -878,6 +900,8 @@ function itemRushComponents() {
     if (band % 2 === 0) pegRow(comps, y + 75, band % 4 === 0 ? 0 : 27);
     band++;
   }
+  regroupGate(comps, Math.round(H * 0.36));
+  regroupGate(comps, Math.round(H * 0.68));
   return [...comps, ...funnel(H)];
 }
 
@@ -910,6 +934,8 @@ function angelDevilComponents() {
     pegRow(comps, y + 215);
     band++;
   }
+  regroupGate(comps, Math.round(H * 0.38));
+  regroupGate(comps, Math.round(H * 0.70));
   return [...comps, ...funnel(H)];
 }
 
@@ -942,7 +968,11 @@ function itemRouletteComponents() {
     });
     // 고리 바깥은 핀으로 채워 벽을 타고 고리를 건너뛰지 못하게
     ringDots(comps, cx, cy, R + 95, 16, 7);
+    pegRow(comps, cy + BAND / 2 - 110, band % 2 === 0 ? 0 : 27);
     comps.push(box(cx, cy + BAND / 2 - 40, 6)); // 구간 사이의 보너스 상자
+    // 🚧 재집결 관문은 고리와 고리 '사이'에 둔다. 고리 안에 걸치면 회전 막대와 핀 고리가
+    //    이미 붙잡고 있는 자리에 벽까지 겹쳐 공이 정체된다(실측: 20초 초과 판 6%→15%).
+    if (band === 1 || band === 4) regroupGate(comps, Math.round(cy + BAND / 2 - 95));
     band++;
   }
   return [...comps, ...funnel(H)];
@@ -971,6 +1001,8 @@ function itemStairsComponents() {
     comps.push(box(toRight ? 550 : 50, y + 110, 7));
     step++;
   }
+  regroupGate(comps, Math.round(H * 0.38));
+  regroupGate(comps, Math.round(H * 0.71));
   return [...comps, ...funnel(H)];
 }
 
