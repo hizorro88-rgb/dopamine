@@ -905,9 +905,12 @@ function angelDevilComponents() {
 
 // 🪜 아이템 계단: 좌우로 꺾이는 비탈을 타고 내려오다 비탈 끝에서 반드시
 //    아이템 하나를 밟는다. 무엇을 밟을지는 어느 비탈을 탔느냐로 정해진다.
+// 비탈 하나가 300px 넘게 가로지르는 구조라 거리가 길수록 격차가 커진다.
+// 아이템 클래식과 같은 처방 — 맵을 줄여 벌어질 거리 자체를 줄인다.
+const ITEM_STAIRS_H = 3700;
 function itemStairsComponents() {
   const comps = [];
-  const H = 4400;
+  const H = ITEM_STAIRS_H;
   let step = 0;
   // 비탈은 가파르게(약 30°) — 완만하면 공이 굴러 내려오는 데만 한참 걸려 판이 늘어진다
   for (let y = 300; y <= H - 460; y += 340) {
@@ -926,11 +929,10 @@ function itemStairsComponents() {
     comps.push(box(toRight ? 550 : 50, y + 110, 7));
     step++;
   }
-  regroupGate(comps, 792);
-  regroupGate(comps, 1496);
-  regroupGate(comps, 2200);
-  regroupGate(comps, 2904);
-  regroupGate(comps, 3608);
+  regroupGate(comps, 740);
+  regroupGate(comps, 1406);
+  regroupGate(comps, 2072);
+  regroupGate(comps, 2738);
   return [...comps, ...funnel(H)];
 }
 
@@ -957,7 +959,7 @@ const BUILTIN_MAPS = [
     name: '🪜 아이템 계단',
     author: '기본 맵',
     builtin: true,
-    height: 4400,
+    height: ITEM_STAIRS_H,
     components: itemStairsComponents(),
   },
   {
