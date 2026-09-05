@@ -234,8 +234,10 @@ function canyonComponents() {
   // 마지막 스피너 관문
   comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
   const gates = [];
-  regroupGate(gates, 2304);
-  regroupGate(gates, 4352);
+  regroupGate(gates, 1408);
+  regroupGate(gates, 2560);
+  regroupGate(gates, 3712);
+  regroupGate(gates, 4864);
   return [...gates, ...tileY(comps, 2, 3000), ...funnel(6400)];
 }
 
@@ -265,8 +267,11 @@ function cascadeComponents() {
   comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
   comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
   const gates = [];
-  regroupGate(gates, 2088);
-  regroupGate(gates, 3944);
+  regroupGate(gates, 1044);
+  regroupGate(gates, 1972);
+  regroupGate(gates, 2900);
+  regroupGate(gates, 3828);
+  regroupGate(gates, 4756);
   return [...gates, ...tileY(comps, 2, 2650), ...funnel(5800)];
 }
 
@@ -355,8 +360,10 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
-  regroupGate(comps, 1730);
-  regroupGate(comps, 3270);
+  regroupGate(comps, 1056);
+  regroupGate(comps, 1920);
+  regroupGate(comps, 2784);
+  regroupGate(comps, 3648);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -384,8 +391,10 @@ function invaderComponents() {
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
-  regroupGate(comps, 1730);
-  regroupGate(comps, 3270);
+  regroupGate(comps, 1056);
+  regroupGate(comps, 1920);
+  regroupGate(comps, 2784);
+  regroupGate(comps, 3648);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -506,8 +515,11 @@ function rocketComponents() {
   //    선체를 빠져나온 공이 소행성에 부딪히며 느리게 표류하도록 한다.
   pegField(comps, 1800, 3, { size: 6, gap: 60 });
   pegField(comps, 2600, 4, { size: 6, gap: 60 });
-  regroupGate(comps, 2200);
-  regroupGate(comps, 4100);
+  regroupGate(comps, 1080);
+  regroupGate(comps, 2040);
+  regroupGate(comps, 3000);
+  regroupGate(comps, 3960);
+  regroupGate(comps, 4920);
   return [...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
@@ -543,8 +555,10 @@ function heartsComponents() {
   // 두근두근 바람개비
   comps.push({ type: 'cross', x: 300, y: 1980, props: { length: 130, speed: 5 } });
   const gates = [];
-  regroupGate(gates, 1728);
-  regroupGate(gates, 3264);
+  regroupGate(gates, 1056);
+  regroupGate(gates, 1920);
+  regroupGate(gates, 2784);
+  regroupGate(gates, 3648);
   return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -816,16 +830,21 @@ function regroupGate(comps, y, hits = 9) {
 
 // 🎁 아이템 클래식: 익숙한 클래식 핀밭에 아이템을 흩뿌린 기본 맵.
 //    핀 몇 개 자리를 아이템으로 바꿔 놓아, 어디로 떨어져도 두어 개는 줍는다.
+// 기본 맵이라 다른 맵보다 짧게 잡는다(3800). 핀밭이 촘촘해 관문까지 겹치면 판이
+// 15초 가까이 늘어지는데, 맵을 줄이면 벌어질 거리 자체가 줄어 판도 짧아진다.
+const ITEM_CLASSIC_H = 3800;
 function itemClassicComponents() {
   const comps = [];
-  const H = WORLD.height;
+  const H = ITEM_CLASSIC_H;
   let row = 0;
   for (let y = 170; y <= H - 260; y += 62) {
     const offset = row % 2 === 0 ? 0 : 29;
     let col = 0;
     for (let x = 55 + offset; x <= 545; x += 58) {
       // 네 줄마다 한 번, 줄에서 두 자리를 아이템으로 — 핀밭의 결은 그대로 두고 알맹이만 바꾼다
-      const swap = row % 4 === 2 && (col === 2 + (row % 3) || col === 6 - (row % 3));
+      // 아이템은 네 줄이 아니라 여덟 줄마다. 구조가 똑같은 '클래식'이 62%인데 이 맵이
+      // 47%인 건 순전히 아이템 타일 때문이라, 밀도를 절반으로 낮춰 균형을 맞춘다.
+      const swap = row % 8 === 2 && (col === 2 + (row % 3) || col === 6 - (row % 3));
       if (swap) {
         if (row % 8 === 2) comps.push(box(x, y));
         else if (row % 12 === 6 && col < 4) comps.push(itm(pick(BIG_ITEMS, row), x, y, 9)); // 큰 것은 드물게
@@ -840,9 +859,9 @@ function itemClassicComponents() {
   // 골인 직전 마지막 기회 — 깔때기 입구 양옆에 상자 하나씩
   comps.push(box(150, H - 300, 4), box(450, H - 300, 4));
   // 🚧 재집결 관문 — 판을 셋으로 끊어 벌어진 간격을 두 번 되돌린다
-  regroupGate(comps, Math.round(H * 0.28));
-  regroupGate(comps, Math.round(H * 0.52));
-  regroupGate(comps, Math.round(H * 0.76));
+  regroupGate(comps, 1064);
+  regroupGate(comps, 1976);
+  regroupGate(comps, 2888);
   return [...comps, ...funnel(H)];
 }
 
@@ -876,8 +895,10 @@ function angelDevilComponents() {
     pegRow(comps, y + 215);
     band++;
   }
-  regroupGate(comps, Math.round(H * 0.38));
-  regroupGate(comps, Math.round(H * 0.70));
+  regroupGate(comps, 1056);
+  regroupGate(comps, 1920);
+  regroupGate(comps, 2784);
+  regroupGate(comps, 3648);
   return [...comps, ...funnel(H)];
 }
 
@@ -905,8 +926,11 @@ function itemStairsComponents() {
     comps.push(box(toRight ? 550 : 50, y + 110, 7));
     step++;
   }
-  regroupGate(comps, Math.round(H * 0.38));
-  regroupGate(comps, Math.round(H * 0.71));
+  regroupGate(comps, 792);
+  regroupGate(comps, 1496);
+  regroupGate(comps, 2200);
+  regroupGate(comps, 2904);
+  regroupGate(comps, 3608);
   return [...comps, ...funnel(H)];
 }
 
@@ -917,7 +941,7 @@ const BUILTIN_MAPS = [
     name: '🎁 아이템 클래식',
     author: '기본 맵',
     builtin: true,
-    height: WORLD.height,
+    height: ITEM_CLASSIC_H,
     components: itemClassicComponents(),
   },
   {
