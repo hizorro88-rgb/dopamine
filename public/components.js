@@ -222,7 +222,7 @@
       emoji: '📏',
       desc: '공의 길을 막는 벽. 각도·곡률·"사라짐(부딪힘 횟수)"·점프력을 조절할 수 있어요',
       props: [
-        { key: 'length', label: '길이', min: 40, max: 300, step: 10, default: 120 },
+        { key: 'length', label: '길이', min: 40, max: 600, step: 10, default: 120 }, // 600 = 맵 전폭(재집결 관문)
         { key: 'angle', label: '각도(°)', min: -180, max: 180, step: 1, default: 0 },
         { key: 'curve', label: '곡률(°)', min: -160, max: 160, step: 1, default: 0 },
         { key: 'breakHits', label: '사라짐(부딪힘 횟수, 0=안 사라짐)', min: 0, max: 50, step: 1, default: 0 },

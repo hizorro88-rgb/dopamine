@@ -234,9 +234,8 @@ function canyonComponents() {
   // 마지막 스피너 관문
   comps.push({ type: 'spinner', x: 300, y: 2880, props: { length: 190, speed: 5 } });
   const gates = [];
-  regroupGate(gates, 1408);
-  regroupGate(gates, 2560);
-  regroupGate(gates, 3712);
+  regroupGate(gates, 1792);
+  regroupGate(gates, 3328);
   regroupGate(gates, 4864);
   return [...gates, ...tileY(comps, 2, 3000), ...funnel(6400)];
 }
@@ -312,8 +311,8 @@ function minefieldComponents() {
   comps.push(bomb(272, H - 130, { radius: 170, power: 19, respawn: 6 }));
   comps.push(bomb(328, H - 130, { radius: 170, power: 19, respawn: 6 }));
   comps.push(bomb(300, H - 80, { radius: 150, power: 17, respawn: 6 }));
-  regroupGate(comps, Math.round(H * 0.36));
-  regroupGate(comps, Math.round(H * 0.68));
+  regroupGate(comps, 1440);
+  regroupGate(comps, 2880);
   return [...comps, ...funnel(H)];
 }
 
@@ -360,10 +359,10 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
-  regroupGate(comps, 1056);
-  regroupGate(comps, 1920);
-  regroupGate(comps, 2784);
-  regroupGate(comps, 3648);
+  regroupGate(comps, 1152);
+  regroupGate(comps, 2112);
+  regroupGate(comps, 3072);
+  regroupGate(comps, 4032);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -391,10 +390,11 @@ function invaderComponents() {
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
-  regroupGate(comps, 1056);
-  regroupGate(comps, 1920);
-  regroupGate(comps, 2784);
-  regroupGate(comps, 3648);
+  regroupGate(comps, 960);
+  regroupGate(comps, 1728);
+  regroupGate(comps, 2496);
+  regroupGate(comps, 3264);
+  regroupGate(comps, 4032);
   return [...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
@@ -515,11 +515,9 @@ function rocketComponents() {
   //    선체를 빠져나온 공이 소행성에 부딪히며 느리게 표류하도록 한다.
   pegField(comps, 1800, 3, { size: 6, gap: 60 });
   pegField(comps, 2600, 4, { size: 6, gap: 60 });
-  regroupGate(comps, 1080);
-  regroupGate(comps, 2040);
+  regroupGate(comps, 1500);
   regroupGate(comps, 3000);
-  regroupGate(comps, 3960);
-  regroupGate(comps, 4920);
+  regroupGate(comps, 4500);
   return [...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
@@ -823,9 +821,11 @@ const pick = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
  * 벽 길이 상한(300) 때문에 좌우 두 조각으로 나눠 잇는다. 조각마다 따로 hits 를
  * 세므로 한쪽만 먼저 뚫릴 수 있고, 그 좁은 틈으로 몰리는 것도 볼거리가 된다.
  */
-function regroupGate(comps, y, hits = 9) {
-  comps.push({ type: 'wall', x: 155, y, props: { length: 290, angle: 0, breakHits: hits } });
-  comps.push({ type: 'wall', x: 445, y, props: { length: 290, angle: 0, breakHits: hits } });
+function regroupGate(comps, y, hits = 10) {
+  // 전폭 한 덩어리. 예전엔 벽 길이 상한(300) 때문에 좌우 두 조각으로 나눴는데,
+  // 조각마다 부딪힘 횟수를 따로 세다 보니 한쪽만 먼저 뚫려 공이 그 틈으로만 쏠렸다.
+  // 하나로 두면 어디를 때리든 같은 카운터가 줄어 관문이 통째로 열린다.
+  comps.push({ type: 'wall', x: WORLD.width / 2, y, props: { length: WORLD.width, angle: 0, breakHits: hits } });
 }
 
 // 🎁 아이템 클래식: 익숙한 클래식 핀밭에 아이템을 흩뿌린 기본 맵.
