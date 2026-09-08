@@ -12,6 +12,14 @@
  */
 const { Game } = require('../server/game');
 const { MapStore } = require('../server/maps');
+const settings = require('../server/settings');
+
+// 낙하 배속을 서버 설정과 맞춘다. 배속이 낮을수록 같은 궤적을 더 오래 보여주므로
+// 체감 시간이 그대로 배로 늘어난다 (배속 1 = 배속 3 의 3배). 운영 서버 값으로 재야
+// 실제로 몇 초짜리 판인지 알 수 있다. 예: SIM_TIME_SCALE=1 node scripts/spread-analysis.js
+if (process.env.SIM_TIME_SCALE) settings.data.timeScale = Number(process.env.SIM_TIME_SCALE);
+// 낙하 앞뒤 고정 시간: 셔플 자동낙하 + 결과창 지연 (사람이 체감하는 '한 판'에 포함된다)
+const OVERHEAD_SEC = settings.get('shuffleAutoDropMs') / 1000 + 0.9;
 
 const VIEW_H = 900; // 클라이언트 화면 높이 (public/client.js 의 VIEW.height)
 const TRIALS = Number(process.argv[2] || 20);
@@ -105,8 +113,9 @@ const median = (a) => {
   const maps = store
     .list()
     .filter((m) => m.builtin && (!only.length || only.includes(m.id)));
-  console.log(`${PLAYERS}명 × 공 ${BALLS_PER}개 (공 ${PLAYERS * BALLS_PER}개) · 맵당 ${TRIALS}판\n`);
-  console.log('맵'.padEnd(24) + '판길이(중앙)  20초초과  평균간격  전원표시  1등~꼴찌  막판2명  되돌림');
+  console.log(`${PLAYERS}명 × 공 ${BALLS_PER}개 (공 ${PLAYERS * BALLS_PER}개) · 맵당 ${TRIALS}판`);
+  console.log(`낙하 배속 ${settings.get('timeScale')}× · 총시간 = 낙하 + 고정 ${OVERHEAD_SEC.toFixed(1)}초(셔플·결과창)\n`);
+  console.log('맵'.padEnd(24) + '총시간(중앙)  총시간(p90)  평균간격  전원표시  1등~꼴찌  막판2명  되돌림');
   console.log('─'.repeat(96));
   const rows = [];
   for (const meta of maps) {
@@ -118,6 +127,7 @@ const median = (a) => {
       id: meta.id,
       name: meta.name,
       dur: median(rs.map((r) => r.dur)),
+      p90: rs.map((r) => r.dur).sort((a, b) => a - b)[Math.floor(rs.length * 0.9)],
       long: rs.filter((r) => r.dur > 20).length / rs.length,
       meanSpread: mean(rs.map((r) => r.meanSpread)),
       maxSpread: mean(rs.map((r) => r.maxSpread)),
@@ -132,8 +142,8 @@ const median = (a) => {
     rows.push(row);
     console.log(
       row.name.padEnd(22) +
-        String(row.dur.toFixed(1)).padStart(6) + '초' +
-        String((row.long * 100).toFixed(0) + '%').padStart(9) +
+        String((row.dur + OVERHEAD_SEC).toFixed(1)).padStart(6) + '초' +
+        String((row.p90 + OVERHEAD_SEC).toFixed(1) + '초').padStart(11) +
         String(Math.round(row.meanSpread)).padStart(10) +
         String((row.allVisible * 100).toFixed(0) + '%').padStart(9) +
         String(row.firstLast.toFixed(1) + '초').padStart(9) +

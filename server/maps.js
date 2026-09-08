@@ -59,17 +59,19 @@ function pegField(comps, y0, rows, { size = 6, gap = 54, vgap = 46, x0 = 70, x1 
   }
 }
 
+// 한 판이 목표(30~45초)의 위쪽을 넘어서 조금 줄였다 (배속 1 기준 p90 46.4초).
+const CLASSIC_H = 4400;
 function classicComponents() {
   const comps = [];
   let row = 0;
-  for (let y = 170; y <= WORLD.height - 260; y += 62) {
+  for (let y = 170; y <= CLASSIC_H - 260; y += 62) {
     const offset = row % 2 === 0 ? 0 : 29;
     for (let x = 55 + offset; x <= 545; x += 58) comps.push(peg(x, y));
     row++;
   }
-  regroupGate(comps, Math.round(WORLD.height * 0.36));
-  regroupGate(comps, Math.round(WORLD.height * 0.68));
-  return [...comps, ...funnel()];
+  regroupGate(comps, Math.round(CLASSIC_H * 0.36));
+  regroupGate(comps, Math.round(CLASSIC_H * 0.68));
+  return [...comps, ...funnel(CLASSIC_H)];
 }
 
 function spinnerParkComponents() {
@@ -248,7 +250,6 @@ function cascadeComponents() {
     { y: 850, hole: 120 }, // 왼쪽
     { y: 1280, hole: 480 }, // 오른쪽
     { y: 1710, hole: 220 }, // 중간 왼쪽
-    { y: 2140, hole: 380 }, // 중간 오른쪽
   ];
   for (const [i, f] of funnels.entries()) {
     const half = 42; // 구멍 반폭
@@ -263,15 +264,14 @@ function cascadeComponents() {
     }
   }
   // 마지막 구간: 폭탄 지뢰밭
-  comps.push({ type: 'bomb', x: 180, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
-  comps.push({ type: 'bomb', x: 420, y: 2500, props: { radius: 140, power: 14, respawn: 6 } });
+  comps.push({ type: 'bomb', x: 180, y: 2070, props: { radius: 140, power: 14, respawn: 6 } });
+  comps.push({ type: 'bomb', x: 420, y: 2070, props: { radius: 140, power: 14, respawn: 6 } });
   const gates = [];
-  regroupGate(gates, 1044);
-  regroupGate(gates, 1972);
-  regroupGate(gates, 2900);
-  regroupGate(gates, 3828);
-  regroupGate(gates, 4756);
-  return [...gates, ...tileY(comps, 2, 2650), ...funnel(5800)];
+  regroupGate(gates, 960);
+  regroupGate(gates, 1920);
+  regroupGate(gates, 2880);
+  regroupGate(gates, 3840);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 💣 지뢰밭: 아무것도 없는 맵에 재생성 폭탄만 —
@@ -359,11 +359,12 @@ function flowerComponents() {
   for (let i = 0; i < 5; i++) {
     lineDots(comps, 70 + i * 100, 2010, 120 + i * 100, 1940, 34, 6);
   }
-  regroupGate(comps, 1152);
-  regroupGate(comps, 2112);
-  regroupGate(comps, 3072);
-  regroupGate(comps, 4032);
-  return [...tileY(comps, 2, 2250), ...funnel(4800)];
+  const gates = [];
+  regroupGate(gates, 1152);
+  regroupGate(gates, 2112);
+  regroupGate(gates, 3072);
+  regroupGate(gates, 4032);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 👾 픽셀 인베이더: 8비트 외계인 편대 (눈은 폭탄!) + UFO 회전 막대
@@ -390,12 +391,13 @@ function invaderComponents() {
   // UFO: 돔 범퍼 + 회전 막대
   comps.push({ type: 'bumper', x: 300, y: 1960, props: { size: 18 } });
   comps.push({ type: 'spinner', x: 300, y: 2000, props: { length: 200, speed: 6 } });
-  regroupGate(comps, 960);
-  regroupGate(comps, 1728);
-  regroupGate(comps, 2496);
-  regroupGate(comps, 3264);
-  regroupGate(comps, 4032);
-  return [...tileY(comps, 2, 2250), ...funnel(4800)];
+  const gates = [];
+  regroupGate(gates, 960);
+  regroupGate(gates, 1728);
+  regroupGate(gates, 2496);
+  regroupGate(gates, 3264);
+  regroupGate(gates, 4032);
+  return [...gates, ...tileY(comps, 2, 2250), ...funnel(4800)];
 }
 
 // 🍄 대왕 버섯: 갓(호) + 노란 점무늬 + 줄기 얼굴(폭탄 눈) + 아기 버섯들
@@ -515,10 +517,11 @@ function rocketComponents() {
   //    선체를 빠져나온 공이 소행성에 부딪히며 느리게 표류하도록 한다.
   pegField(comps, 1800, 3, { size: 6, gap: 60 });
   pegField(comps, 2600, 4, { size: 6, gap: 60 });
-  regroupGate(comps, 1500);
-  regroupGate(comps, 3000);
-  regroupGate(comps, 4500);
-  return [...tileY(comps, 2, 2800), ...funnel(6000)];
+  const gates = [];
+  regroupGate(gates, 1500);
+  regroupGate(gates, 3000);
+  regroupGate(gates, 4500);
+  return [...gates, ...tileY(comps, 2, 2800), ...funnel(6000)];
 }
 
 // ❤️ 하트 폭포: 점점 작아지는 하트 셋 — 마지막 심장은 터진다
@@ -655,10 +658,8 @@ function handInHandComponents() {
     comps.push({ type: 'wall', x, y, props: { length: len, angle: ang, curve: 0, breakHits: hits } });
   // 전폭 '사라지는 벽' — 길이 상한(300) 때문에 두 조각으로 나눠 좌우를 잇는다(가운데 겹침).
   //  좌/우 조각이 각자 hits 번 맞으면 무너져, 다같이 두드리면 뚫린다.
-  const dam = (y, hits) => {
-    bwall(155, y, 290, 0, hits);
-    bwall(445, y, 290, 0, hits);
-  };
+  // 전폭 한 덩어리 — 좌우로 나누면 조각마다 횟수를 따로 세어 한쪽만 먼저 뚫린다
+  const dam = (y, hits) => bwall(300, y, 600, 0, hits);
   // 벽 위로 공을 유도하는 얕은 핀 줄
   const guide = (y) => lineDots(comps, 80, y, 520, y, 72, 6);
 
@@ -967,7 +968,7 @@ const BUILTIN_MAPS = [
     name: '클래식',
     author: '기본 맵',
     builtin: true,
-    height: WORLD.height,
+    height: CLASSIC_H,
     components: classicComponents(),
   },
   {
@@ -1073,7 +1074,7 @@ const BUILTIN_MAPS = [
     name: '🌪 깔때기 폭포',
     author: '기본 맵',
     builtin: true,
-    height: 5800,
+    height: 4800,
     components: cascadeComponents(),
   },
 ];
