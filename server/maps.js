@@ -937,6 +937,64 @@ function itemStairsComponents() {
   return [...comps, ...funnel(H)];
 }
 
+/** 결정적 난수 [0,1) — 씨앗이 같으면 늘 같은 값. 맵이 새로고침마다 바뀌면 안 된다 */
+function rand01(i) {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// 막대를 더 많이 깔려고 다른 맵보다 길게 잡았다 (겹침 여유를 더 줄이면 공이 못 지난다)
+const SPINNER_HELL_H = 5600;
+// 🌀 회전 지옥: 화면을 가득 메운 회전 막대. 길이·속도·방향이 전부 제각각이라
+//    공이 어디로 튈지 아무도 예측할 수 없다.
+//    막대끼리 겹치면 서로 맞물려 공을 영영 가두므로, 놓을 때마다 이미 놓인 막대와의
+//    거리를 재서 (반지름 합 + 여유) 안쪽이면 건너뛴다.
+function spinnerHellComponents() {
+  const comps = [];
+  const H = SPINNER_HELL_H;
+  const placed = []; // {x, y, r} — r 은 막대가 도는 원의 반지름 (길이의 절반)
+  let seed = 0;
+  const rnd = () => rand01(++seed);
+  /** 이미 놓인 막대와 맞물리지 않을 때만 배치 (맞물리면 공을 영영 가둔다) */
+  const put = (x, y, len, spd) => {
+    const r = len / 2;
+    if (x < 36 || x > 564) return false;
+    // 여유 18px — 8px 만 띄우면 공(지름 14)이 못 지나가 사방이 막힌 방이 되고,
+    // 막대들이 공을 계속 쳐올려 제한시간까지 못 내려오는 판이 생겼다(실측 25%).
+    if (placed.some((p) => Math.hypot(p.x - x, p.y - y) < p.r + r + 18)) return false;
+    placed.push({ x, y, r });
+    comps.push({
+      type: 'spinner',
+      x: Math.round(x),
+      y: Math.round(y),
+      props: { length: len, speed: Math.round(spd * 2) / 2 },
+    });
+    return true;
+  };
+  // 회전 속도는 길이에 반비례시킨다. 막대 끝 속도 = 반지름 × 회전속도라, 긴 막대를
+  // 빠르게 돌리면 공을 맵 꼭대기까지 쳐올려 영영 안 내려온다. 끝 속도를 비슷하게 맞춘다.
+  const speed = (len) => {
+    const base = Math.max(1, Math.min(5, 130 / (len / 2)));
+    return base * (0.8 + rnd() * 0.5) * (rnd() < 0.5 ? -1 : 1);
+  };
+
+  // 1단계: 대형 막대를 먼저 드문드문. 이게 판을 크게 흔드는 역할을 한다.
+  for (let y = 420; y < H - 620; y += 470) {
+    const big = 150 + Math.round(rnd() * 5) * 10;
+    put(120 + rnd() * 360, y + (rnd() - 0.5) * 90, big, speed(big));
+  }
+  // 2단계: 남은 틈을 작은 막대로 빽빽하게. 엇갈린 격자라 같은 간격으로도 더 촘촘히 들어간다.
+  let row = 0;
+  for (let y = 240; y <= H - 430; y += 82) {
+    for (let x = row % 2 ? 96 : 46; x <= 570; x += 94) {
+      const len = 50 + Math.round(rnd() * 5) * 10; // 50~100
+      put(x + (rnd() - 0.5) * 20, y + (rnd() - 0.5) * 18, len, speed(len));
+    }
+    row++;
+  }
+  return [...comps, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   // ── 🎁 아이템 맵: 맵에 놓인 아이템을 주워 쓴다 (아이템전 없이도 변수가 생긴다) ──
   {
@@ -962,6 +1020,14 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: ITEM_STAIRS_H,
     components: itemStairsComponents(),
+  },
+  {
+    id: 'spinner-hell',
+    name: '🌀 회전 지옥',
+    author: '기본 맵',
+    builtin: true,
+    height: SPINNER_HELL_H,
+    components: spinnerHellComponents(),
   },
   {
     id: 'classic',
