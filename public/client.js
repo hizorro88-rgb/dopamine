@@ -5,8 +5,9 @@
 
   // 화면에 보이는 뷰포트 크기 (월드는 세로로 훨씬 길다 → 카메라가 따라감)
   const VIEW = { width: 600, height: 900 };
-  // 배치 가능 영역 (maxY 는 맵 길이에 따라 달라짐)
-  const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130 };
+  // 배치 가능 영역 (maxY 는 맵 길이에 따라 달라짐: height - bottom)
+  // bottom 은 기본 맵 깔때기의 통로벽(y = H-65)이 들어가야 한다 — server/maps.js BOUNDS 와 동일
+  const EDIT_BOUNDS = { minX: 25, maxX: 575, minY: 130, bottom: 60 };
 
   // ═══════════════════════════════════════════════════════════
   //  🔊 사운드 & 햅틱 (WebAudio 합성 — 오디오 파일 없음)
@@ -4441,7 +4442,7 @@
     editor.selFinish = false;
   }
 
-  const editMaxY = () => editor.height - 100;
+  const editMaxY = () => editor.height - EDIT_BOUNDS.bottom;
   const editMaxX = () => editor.width - EDIT_BOUNDS.minX;
 
   const eCanvas = $('editor-canvas');
@@ -4573,7 +4574,9 @@
 
   // 맵 길이 변경 — 슬라이더/숫자입력 공용. 줄이면 범위 밖 구성요소를 안쪽으로 이동.
   function applyMapLength(v) {
-    const n = Math.min(6000, Math.max(900, Math.round(Number(v) / 100) * 100 || 900));
+    // 상한은 서버(WORLD.maxHeight)와 같게 — 6000 으로 묶어 두면 그보다 긴 기본 맵(협곡 6400)을
+    // 편집하다 슬라이더만 건드려도 길이가 줄며 바닥의 깔때기가 한 줄로 뭉개진다.
+    const n = Math.min(WORLD.maxHeight, Math.max(WORLD.minHeight, Math.round(Number(v) / 100) * 100 || WORLD.minHeight));
     editor.height = n;
     $('map-length-label').textContent = `📐 맵 길이: ${editor.height}`;
     $('input-map-length').value = editor.height;

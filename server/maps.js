@@ -13,10 +13,13 @@ const DATA_FILE = path.join(DATA_DIR, 'maps.json');
 const OVERRIDE_FILE = path.join(DATA_DIR, 'map-overrides.json'); // 기본 맵 편집본
 
 // 에디터에서 배치 가능한 영역 (위: 공 시작 구역 / 아래: 골인 구역 제외)
-// maxY 는 맵 길이에 따라 달라짐: height - 100
+// maxY 는 맵 길이에 따라 달라짐: height - bottom
+// bottom 은 기본 맵 깔때기의 통로벽(y = H-65)이 들어가야 한다. 예전엔 100이라 저장할 때마다
+// 통로벽이 35px 위로 밀렸고, 그러면 사선벽과 통로벽 사이에 쐐기가 생겨 공이 갇혔다.
+// (public/client.js 의 EDIT_BOUNDS 와 같은 값이어야 한다)
 const settings = require('./settings'); // 하루 맵 생성 제한을 live 로 읽는다 (관리자 페이지에서 변경 가능)
 
-const BOUNDS = { minX: 25, maxX: 575, minY: 130 };
+const BOUNDS = { minX: 25, maxX: 575, minY: 130, bottom: 60 };
 const MAX_COMPONENTS = 400;
 const MAX_COMPONENTS_ADMIN = 2000; // 관리자 편집은 상한 넉넉히 (기본 맵은 600+ 구성요소도 있음)
 const MAX_CUSTOM_MAPS = 200;
@@ -40,6 +43,30 @@ function funnel(H = WORLD.height) {
     { type: 'wall', x: 232, y: H - 65, props: { length: 70, angle: 90 } },
     { type: 'wall', x: 368, y: H - 65, props: { length: 70, angle: 90 } },
   ];
+}
+
+/**
+ * 🩹 예전 저장본의 깔때기 복구. 배치 하한이 H-100 이던 시절 에디터로 저장(관리자 편집·복사)한
+ * 맵은 통로벽(y = H-65)이 H-100 으로 밀려 있다. 그러면 통로벽 위쪽이 사선벽보다 40px 튀어나와
+ * 사선을 타고 내려온 공이 그 쐐기에 끼어 골인을 못 한다. 서명이 정확히 일치하는 벽만 제자리로.
+ * @returns {boolean} 고친 게 있으면 true
+ */
+function healFunnel(m) {
+  const H = Number(m.height);
+  const comps = Array.isArray(m.components) ? m.components : [];
+  const isWall = (c) => c && c.type === 'wall' && c.props;
+  const hasSlope = comps.some(
+    (c) => isWall(c) && c.props.length === 290 && Math.abs(c.props.angle) === 27.5 && c.y === H - 155
+  );
+  if (!hasSlope) return false;
+  let fixed = false;
+  for (const c of comps) {
+    if (!isWall(c) || c.props.length !== 70 || c.props.angle !== 90) continue;
+    if ((c.x !== 232 && c.x !== 368) || c.y !== H - 100) continue;
+    c.y = H - 65;
+    fixed = true;
+  }
+  return fixed;
 }
 
 function pegRow(comps, y, offset = 0) {
@@ -1161,6 +1188,7 @@ class MapStore {
       const arr = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
       for (const m of arr) {
         m.height = m.height || WORLD.height; // 길이 필드가 없는 예전 맵 호환
+        healFunnel(m);
         this.custom.set(m.id, m);
       }
     } catch {
@@ -1168,7 +1196,11 @@ class MapStore {
     }
     try {
       const ov = JSON.parse(fs.readFileSync(OVERRIDE_FILE, 'utf8'));
-      for (const m of ov) if (this.builtins.has(m.id)) this.overrides.set(m.id, m);
+      for (const m of ov) {
+        if (!this.builtins.has(m.id)) continue;
+        healFunnel(m);
+        this.overrides.set(m.id, m);
+      }
     } catch {
       /* 오버라이드 없으면 무시 */
     }
@@ -1219,7 +1251,7 @@ class MapStore {
       ? Math.round(clamp(h, WORLD.minHeight, WORLD.maxHeight) / 50) * 50
       : WORLD.height;
     const cleanWidth = clampWidth(width); // 맵 폭 (없으면 기본 600)
-    const maxY = cleanHeight - 100;
+    const maxY = cleanHeight - BOUNDS.bottom;
     const maxX = cleanWidth - BOUNDS.minX; // 좌우 여백은 폭에 맞춰 대칭
     // 🏁 골인 존: 지정됐으면 맵 폭·길이에 맞게 정제해 저장(없으면 undefined → 기본 위치)
     const cleanFinish = finish ? clampFinish(finish, cleanHeight, cleanWidth) : undefined;
@@ -1380,4 +1412,4 @@ function clamp(v, min, max) {
   return Math.min(Math.max(v, min), max);
 }
 
-module.exports = { MapStore, BOUNDS };
+module.exports = { MapStore, BOUNDS, healFunnel };
