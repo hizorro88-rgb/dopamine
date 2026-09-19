@@ -1022,6 +1022,148 @@ function spinnerHellComponents() {
   return [...comps, ...funnel(H)];
 }
 
+// ── 🎭 반전 맵 3종 ──────────────────────────────────────
+// "앞서면 계속 앞서고, 뒤처지면 그냥 끝"이 단조롭다는 피드백에서 나온 맵들.
+// 셋 다 골인 직전 20~30%에 '순위를 뒤집는 규칙'을 두되 메커니즘이 다르다:
+//   👑 왕관 = 선두 처벌 · 🚪 뒷문 = 꼴찌 구제 · 🎰 룰렛 = 전원 셔플
+// 기획 단계에서 헤드리스 시뮬(배속 1 · 4명 × 공 2개 · 100판)로 잡은 수치를 각 맵에 적었다.
+// 반전율은 scripts/reversal-analysis.js 로 잰다.
+
+const wall = (x, y, props) => ({ type: 'wall', x, y, props: { length: 120, angle: 0, ...props } });
+const bumper = (x, y, size) => ({ type: 'bumper', x, y, props: { size } });
+const spinner = (x, y, length, speed) => ({ type: 'spinner', x, y, props: { length, speed } });
+const cross = (x, y, length, speed) => ({ type: 'cross', x, y, props: { length, speed } });
+const portal = (x, y, channel) => ({ type: 'portal', x, y, props: { channel } });
+/** 지붕 링(∩): 아래로만 열린 도넛. 포탈 출구 위에 씌워 위에서 떨어지는 공이 포탈에 닿지 않게 한다 */
+const roofRing = (x, y) => ({ type: 'ring', x, y, props: { radius: 44, thickness: 8, gap: 130, gapDir: 90 } });
+
+// 👑 저주받은 왕관 — 선두 처벌형.
+//    골인 직전 ∧ 갈림길 왼쪽 '왕좌'에 저주(karma) 타일이 딱 하나. 제일 먼저 앉는 공이 왕관을
+//    쓰고, 골인선을 밟는 순간 맵 꼭대기로 추방된다("다 왔는데 원점"). 나머지가 4~5초 안에 다
+//    들어오므로 저주공은 사실상 꼴찌 확정 — 남은 공 하나라 피날레 줌인이 그 재하강을 비춘다.
+//    관문을 y700 하나만 두는 게 핵심: 왕좌 직전에 관문을 더 두면 전원이 뭉쳐 '선두'가 사라진다
+//    (시뮬: y1250 관문 추가 시 1등이 왕관을 쓰는 비율 45% → 30%).
+//    시뮬: 저주 발생 100% · 저주공 최종 꼴찌 99% · 왕관 주인이 왕좌 입구 통과 순서 1~3등 70%
+//    · 왕좌 입구 시점 꼴찌 = 최종 꼴찌 5%(클래식 48%) · 낙하 중앙 24.6초 · 타임아웃 0.
+const CROWN_H = 2800;
+function crownComponents() {
+  const H = CROWN_H;
+  const c = [];
+  pegField(c, 180, 7, { size: 6, gap: 56, vgap: 68 }); // 성긴 핀밭 180~588
+  regroupGate(c, 700); // 유일한 관문 — 여기서 한 번 모였다가 아래에서 갈린다
+  c.push(bumper(300, 820, 22), bumper(140, 930, 18), bumper(460, 930, 18));
+  pegRow(c, 1060);
+  pegRow(c, 1112, 27);
+  // 벌어짐 구간: 여기서 선두가 2~4초 차로 정해진다
+  c.push(spinner(170, 1400, 150, 4), spinner(430, 1400, 150, -4));
+  pegRow(c, 1540);
+  pegRow(c, 1592, 27);
+  pegRow(c, 1644);
+  // 갈림길 ∧ : 꼭짓점 x=400 → 왼쪽(왕좌) 68% · 오른쪽(축복) 32%. 꼭짓점엔 핀(공이 얹히지 않게)
+  const AX = 400;
+  c.push(peg(AX, 1800, 8));
+  c.push(wall(AX - 65, 1845, { length: 150, angle: -30 })); // 왼 날개: (270,1882)~(400,1808)
+  c.push(wall(AX + 65, 1845, { length: 150, angle: 30 })); // 오른 날개
+  c.push(wall(AX, 1990, { length: 300, angle: 90 })); // 중앙 분리벽 1840~2140
+  // 왼쪽 왕좌 포켓: 틈(255~285)이 왼 날개 끝(x270) 바로 아래 → 날개를 타고 내려온 순서대로 착석.
+  // 왼벽은 완만(35°)·오른벽은 가파르게(55°) — 멀리 튄 공은 늦게 온다.
+  wallPath(c, [[25, 2000], [255, 2160]]);
+  wallPath(c, [[AX - 5, 2000], [285, 2160]]);
+  c.push({ type: 'item_karma', x: 270, y: 2195, props: { respawn: 0 } }); // 👑 게임당 1회, 첫 공이 소비
+  // 오른쪽 축복 포켓 → 🎁 아이템 상자
+  wallPath(c, [[AX + 5, 2000], [473, 2160]]);
+  wallPath(c, [[575, 2000], [503, 2160]]);
+  c.push({ type: 'itembox', x: 488, y: 2195, props: { respawn: 4 } });
+  pegRow(c, 2340);
+  pegRow(c, 2400, 27);
+  return [...c, ...funnel(H)];
+}
+
+// 🚪 뒷문은 늦게 열린다 — 꼴찌 구제형.
+//    골인 1800px 위에 전원이 미끄러져 내려오는 '문'(사라지는 벽, 22회). 앞선 공들이 문을 두드려
+//    부수는 동안 자신은 문 오른쪽 끝으로 굴러 떨어져 뱀 비탈 4단(≈8초)을 타야 하고, 문이 깨진
+//    뒤 도착한 공은 그 밑 포켓의 포탈로 깔때기 바로 위에 워프한다(≈2.5초). 뒤처짐이 곧 티켓.
+//    공 하나가 착지·튐·구름으로 5~10회를 깎으므로 문은 3~4번째 공에서 무너진다.
+//    기하 주의(시뮬로 겪음): 포켓 오른벽은 반드시 문 오른끝(490)보다 안쪽(482)에서 시작해야 문 밑에
+//    밀실이 안 생기고, 비탈 1단은 포탈 바닥(2739)보다 아래(2760)에서 시작해야 공짜 뒷문이 안 난다.
+//    시뮬: 뒷문 이용 중앙 4/8 · 최종 꼴찌가 긴 길(선두 그룹) 공 97% · 문 직전 순위와 최종 순위
+//    상관 −0.09(무상관) · 문 직전 꼴찌 = 최종 꼴찌 7% · 낙하 중앙 23초 · 타임아웃 0.
+const BACKDOOR_H = 4400;
+function backdoorComponents() {
+  const H = BACKDOOR_H;
+  const c = [];
+  pegField(c, 180, 8, { size: 6, gap: 56, vgap: 66 }); // 180~642
+  c.push(bumper(300, 760, 22), bumper(150, 860, 18), bumper(450, 860, 18));
+  regroupGate(c, 1000);
+  c.push(spinner(170, 1180, 150, 4), spinner(430, 1180, 150, -4));
+  pegRow(c, 1330);
+  pegRow(c, 1382, 27);
+  regroupGate(c, 1500);
+  c.push(cross(300, 1620, 150, 3), bumper(90, 1760, 16), bumper(510, 1760, 16));
+  pegField(c, 1850, 4, { size: 6, gap: 56 }); // 1850~1988
+  c.push(cross(300, 2160, 150, -3));
+  pegRow(c, 2290); // ← 여기까지가 벌어짐 구간
+  // 🚪 뒷문: 유도벽 두 장이 전폭을 문(x150~490) 위로 모은다
+  wallPath(c, [[25, 2380], [152, 2526]]); // 왼쪽 유도벽 → 문 왼끝에 닿음
+  wallPath(c, [[575, 2400], [470, 2515]]); // 오른쪽 유도벽 → 문 위로 떨어뜨림
+  c.push(wall(320, 2550, { length: 340, angle: 8, breakHits: 22 })); // 문: 8° 기울어 오른쪽(490)으로 굴러 떨어진다
+  c.push(wall(152, 2553, { length: 64, angle: 90 })); // 왼쪽 봉인: 문 왼끝~포켓 사이 틈으로 새지 않게
+  wallPath(c, [[152, 2580], [275, 2680]]); // 포켓 왼벽
+  wallPath(c, [[482, 2580], [325, 2680]]); // 포켓 오른벽 (문 오른끝 490보다 안쪽!)
+  c.push(portal(300, 2715, 1)); // 뒷문 입구
+  // 긴 길: 뱀 비탈 4단 (포탈 바닥 2739 아래에서 시작) + 비탈 끝 범퍼로 선두 그룹 내부 순위를 섞는다
+  wallPath(c, [[575, 2760], [120, 2950]]);
+  c.push(bumper(70, 2990, 14));
+  wallPath(c, [[25, 3030], [480, 3220]]);
+  c.push(bumper(520, 3250, 14));
+  wallPath(c, [[575, 3300], [120, 3490]]);
+  c.push(bumper(70, 3530, 14));
+  wallPath(c, [[25, 3570], [480, 3760]]);
+  // 뒷문 출구: 지붕 링으로 비탈 공이 닿지 않게(포탈은 양방향) — 워프한 공은 (300,3886)에 출현
+  c.push(roofRing(300, 3850));
+  c.push(portal(300, 3850, 1));
+  return [...c, ...funnel(H)];
+}
+
+// 🎰 최후의 룰렛 — 전원 셔플형.
+//    골인 1500px 위 관문(12회)에 전원 집결 → V 유도벽이 모두를 회전 막대 위로 모으고, 막대가
+//    천국(빈 낙하 1초)·연옥(핀밭 3~4초)·지옥(포탈로 룰렛 위로 되돌아감, 한 바퀴 5초) 세 레인에
+//    무작위 배정. 여기까지 온 순위는 무효. 지옥에서 돌아온 공이 또 지옥이면 확정 꼴찌라
+//    "저 공만 보면 된다"가 성립하고 피날레 카메라가 그 공을 잡는다.
+//    막대의 회전 방향이 레인 분포를 지배한다(speed +7 → 지옥 34~41%, −3 → 25%). 지옥이 30%를 넘으면
+//    p99가 40초를 넘으므로 speed는 −3 고정, 튜닝은 칸막이 x 로만. 막대 길이 260은 유도벽에 닿아 금지.
+//    시뮬: 배정 천국 28% / 연옥 46% / 지옥 26% · 관문 직전 꼴찌 = 최종 꼴찌 28%(무작위 기준 12.5%)
+//    · 관문 직전 선두 = 최종 1등 10% · 한 공 지옥행 4회 이상 8% · 낙하 중앙 22초 · 타임아웃 0.
+const ROULETTE_H = 3800;
+function rouletteComponents() {
+  const H = ROULETTE_H;
+  const c = [];
+  pegField(c, 180, 12, { size: 6, gap: 56, vgap: 66 }); // 180~906
+  c.push(bumper(300, 1060, 22), bumper(150, 1160, 18), bumper(450, 1160, 18));
+  regroupGate(c, 1300);
+  c.push(spinner(170, 1480, 150, 4), spinner(430, 1480, 150, -4));
+  pegRow(c, 1630);
+  pegRow(c, 1682, 27);
+  c.push(cross(300, 1860, 150, 3));
+  pegField(c, 2000, 5, { size: 6, gap: 56 }); // 2000~2184
+  regroupGate(c, 2300, 12); // 🎰 룰렛 대기실 — 여기서 순위가 리셋된다
+  // 지옥에서 돌아오는 출구 포탈 + 지붕 링(관문에서 떨어지는 공이 닿으면 공짜 골인이 되므로)
+  c.push(roofRing(300, 2385));
+  c.push(portal(300, 2385, 1)); // 출현 (300,2421)
+  wallPath(c, [[25, 2360], [190, 2500]]); // V 유도벽 → 막대 반경(x180~420) 안으로
+  wallPath(c, [[575, 2360], [410, 2500]]);
+  c.push(spinner(300, 2630, 240, -3)); // 룰렛 막대: 반지름 120, 끝속도 360px/s — 쳐올리지 않고 좌우로 흩는다
+  // 세 레인 (칸막이 2780~3320): 천국 x25~145 · 연옥 155~425 · 지옥 435~575
+  c.push(wall(150, 3050, { length: 540, angle: 90 }));
+  c.push(wall(430, 3050, { length: 540, angle: 90 }));
+  pegField(c, 2840, 8, { size: 6, gap: 46, vgap: 58, x0: 180, x1: 400 }); // 연옥 핀밭
+  c.push(peg(502, 2900, 7), peg(462, 3000, 7), peg(542, 3000, 7)); // 지옥 핀
+  wallPath(c, [[435, 3200], [482, 3290]]); // 지옥 V 포켓 (틈 40px)
+  wallPath(c, [[575, 3200], [522, 3290]]);
+  c.push(portal(502, 3325, 1)); // 지옥 입구 → 룰렛 위로
+  return [...c, ...funnel(H)];
+}
+
 const BUILTIN_MAPS = [
   // ── 🎁 아이템 맵: 맵에 놓인 아이템을 주워 쓴다 (아이템전 없이도 변수가 생긴다) ──
   {
@@ -1055,6 +1197,31 @@ const BUILTIN_MAPS = [
     builtin: true,
     height: SPINNER_HELL_H,
     components: spinnerHellComponents(),
+  },
+  // ── 🎭 반전 맵: 골인 직전에 순위를 뒤집는 규칙이 있는 맵 ──
+  {
+    id: 'crown',
+    name: '👑 저주받은 왕관',
+    author: '기본 맵',
+    builtin: true,
+    height: CROWN_H,
+    components: crownComponents(),
+  },
+  {
+    id: 'backdoor',
+    name: '🚪 뒷문은 늦게 열린다',
+    author: '기본 맵',
+    builtin: true,
+    height: BACKDOOR_H,
+    components: backdoorComponents(),
+  },
+  {
+    id: 'roulette',
+    name: '🎰 최후의 룰렛',
+    author: '기본 맵',
+    builtin: true,
+    height: ROULETTE_H,
+    components: rouletteComponents(),
   },
   {
     id: 'classic',
