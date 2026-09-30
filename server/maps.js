@@ -670,7 +670,7 @@ function pinballComponents() {
   return [...comps, ...funnel(H)];
 }
 
-// 🤝 손에손잡고 벽을 넘어서: 다같이 두드려 깨는 '사라지는 벽'(벽을 넘어서) +
+// 🤝 손에손잡고 벽을 넘어서: 한 방에 깨며 세게 튕기는 '사라지는 벽'(벽을 넘어서) +
 //    링 사슬(손에 손잡고)로 이어지는 하강 코스. 88 서울올림픽 주제가 오마주.
 function handInHandComponents() {
   const comps = [];
@@ -681,12 +681,8 @@ function handInHandComponents() {
     // 십자가 그 자리를 계속 쓸어내 공이 멈추지 못하게 한다(실측: 고임 대폭 감소).
     comps.push({ type: 'cross', x, y: y - r, props: { length: Math.min(130, r * 2 + 16), speed: 4 } });
   };
-  const bwall = (x, y, len, ang, hits) =>
-    comps.push({ type: 'wall', x, y, props: { length: len, angle: ang, curve: 0, breakHits: hits } });
-  // 전폭 '사라지는 벽' — 길이 상한(300) 때문에 두 조각으로 나눠 좌우를 잇는다(가운데 겹침).
-  //  좌/우 조각이 각자 hits 번 맞으면 무너져, 다같이 두드리면 뚫린다.
-  // 전폭 한 덩어리 — 좌우로 나누면 조각마다 횟수를 따로 세어 한쪽만 먼저 뚫린다
-  const dam = (y, hits) => bwall(300, y, 600, 0, hits);
+  // 전폭 댐 — 관문과 같은 규칙(1회에 깨짐 · 세게 튕김). 예전엔 구간마다 8~20회를 두드려야 했다.
+  const dam = (y) => regroupGate(comps, y);
   // 벽 위로 공을 유도하는 얕은 핀 줄
   const guide = (y) => lineDots(comps, 80, y, 520, y, 72, 6);
 
@@ -702,7 +698,7 @@ function handInHandComponents() {
 
   // ── 첫 번째 벽 (가볍게, 4회) ──
   guide(660);
-  dam(750, 8);
+  dam(750);
 
   // ── 장애물: 닫힌 도넛 + 범퍼 + 스피너 (도넛 앞뒤로 범퍼가 공을 계속 튕겨 정체 방지) ──
   comps.push({ type: 'bumper', x: 150, y: 900, props: { size: 18 } });
@@ -712,7 +708,7 @@ function handInHandComponents() {
 
   // ── 두 번째 벽 (12회) ──
   guide(1290);
-  dam(1370, 12);
+  dam(1370);
 
   // ── 링 터널: 도넛 세 개(한 줄, 넉넉한 간격) 사이를 지난다 (앞에 범퍼로 속도 부여) ──
   ring(200, 1620, 52);
@@ -720,7 +716,7 @@ function handInHandComponents() {
 
   // ── 세 번째 벽 (14회) ──
   guide(2060);
-  dam(2140, 16);
+  dam(2140);
 
   // ── 핀 + 범퍼 통통 구간 (공을 가두지 않고 튕겨 흐르게) ──
   lineDots(comps, 90, 2380, 510, 2380, 58, 6);
@@ -731,7 +727,7 @@ function handInHandComponents() {
 
   // ── 네 번째 벽 (가장 튼튼, 16회) ──
   guide(2720);
-  dam(2800, 20);
+  dam(2800);
 
   // ── 링 무리(한 줄) + 스피너 관문 ──
   ring(400, 3040, 52);
@@ -740,7 +736,7 @@ function handInHandComponents() {
 
   // ── 다섯 번째 벽 (마지막 관문, 12회) ──
   guide(3480);
-  dam(3560, 12);
+  dam(3560);
 
   // ── 피날레: 링 + 십자 + 핀 ──
   ring(300, 3820, 54);
@@ -842,18 +838,26 @@ const pick = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
 /**
  * 🚧 재집결 관문 — 화면 전폭을 가로막는 '사라지는 벽'.
  *
- * 앞선 공이 여기서 막혀 기다리는 동안 뒤처진 공이 따라붙는다. 벌어진 간격을
- * 되돌리는 유일한 장치다. 실측에서 이 장치를 쓰는 '손에손잡고' 맵만 전원표시율
- * 76%로, 다른 맵(21~42%)과 차원이 다른 수치를 냈다.
- *
- * 벽 길이 상한(300) 때문에 좌우 두 조각으로 나눠 잇는다. 조각마다 따로 hits 를
- * 세므로 한쪽만 먼저 뚫릴 수 있고, 그 좁은 틈으로 몰리는 것도 볼거리가 된다.
+ * 원래는 10회를 두드려야 열려서, 앞선 공이 막혀 기다리는 동안 뒤처진 공이 따라붙는
+ * '간격 리셋' 장치였다(손에손잡고 전원표시율 76% vs 다른 맵 21~42%). 지금은 첫 공이
+ * 한 방에 열며 세게 튕겨 오르는 연출 장치다 — 모으는 힘은 약해졌고(전원표시율 클래식
+ * 73→51%) 판은 답답하지 않다. 횟수를 되돌리려면 GATE_HITS 만 바꾸면 된다.
  */
-function regroupGate(comps, y, hits = 10) {
+// 관문·댐 공통: 한 번 부딪히면 깨지되 세게 튕긴다. 예전엔 10~20회를 두드려야 열렸는데
+// "여러 번 부딪혀야 깨지는 게 답답하다"는 피드백. 이제 첫 공이 세게 튕겨 오르며 벽을 여는
+// 한 방 연출이다(튕김은 공 반발 0.7 이상부터 체감된다 — 벽과 공 중 큰 값이 적용).
+const GATE_HITS = 1;
+const GATE_BOUNCE = 1.2;
+function regroupGate(comps, y, hits = GATE_HITS) {
   // 전폭 한 덩어리. 예전엔 벽 길이 상한(300) 때문에 좌우 두 조각으로 나눴는데,
   // 조각마다 부딪힘 횟수를 따로 세다 보니 한쪽만 먼저 뚫려 공이 그 틈으로만 쏠렸다.
   // 하나로 두면 어디를 때리든 같은 카운터가 줄어 관문이 통째로 열린다.
-  comps.push({ type: 'wall', x: WORLD.width / 2, y, props: { length: WORLD.width, angle: 0, breakHits: hits } });
+  comps.push({
+    type: 'wall',
+    x: WORLD.width / 2,
+    y,
+    props: { length: WORLD.width, angle: 0, breakHits: hits, bounce: GATE_BOUNCE },
+  });
 }
 
 // 🎁 아이템 클래식: 익숙한 클래식 핀밭에 아이템을 흩뿌린 기본 맵.
@@ -1146,7 +1150,7 @@ function rouletteComponents() {
   pegRow(c, 1682, 27);
   c.push(cross(300, 1860, 150, 3));
   pegField(c, 2000, 5, { size: 6, gap: 56 }); // 2000~2184
-  regroupGate(c, 2300, 12); // 🎰 룰렛 대기실 — 여기서 순위가 리셋된다
+  regroupGate(c, 2300); // 🎰 룰렛 대기실 — 여기서 순위가 리셋된다
   // 지옥에서 돌아오는 출구 포탈 + 지붕 링(관문에서 떨어지는 공이 닿으면 공짜 골인이 되므로)
   c.push(roofRing(300, 2385));
   c.push(portal(300, 2385, 1)); // 출현 (300,2421)
