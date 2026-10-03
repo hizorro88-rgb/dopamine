@@ -40,15 +40,14 @@ function funnel(H = WORLD.height) {
   return [
     { type: 'wall', x: 115, y: H - 155, props: { length: 290, angle: 27.5 } },
     { type: 'wall', x: 485, y: H - 155, props: { length: 290, angle: -27.5 } },
-    { type: 'wall', x: 232, y: H - 65, props: { length: 70, angle: 90 } },
-    { type: 'wall', x: 368, y: H - 65, props: { length: 70, angle: 90 } },
   ];
 }
 
 /**
- * 🩹 예전 저장본의 깔때기 복구. 배치 하한이 H-100 이던 시절 에디터로 저장(관리자 편집·복사)한
- * 맵은 통로벽(y = H-65)이 H-100 으로 밀려 있다. 그러면 통로벽 위쪽이 사선벽보다 40px 튀어나와
- * 사선을 타고 내려온 공이 그 쐐기에 끼어 골인을 못 한다. 서명이 정확히 일치하는 벽만 제자리로.
+ * 🩹 예전 저장본의 깔때기 정리. 예전 깔때기에는 골인 지점 위에 수직 통로벽 2개
+ * (x = 232 / 368, length 70, angle 90)가 있었는데 지금은 없앴다. 저장된 맵(유저 맵·관리자
+ * 편집본)에 남아 있는 그 벽을 제거한다. 위치가 H-65 이거나, 배치 하한이 H-100 이던 시절
+ * 밀려난 H-100 인 것까지. 서명이 정확히 일치하는 벽만 지운다.
  * @returns {boolean} 고친 게 있으면 true
  */
 function healFunnel(m) {
@@ -59,14 +58,16 @@ function healFunnel(m) {
     (c) => isWall(c) && c.props.length === 290 && Math.abs(c.props.angle) === 27.5 && c.y === H - 155
   );
   if (!hasSlope) return false;
-  let fixed = false;
-  for (const c of comps) {
-    if (!isWall(c) || c.props.length !== 70 || c.props.angle !== 90) continue;
-    if ((c.x !== 232 && c.x !== 368) || c.y !== H - 100) continue;
-    c.y = H - 65;
-    fixed = true;
-  }
-  return fixed;
+  const isPost = (c) =>
+    isWall(c) &&
+    c.props.length === 70 &&
+    c.props.angle === 90 &&
+    (c.x === 232 || c.x === 368) &&
+    (c.y === H - 65 || c.y === H - 100);
+  const kept = comps.filter((c) => !isPost(c));
+  if (kept.length === comps.length) return false;
+  m.components = kept;
+  return true;
 }
 
 function pegRow(comps, y, offset = 0) {
