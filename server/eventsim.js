@@ -254,7 +254,7 @@ async function simulateEvent(mapDef, participants, onProgress = () => {}) {
             ball.plugin.progressY = ball.position.y;
           }
           ball.plugin.stuckSince = simNow;
-        } else if (simNow - ball.plugin.stuckSince > 5000) {
+        } else if (simNow - ball.plugin.stuckSince > 1200) {
           Matter.Body.setVelocity(ball, {
             x: (Math.random() - 0.5) * 11,
             y: -5 - Math.random() * 3,
