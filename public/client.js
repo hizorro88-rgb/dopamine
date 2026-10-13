@@ -1595,7 +1595,7 @@
     mountCheerBar(null);
     setDropCheer(!editorTest && !shared); // 🎬 관람 중엔 다 같이 응원 (테스트·단독 관람 제외)
     editorTestExitBtn().classList.toggle('hidden', !editorTest); // 🧪 에디터 복귀 버튼
-    requestAnimationFrame(renderFrame);
+    startRenderLoop();
   }
 
   // 🧪 맵 테스트: 저장 없이 현재 에디터 맵을 시뮬레이션해 재생
@@ -2234,7 +2234,7 @@
     mountCheerBar(null); // 🎉 낙하 중엔 응원 바를 숨긴다 — 결과창에서 다시 띄운다
     // 중간 합류: 지금까지의 도착 기록을 순위판에 복원
     if (finished) for (const f of finished) appendFinishRow(f);
-    requestAnimationFrame(renderFrame);
+    startRenderLoop();
   }
   // 🔊 소리 토글 (설정은 localStorage 에 저장) + 첫 탭에서 오디오 잠금 해제(iOS)
   {
@@ -3554,7 +3554,16 @@
     ctx.restore();
   }
 
+  // 렌더 루프는 항상 하나만 돈다. 결과창을 닫지 않은 채 다음 판(시리즈·재시작)이 시작되면
+  // 예전 루프가 새 game 을 그대로 이어 그려서, 판마다 루프가 하나씩 늘어 점점 느려졌다.
+  let renderRaf = 0;
+  function startRenderLoop() {
+    if (renderRaf) cancelAnimationFrame(renderRaf);
+    renderRaf = requestAnimationFrame(renderFrame);
+  }
+
   function renderFrame() {
+    renderRaf = 0;
     if (!game) return;
 
     // ── 이벤트 리플레이: 재생 시각에 맞춰 프레임/이벤트 공급 ──
@@ -4381,7 +4390,7 @@
       $('btn-drop').classList.add('hidden');
     }
 
-    requestAnimationFrame(renderFrame);
+    renderRaf = requestAnimationFrame(renderFrame);
   }
 
   // ── 맵 에디터 ─────────────────────────────────────────
